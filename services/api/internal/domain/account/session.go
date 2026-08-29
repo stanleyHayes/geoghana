@@ -165,6 +165,35 @@ func (s Session) Verify(a Account, now time.Time) error {
 	return nil
 }
 
+// VerifyPreMFA runs every session check EXCEPT the MFA stage.
+//
+// It exists for exactly one caller: enrolling a first authenticator on a
+// privileged account, which necessarily happens before MFA can be satisfied.
+// Splitting it out keeps Verify's contract absolute — Verify never returns nil
+// for a session that has not completed MFA — instead of adding a parameter
+// that could be passed wrongly somewhere else.
+func (s Session) VerifyPreMFA(a Account, now time.Time) error {
+	if s.RevokedAt != nil {
+		return ErrSessionRevoked
+	}
+	if a.Disabled {
+		return ErrAccountDisabled
+	}
+	if s.Epoch != a.SessionEpoch {
+		return ErrSessionRevoked
+	}
+	if now.After(s.ExpiresAt) {
+		return ErrSessionExpired
+	}
+	if now.Sub(s.LastUsedAt) > IdleTimeout {
+		return ErrSessionExpired
+	}
+	if s.Role != a.Role {
+		return ErrSessionRevoked
+	}
+	return nil
+}
+
 // Rotate issues a replacement token for the same logical session.
 //
 // Rotation is what turns a stolen token into a detectable event: the thief and
@@ -201,6 +230,9 @@ func (s Session) Elevate(a Account, now time.Time, ua, ip string) (IssuedSession
 	}
 	return Issue(a, StageAuthenticated, now, ua, ip)
 }
+
+// NewID mints a prefixed random identifier for an account, session or token.
+func NewID(prefix string) (string, error) { return randomID(prefix) }
 
 func randomID(prefix string) (string, error) {
 	b := make([]byte, 12)

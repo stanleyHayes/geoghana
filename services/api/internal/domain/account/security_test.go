@@ -389,3 +389,54 @@ func TestTokenComparisonIsConstantTime(t *testing.T) {
 		t.Error("two generated tokens collided")
 	}
 }
+
+// The enrolment exception must stay narrow: VerifyPreMFA skips ONLY the MFA
+// stage, and every other reason to reject a session still applies.
+func TestVerifyPreMFAStillEnforcesEverythingElse(t *testing.T) {
+	a := adminAccount()
+	s, _ := Issue(a, StagePendingMFA, now, "ua", "ip")
+
+	if err := s.Session.VerifyPreMFA(a, now); err != nil {
+		t.Fatalf("a healthy pending session was rejected: %v", err)
+	}
+	// ...and Verify still refuses it, so the exception cannot leak into the
+	// ordinary authentication path.
+	if err := s.Session.Verify(a, now); !errors.Is(err, ErrMFANotSatisfied) {
+		t.Errorf("Verify accepted a pending session: %v", err)
+	}
+
+	t.Run("disabled account", func(t *testing.T) {
+		d := a
+		d.Disabled = true
+		if err := s.Session.VerifyPreMFA(d, now); !errors.Is(err, ErrAccountDisabled) {
+			t.Errorf("got %v", err)
+		}
+	})
+	t.Run("global revocation", func(t *testing.T) {
+		d := a
+		d.SessionEpoch++
+		if err := s.Session.VerifyPreMFA(d, now); !errors.Is(err, ErrSessionRevoked) {
+			t.Errorf("got %v", err)
+		}
+	})
+	t.Run("expired", func(t *testing.T) {
+		if err := s.Session.VerifyPreMFA(a, now.Add(AbsoluteTimeout+time.Hour)); !errors.Is(err, ErrSessionExpired) {
+			t.Errorf("got %v", err)
+		}
+	})
+	t.Run("revoked session", func(t *testing.T) {
+		rev := s.Session
+		at := now
+		rev.RevokedAt = &at
+		if err := rev.VerifyPreMFA(a, now); !errors.Is(err, ErrSessionRevoked) {
+			t.Errorf("got %v", err)
+		}
+	})
+	t.Run("role changed", func(t *testing.T) {
+		d := a
+		d.Role = RoleSuperAdmin
+		if err := s.Session.VerifyPreMFA(d, now); !errors.Is(err, ErrSessionRevoked) {
+			t.Errorf("got %v", err)
+		}
+	})
+}

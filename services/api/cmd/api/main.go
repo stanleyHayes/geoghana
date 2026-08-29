@@ -14,12 +14,14 @@ import (
 	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	redisadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/redis"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
+	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
 	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
 	gqlserver "github.com/ghanageo/ghanageo/services/api/internal/transport/graphql"
 	grpcserver "github.com/ghanageo/ghanageo/services/api/internal/transport/grpc"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/rest"
@@ -91,16 +93,27 @@ func run(cfg config.Config, log *slog.Logger) error {
 		log.Warn("redis unreachable at startup; fair-use limiting will run degraded", "err", err)
 	}
 
+	securityAlerts := securityalert.New(cfg.SecurityAlertWebhookURL, cfg.SecurityAlertWebhookSecret, log)
 	authenticator := auth.New(
 		mongoadapter.NewKeyRepo(store),
 		limiterAdapter{limiter},
 		cfg.Env == "sandbox",
-	)
+	).WithSecurityAlerts(securityAlerts)
 
 	datasetSvc := appdataset.NewService(
 		mongoadapter.NewDatasetRepo(store),
 		cfg.ExportDir,
 	)
+
+	accountSvc := appaccount.NewService(
+		mongoadapter.NewAccountRepo(store),
+		mongoadapter.NewSessionRepo(store),
+		mongoadapter.NewOneTimeTokenRepo(store),
+		mongoadapter.NewAuditRepo(store),
+		nil, // no mailer yet: tokens are logged at WARN for local use
+		log,
+		"GhanaGeo",
+	).WithSecurityAlerts(securityAlerts)
 
 	// One mux so REST and GraphQL share a port, the same authenticator and the
 	// same fair-use accounting. A separate GraphQL server would be a second
@@ -110,6 +123,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		WithStore(store).
 		WithGraphQL(gqlserver.NewHandler(geo, searchSvc)).
 		WithDatasets(datasetSvc).
+		WithAccounts(accountSvc).
 		Routes()
 
 	srv := &http.Server{
@@ -135,7 +149,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// proto/ has been claimed on the marketing site, so it has to be real.
 	grpcSrv := grpcserver.NewServer(geo, searchSvc, store, log)
 	go func() {
-		if err := grpcserver.Serve(ctx, ":"+cfg.GRPCPort, grpcSrv, log); err != nil {
+		if err := grpcserver.Serve(ctx, ":"+cfg.GRPCPort, grpcSrv, authenticator, log); err != nil {
 			errCh <- err
 		}
 	}()

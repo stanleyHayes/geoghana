@@ -46,4 +46,7 @@ const (
 	ColDatasetVersion = "dataset_versions"
 	ColChangeRequests = "change_requests"
 	ColAuditLog       = "audit_log"
+	ColAccounts       = "accounts"
+	ColSessions       = "sessions"
+	ColOneTimeTokens  = "one_time_tokens"
 )

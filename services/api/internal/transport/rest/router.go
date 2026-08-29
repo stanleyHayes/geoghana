@@ -15,6 +15,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 
+	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
 	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	app "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
@@ -31,6 +32,14 @@ type Handler struct {
 	store          *mongoadapter.Store
 	graphql        http.Handler
 	datasets       *appdataset.Service
+	accounts       *appaccount.Service
+}
+
+// WithAccounts attaches account authentication. Absent in unit tests, where
+// the endpoints report that they are not configured rather than panicking.
+func (h *Handler) WithAccounts(a *appaccount.Service) *Handler {
+	h.accounts = a
+	return h
 }
 
 // WithDatasets attaches the dataset catalogue. Absent in unit tests, where the
@@ -118,33 +127,50 @@ func (h *Handler) Routes() http.Handler {
 			// every endpoint below, so no handler can forget to.
 			r.Use(h.auth.Middleware(costOf))
 		}
-		r.Get("/regions", h.listRegions)
-		r.Get("/regions/{id}", h.getRegion)
-		r.Get("/regions/{id}/districts", h.listRegionDistricts)
+		// Account authentication (GEO-9.2). Deliberately NOT behind
+		// RequireScope: these are humans signing in with a session cookie, not
+		// API keys presenting scopes. Every state-changing route is a POST, so
+		// SameSite=Lax on the cookie covers CSRF.
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", h.authRegister)
+			r.Post("/verify", h.authVerifyEmail)
+			r.Post("/login", h.authLogin)
+			r.Post("/mfa/totp", h.authTOTP)
+			r.Post("/mfa/recover", h.authRecover)
+			r.Post("/mfa/enrol", h.authEnrolTOTP)
+			r.Post("/logout", h.authLogout)
+			r.Post("/logout-all", h.authLogoutAll)
+			r.Get("/session", h.authSession)
+			r.Get("/sessions", h.authSessions)
+		})
 
-		r.Get("/districts", h.listDistricts)
-		r.Get("/districts/{id}", h.getDistrict)
-		r.Get("/districts/{id}/places", h.listDistrictPlaces)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/regions", h.listRegions)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/regions/{id}", h.getRegion)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/regions/{id}/districts", h.listRegionDistricts)
 
-		r.Get("/places", h.listPlaces)
-		r.Get("/places/{id}", h.getPlace)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/districts", h.listDistricts)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/districts/{id}", h.getDistrict)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/districts/{id}/places", h.listDistrictPlaces)
 
-		r.Get("/nearby", h.nearby)
-		r.Get("/boundaries/{id}", h.boundary)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/places", h.listPlaces)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/places/{id}", h.getPlace)
+
+		r.With(auth.RequireScope(identity.ScopeGeocodeRead)).Get("/nearby", h.nearby)
+		r.With(auth.RequireScope(identity.ScopeBoundariesRead)).Get("/boundaries/{id}", h.boundary)
 
 		// Bulk downloads (GEO-8.3). Cheaper for a consumer than paginating
 		// the whole dataset, and cheaper for us to serve.
-		r.Get("/datasets", h.listDatasets)
-		r.Get("/datasets/{version}/downloads", h.datasetDownloads)
-		r.Get("/datasets/{version}/downloads/{entity}.{format}", h.datasetArtifact)
+		r.With(auth.RequireScope(identity.ScopeDatasetsRead)).Get("/datasets", h.listDatasets)
+		r.With(auth.RequireScope(identity.ScopeDatasetsRead)).Get("/datasets/{version}/downloads", h.datasetDownloads)
+		r.With(auth.RequireScope(identity.ScopeDatasetsRead)).Get("/datasets/{version}/downloads/{entity}.{format}", h.datasetArtifact)
 
 		// Search surface (EP-12). Registered only when a SearchPort is wired,
 		// so a deployment without one returns 404 rather than a 500.
 		if h.search != nil {
-			r.Get("/search", h.searchHandler)
-			r.Get("/autocomplete", h.autocompleteHandler)
-			r.Get("/geocode", h.geocodeHandler)
-			r.Get("/reverse", h.reverseHandler)
+			r.With(auth.RequireScope(identity.ScopeSearchRead)).Get("/search", h.searchHandler)
+			r.With(auth.RequireScope(identity.ScopeSearchRead)).Get("/autocomplete", h.autocompleteHandler)
+			r.With(auth.RequireScope(identity.ScopeGeocodeRead)).Get("/geocode", h.geocodeHandler)
+			r.With(auth.RequireScope(identity.ScopeGeocodeRead)).Get("/reverse", h.reverseHandler)
 		}
 	})
 
@@ -164,7 +190,7 @@ func (h *Handler) graphqlRoute() http.Handler {
 	}
 	return h.auth.Middleware(func(*http.Request) identity.CostClass {
 		return identity.CostNormal
-	})(h.graphql)
+	})(auth.RequireScope(identity.ScopeGraphQLAccess)(h.graphql))
 }
 
 // ---- middleware ----

@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -71,6 +72,46 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 				{Keys: bson.D{{Key: "prefix", Value: 1}}, Options: options.Index().SetUnique(true)},
 				{Keys: bson.D{{Key: "organizationId", Value: 1}, {Key: "createdAt", Value: -1}}},
 				{Keys: bson.D{{Key: "applicationId", Value: 1}}},
+			},
+		},
+		{
+			name:      ColAccounts,
+			validator: accountSchema(),
+			indexes: []mongo.IndexModel{
+				// Unique on the NORMALIZED email: this is what makes
+				// registration race-safe. Two simultaneous sign-ups for the
+				// same address cannot both win, whatever the handler does.
+				{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "role", Value: 1}}},
+			},
+		},
+		{
+			name:      ColSessions,
+			validator: sessionSchema(),
+			indexes: []mongo.IndexModel{
+				// The lookup on every authenticated request.
+				{Keys: bson.D{{Key: "tokenHash", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "accountId", Value: 1}, {Key: "lastUsedAt", Value: -1}}},
+				// Expired rows are swept by Mongo rather than by a cron we
+				// would have to remember to run. The grace period keeps a
+				// superseded row around long enough for a replay to still be
+				// recognised as theft rather than as an unknown token.
+				{
+					Keys:    bson.D{{Key: "expiresAt", Value: 1}},
+					Options: options.Index().SetExpireAfterSeconds(int32((24 * time.Hour).Seconds())),
+				},
+			},
+		},
+		{
+			name:      ColOneTimeTokens,
+			validator: oneTimeTokenSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "hash", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "accountId", Value: 1}, {Key: "purpose", Value: 1}}},
+				{
+					Keys:    bson.D{{Key: "expiresAt", Value: 1}},
+					Options: options.Index().SetExpireAfterSeconds(int32((48 * time.Hour).Seconds())),
+				},
 			},
 		},
 		{
@@ -289,6 +330,56 @@ func apiKeySchema() bson.M {
 			"revokedAt":      bson.M{"bsonType": []string{"date", "null"}},
 			"elevated":       bson.M{"bsonType": []string{"bool", "null"}},
 			"elevatedReason": bson.M{"bsonType": []string{"string", "null"}},
+		},
+	}}
+}
+
+func accountSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "email", "emailVerified", "role", "sessionEpoch"},
+		"properties": bson.M{
+			"_id":           bson.M{"bsonType": "string"},
+			"email":         bson.M{"bsonType": "string"},
+			"emailVerified": bson.M{"bsonType": "bool"},
+			"passwordHash":  bson.M{"bsonType": []string{"string", "null"}},
+			"role": bson.M{"enum": []string{
+				"DEVELOPER", "SUPER_ADMIN", "DATA_ADMIN", "DATA_REVIEWER",
+				"DATA_CONTRIBUTOR", "DEVELOPER_SUPPORT", "SECURITY_AUDITOR",
+			}},
+			"disabled":     bson.M{"bsonType": []string{"bool", "null"}},
+			"sessionEpoch": bson.M{"bsonType": []string{"int", "long"}},
+		},
+	}}
+}
+
+func sessionSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "accountId", "role", "stage", "tokenHash", "epoch", "expiresAt"},
+		"properties": bson.M{
+			"_id":       bson.M{"bsonType": "string"},
+			"accountId": bson.M{"bsonType": "string"},
+			"stage":     bson.M{"enum": []string{"pending_mfa", "authenticated"}},
+			// Only the hash is ever stored; a raw token in this collection
+			// would turn a database leak into live sessions.
+			"tokenHash": bson.M{"bsonType": "string"},
+			"epoch":     bson.M{"bsonType": []string{"int", "long"}},
+			"expiresAt": bson.M{"bsonType": "date"},
+		},
+	}}
+}
+
+func oneTimeTokenSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "accountId", "purpose", "hash", "expiresAt"},
+		"properties": bson.M{
+			"_id":       bson.M{"bsonType": "string"},
+			"accountId": bson.M{"bsonType": "string"},
+			"purpose":   bson.M{"enum": []string{"email_verification", "password_reset", "mfa_recovery"}},
+			"hash":      bson.M{"bsonType": "string"},
+			"expiresAt": bson.M{"bsonType": "date"},
 		},
 	}}
 }
