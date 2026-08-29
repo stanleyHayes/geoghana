@@ -49,6 +49,9 @@ Usage:
   ghanageo-admin data export [--version <v>] [--dir <path>]
   ghanageo-admin audit list [--actor <id>] [--action <a>] [--target <id>] [--limit N]
   ghanageo-admin audit verify
+  ghanageo-admin dataset history
+  ghanageo-admin dataset publish  --version <v>
+  ghanageo-admin dataset rollback --to <v>
   ghanageo migrate
 `)
 }
@@ -88,6 +91,19 @@ func run(args []string) error {
 			return cmdDedupe(ctx, args[2:])
 		case "export":
 			return cmdExport(ctx, args[2:])
+		}
+	case "dataset":
+		if len(args) < 2 {
+			usage()
+			return fmt.Errorf("dataset: no subcommand")
+		}
+		switch args[1] {
+		case "history":
+			return cmdDatasetHistory(ctx)
+		case "publish":
+			return cmdDatasetPublish(ctx, args[2:])
+		case "rollback":
+			return cmdDatasetRollback(ctx, args[2:])
 		}
 	case "audit":
 		if len(args) < 2 {
@@ -315,7 +331,7 @@ func cmdExport(ctx context.Context, args []string) error {
 		fmt.Printf("  %-10s %-8s %8d records  %9d bytes  %s\n",
 			a.Entity, a.Format, a.RecordCount, a.SizeBytes, a.SHA256[:12])
 	}
-	recordAudit(ctx, store, audit.ActionDatasetPublished,
+	recordAudit(ctx, store, audit.ActionDatasetExported,
 		audit.Target{Kind: "dataset", ID: v.Version, Label: v.Version},
 		nil,
 		map[string]any{
@@ -324,8 +340,108 @@ func cmdExport(ctx context.Context, args []string) error {
 		},
 		nil)
 
-	fmt.Printf("✓ %d artifacts, %d bytes total, published as %s\n",
+	fmt.Printf("✓ %d artifacts, %d bytes total, built as %s (approved, not live)\n",
 		len(v.Artifacts), total, v.Version)
+	fmt.Printf("  publish it with: ghanageo-admin dataset publish --version %s\n", v.Version)
+	return nil
+}
+
+func datasetService(store *mongo.Store, cfg config.Config) *dataset.Service {
+	return dataset.NewService(mongo.NewDatasetRepo(store), cfg.ExportDir)
+}
+
+func cmdDatasetHistory(ctx context.Context) error {
+	store, cfg, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	versions, err := datasetService(store, cfg).History(ctx)
+	if err != nil {
+		return err
+	}
+	if len(versions) == 0 {
+		fmt.Println("no dataset versions recorded")
+		return nil
+	}
+	fmt.Printf("%-22s  %-12s  %-22s  %s\n", "VERSION", "STATUS", "PUBLISHED", "ARTIFACTS")
+	for _, v := range versions {
+		mark := " "
+		if v.Status.Published() {
+			mark = "→"
+		}
+		fmt.Printf("%s %-20s  %-12s  %-22s  %d\n",
+			mark, v.Version, v.Status, v.PublishedAt, len(v.Artifacts))
+	}
+	return nil
+}
+
+func cmdDatasetPublish(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("dataset publish", flag.ContinueOnError)
+	version := fs.String("version", "", "version to publish")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *version == "" {
+		return fmt.Errorf("--version is required")
+	}
+
+	store, cfg, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	v, pubErr := datasetService(store, cfg).Publish(ctx, *version, time.Now().UTC().Format(time.RFC3339))
+	recordAudit(ctx, store, audit.ActionDatasetPublished,
+		audit.Target{Kind: "dataset", ID: *version, Label: *version},
+		nil, map[string]any{"artifacts": len(v.Artifacts)}, pubErr)
+	if pubErr != nil {
+		return pubErr
+	}
+	fmt.Printf("✓ %s is now the published dataset\n", v.Version)
+	return nil
+}
+
+// cmdDatasetRollback restores a previous version.
+//
+// Audited whether or not it succeeds: an ATTEMPTED rollback is exactly the
+// kind of privileged action a review needs to see, including the ones that
+// were refused.
+func cmdDatasetRollback(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("dataset rollback", flag.ContinueOnError)
+	to := fs.String("to", "", "version to roll back to")
+	reason := fs.String("reason", "", "why (recorded in the audit log)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *to == "" {
+		return fmt.Errorf("--to is required")
+	}
+
+	store, cfg, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	from, restored, rbErr := datasetService(store, cfg).Rollback(ctx, *to, time.Now().UTC().Format(time.RFC3339))
+
+	before := map[string]any{"published": from.Version}
+	after := map[string]any{"published": *to}
+	if *reason != "" {
+		after["reason"] = *reason
+	}
+	recordAudit(ctx, store, audit.ActionDatasetRolledBk,
+		audit.Target{Kind: "dataset", ID: *to, Label: *to}, before, after, rbErr)
+	if rbErr != nil {
+		return rbErr
+	}
+	fmt.Printf("✓ rolled back: %s → %s\n", from.Version, restored.Version)
+	if *reason == "" {
+		fmt.Println("  note: no --reason was given, so the audit row records none.")
+	}
 	return nil
 }
 

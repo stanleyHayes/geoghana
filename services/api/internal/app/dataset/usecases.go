@@ -17,6 +17,7 @@ import (
 // Repository is the persistence port for dataset versions.
 type Repository interface {
 	ListPublished(ctx context.Context) ([]domain.Version, error)
+	ListAll(ctx context.Context) ([]domain.Version, error)
 	Get(ctx context.Context, version string) (*domain.Version, error)
 	Upsert(ctx context.Context, v domain.Version) error
 }
@@ -124,4 +125,108 @@ func isUnder(path, root string) bool {
 	}
 	return rel != ".." && !filepath.IsAbs(rel) &&
 		!(len(rel) >= 3 && rel[:3] == ".."+string(filepath.Separator))
+}
+
+// Publish marks a version live, demoting whichever version was live before.
+//
+// Exactly one version is published at a time. Two live versions would make
+// "the current dataset" ambiguous, and every consumer pinning to it would get
+// a different answer depending on ordering.
+func (s *Service) Publish(ctx context.Context, version, at string) (domain.Version, error) {
+	v, err := s.repo.Get(ctx, version)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.Version{}, apierr.New(apierr.NotFound, "No such dataset version.").
+			WithDetail("version", version)
+	}
+	if err != nil {
+		return domain.Version{}, apierr.Wrap(apierr.Internal, "Could not read the version.", err)
+	}
+	if len(v.Artifacts) == 0 {
+		// Publishing a version with no downloads would advertise a release
+		// nobody can actually consume.
+		return domain.Version{}, apierr.New(apierr.InvalidArgument,
+			"That version has no artifacts. Build them first with `data export`.")
+	}
+	// Demote whatever is live first. Without this the catalogue can hold two
+	// published versions, and "the current dataset" stops having an answer —
+	// which is precisely what a versioned public dataset exists to prevent.
+	live, err := s.repo.ListPublished(ctx)
+	if err != nil {
+		return domain.Version{}, apierr.Wrap(apierr.Internal, "Could not read the catalogue.", err)
+	}
+	for _, c := range live {
+		if c.Version == version {
+			continue
+		}
+		c.Status = domain.StatusRolledBack
+		if err := s.repo.Upsert(ctx, c); err != nil {
+			return domain.Version{}, apierr.Wrap(apierr.Internal, "Could not demote the previous version.", err)
+		}
+	}
+
+	v.Status = domain.StatusPublished
+	v.PublishedAt = at
+	if err := s.repo.Upsert(ctx, *v); err != nil {
+		return domain.Version{}, apierr.Wrap(apierr.Internal, "Could not publish.", err)
+	}
+	return *v, nil
+}
+
+// Rollback restores a previously published version as the live one.
+//
+// The version being rolled back FROM is marked rolled_back rather than
+// deleted, so the history of what was live and when survives — that record is
+// the whole point of versioning a public dataset.
+func (s *Service) Rollback(ctx context.Context, to, at string) (from, restored domain.Version, err error) {
+	target, err := s.repo.Get(ctx, to)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.Version{}, domain.Version{}, apierr.New(apierr.NotFound,
+			"No such dataset version.").WithDetail("version", to)
+	}
+	if err != nil {
+		return domain.Version{}, domain.Version{}, apierr.Wrap(apierr.Internal, "Could not read the version.", err)
+	}
+	if len(target.Artifacts) == 0 {
+		return domain.Version{}, domain.Version{}, apierr.New(apierr.InvalidArgument,
+			"That version has no artifacts to roll back to.")
+	}
+
+	current, err := s.repo.ListPublished(ctx)
+	if err != nil {
+		return domain.Version{}, domain.Version{}, apierr.Wrap(apierr.Internal, "Could not read the catalogue.", err)
+	}
+	for _, c := range current {
+		if c.Version == to {
+			return domain.Version{}, domain.Version{}, apierr.New(apierr.InvalidArgument,
+				"That version is already the published one.")
+		}
+	}
+
+	// Demote first. If the second write fails the catalogue is briefly empty,
+	// which a consumer can detect; promoting first could leave TWO published
+	// versions, which they cannot.
+	var previous domain.Version
+	for _, c := range current {
+		c.Status = domain.StatusRolledBack
+		if err := s.repo.Upsert(ctx, c); err != nil {
+			return domain.Version{}, domain.Version{}, apierr.Wrap(apierr.Internal, "Could not roll back.", err)
+		}
+		previous = c
+	}
+
+	target.Status = domain.StatusPublished
+	target.PublishedAt = at
+	if err := s.repo.Upsert(ctx, *target); err != nil {
+		return domain.Version{}, domain.Version{}, apierr.Wrap(apierr.Internal, "Could not roll back.", err)
+	}
+	return previous, *target, nil
+}
+
+// History lists every version regardless of status, newest first.
+func (s *Service) History(ctx context.Context) ([]domain.Version, error) {
+	vs, err := s.repo.ListAll(ctx)
+	if err != nil {
+		return nil, apierr.Wrap(apierr.Internal, "Could not read the catalogue.", err)
+	}
+	return vs, nil
 }

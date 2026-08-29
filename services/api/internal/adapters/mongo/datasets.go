@@ -115,6 +115,28 @@ func (r *DatasetRepo) ListPublished(ctx context.Context) ([]dataset.Version, err
 	return out, cur.Err()
 }
 
+// ListAll returns every version, newest first, whatever its status. Used by
+// the operator history view and by rollback, which needs to see versions that
+// are not currently live.
+func (r *DatasetRepo) ListAll(ctx context.Context) ([]dataset.Version, error) {
+	cur, err := r.col().Find(ctx, bson.M{},
+		options.Find().SetSort(bson.D{{Key: "publishedAt", Value: -1}, {Key: "_id", Value: -1}}))
+	if err != nil {
+		return nil, fmt.Errorf("list dataset versions: %w", err)
+	}
+	defer func() { _ = cur.Close(ctx) }()
+
+	var out []dataset.Version
+	for cur.Next(ctx) {
+		var d datasetDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, fmt.Errorf("decode dataset version: %w", err)
+		}
+		out = append(out, d.toDomain())
+	}
+	return out, cur.Err()
+}
+
 // Get returns one version regardless of status; the caller decides whether a
 // non-published version may be served.
 func (r *DatasetRepo) Get(ctx context.Context, version string) (*dataset.Version, error) {

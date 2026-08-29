@@ -144,8 +144,13 @@ func (b *Builder) Build(ctx context.Context, version, generatedAt string) (domai
 	}
 
 	v := domain.Version{
-		Version:     version,
-		Status:      domain.StatusPublished,
+		Version: version,
+		// Built, not live. Publishing is a SEPARATE, audited decision:
+		// generating files and declaring them the canonical dataset are
+		// different acts, and conflating them meant every export silently
+		// became the published version — which is how the catalogue ended up
+		// with two live versions at once.
+		Status:      domain.StatusApproved,
 		PublishedAt: generatedAt,
 		Counts: map[string]int64{
 			"regions": int64(len(regions)), "districts": int64(len(districts)),
