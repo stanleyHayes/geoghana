@@ -1,4 +1,5 @@
-import { Card, Badge, Logo, SupportPanel, SponsorWall } from "@ghanageo/ui";
+import { Card, Badge, SupportPanel, SponsorWall } from "@ghanageo/ui";
+import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { Heart, Server, Database, Download } from "lucide-react";
 
 export const metadata = {
@@ -21,15 +22,7 @@ const COSTS = [
 export default function Support() {
   return (
     <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
-      <header className="gg-navbar" data-intensity="balanced">
-        <div className="gg-navbar__left">
-          <a href="/" className="gg-logo-link" style={{ textDecoration: "none" }}><Logo size={22} /></a>
-        </div>
-        <div className="gg-navbar__right">
-          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="/about">About</a>
-          <a className="gg-button gg-button--ghost gg-button--sm" href="/">Home</a>
-        </div>
-      </header>
+      <MarketingHeader active="/support" />
 
       <main id="main" className="gg-page gg-page--narrow">
         <p style={{ fontSize: "var(--text-2xs)", letterSpacing: ".16em", textTransform: "uppercase",
@@ -142,13 +135,12 @@ export default function Support() {
         ]} />
       </main>
 
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "var(--space-8) var(--space-4)",
-                       color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-        <div className="gg-page gg-page--narrow" style={{ padding: 0 }}>
+      <MarketingFooter>
+        <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
           <Heart size={14} style={{ display: "inline", verticalAlign: "-2px", marginInlineEnd: 6 }} aria-hidden />
           Free public infrastructure for Ghana.
-        </div>
-      </footer>
+        </p>
+      </MarketingFooter>
     </div>
   );
 }

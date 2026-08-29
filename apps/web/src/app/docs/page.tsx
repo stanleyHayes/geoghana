@@ -1,4 +1,5 @@
-import { Card, Badge, Logo } from "@ghanageo/ui";
+import { Card, Badge } from "@ghanageo/ui";
+import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { Terminal, Code2, Package, Boxes, ExternalLink } from "lucide-react";
 
 export const metadata = {
@@ -62,15 +63,7 @@ const ENDPOINTS = [
 export default function Docs() {
   return (
     <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
-      <header className="gg-navbar" data-intensity="balanced">
-        <div className="gg-navbar__left">
-          <a href="/" className="gg-logo-link" style={{ textDecoration: "none" }}><Logo size={22} suffix="Docs" /></a>
-        </div>
-        <div className="gg-navbar__right">
-          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="/about">About</a>
-          <a className="gg-button gg-button--primary gg-button--sm" href="http://localhost:3101">Sandbox</a>
-        </div>
-      </header>
+      <MarketingHeader active="/docs" />
 
       <main id="main" className="gg-page gg-page--mid">
         <h1 className="gg-hero__title" style={{ maxWidth: "22ch" }}>Documentation</h1>
@@ -81,7 +74,9 @@ export default function Docs() {
 
         <section style={{ marginBottom: "var(--space-12)" }}>
           <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>Quick starts</h2>
-          <div className="gg-auto-grid">
+          {/* Two across, not auto-fit: these cards are sized by their code
+              samples, and four across clips every one of them. */}
+          <div className="gg-auto-grid gg-auto-grid--pair">
             {QUICKSTARTS.map((q) => (
               <Card key={q.title}>
                 <div className="gg-stack-row" style={{ marginBottom: "var(--space-2)" }}>
@@ -91,10 +86,7 @@ export default function Docs() {
                 </div>
                 <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)",
                             margin: "0 0 var(--space-3)" }}>{q.body}</p>
-                <pre style={{ margin: 0, padding: "var(--space-3)", background: "var(--bg-subtle)",
-                              border: "1px solid var(--border)", borderRadius: "var(--mat-radius-sm)",
-                              fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)",
-                              lineHeight: 1.7 }}>{q.code}</pre>
+                <pre className="gg-code">{q.code}</pre>
               </Card>
             ))}
           </div>
@@ -148,9 +140,7 @@ export default function Docs() {
             documentation page. Branch on <code style={{ fontFamily: "var(--font-mono)" }}>code</code>,
             never on the message text.
           </p>
-          <pre style={{ margin: 0, padding: "var(--space-4)", background: "var(--bg-subtle)",
-                        border: "1px solid var(--border)", borderRadius: "var(--mat-radius-sm)",
-                        fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", lineHeight: 1.7 }}>
+          <pre className="gg-code gg-code--lg">
 {`{
   "error": {
     "code": "RESOURCE_GONE",
@@ -170,12 +160,7 @@ export default function Docs() {
         </section>
       </main>
 
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "var(--space-8) var(--space-4)",
-                       color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-        <div className="gg-page gg-page--mid" style={{ padding: 0 }}>
-          Contains data from GeoNames and geoBoundaries, licensed CC BY 4.0.
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }

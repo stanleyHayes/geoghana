@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Card, Badge, Logo, SupportPanel, SponsorWall, SkipLink, verificationTone } from "@ghanageo/ui";
+import { Card, Badge, SupportPanel, SponsorWall, SkipLink, verificationTone } from "@ghanageo/ui";
+import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { Globe, Search, Terminal, Zap, ShieldCheck, Scale } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
@@ -47,19 +48,7 @@ export default function Home() {
     <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
       <SkipLink />
 
-      <header className="gg-navbar" data-intensity="balanced">
-        <div className="gg-navbar__left">
-          <a href="/" className="gg-logo-link" style={{ textDecoration: "none" }}><Logo size={24} /></a>
-          <span className="gg-navbar__hide-sm"
-                style={{ fontSize: "var(--text-2xs)", letterSpacing: ".14em", textTransform: "uppercase",
-                         color: "var(--fg-subtle)", fontWeight: 700 }}>digitalghana.dev</span>
-        </div>
-        <div className="gg-navbar__right">
-          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="/about">About</a>
-          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-sm" href="/support">Support</a>
-          <a className="gg-button gg-button--primary gg-button--sm" href="http://localhost:3101">Sandbox</a>
-        </div>
-      </header>
+      <MarketingHeader active="/" />
 
       <main id="main" className="gg-page gg-page--mid">
         <section style={{ marginBottom: "var(--space-16)" }}>
@@ -191,18 +180,12 @@ export default function Home() {
         </section>
       </main>
 
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "var(--space-8) var(--space-4)",
-                       color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-        <div className="gg-page gg-page--mid" style={{ padding: 0 }}>
-          <p style={{ margin: 0 }}>
-            GhanaGeo is the first product on <strong>digitalghana.dev</strong> — public digital
-            infrastructure for Ghana.
-          </p>
-          <p style={{ margin: "var(--space-2) 0 0", fontSize: "var(--text-xs)" }}>
-            Contains data from GeoNames and geoBoundaries, licensed CC BY 4.0.
-          </p>
-        </div>
-      </footer>
+      <MarketingFooter>
+        <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
+          GhanaGeo is the first product on <strong>digitalghana.dev</strong> — public digital
+          infrastructure for Ghana.
+        </p>
+      </MarketingFooter>
     </div>
   );
 }

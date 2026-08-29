@@ -108,6 +108,8 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-12.1–12.4 | EP-12 Search | ✅ **Done** | Claude | Typesense SearchPort; search, autocomplete, geocode, reverse. Domain relevance scoring replaced the engine's unusable score. |
 | GEO-29.1–29.4 | EP-16b Support | 🟡 Partial | Claude | SupportPanel and SponsorWall built and rendering; the public support page and transparency report need `apps/web`. |
 | GEO-12.5–12.6 | EP-12 Search | ⬜ Next | unassigned | Nearby via the search path, and the p95 load gate. Blocked on coordinates (GEO-4.6/4.7). |
+| GEO-18.NAV | EP-18 Marketing & Docs | 🟡 **In progress** | Codex (L8) | Redesigning the marketing navbar and footer across every public route; app-local work only, preserving the L7 shared-component lane. |
+| GEO-15.UX | EP-15 Sandbox | 🟡 **In progress** | Codex (L9) | Reworking the sandbox into a clearer request workspace with stronger navigation, response states, snippets and footer. |
 | GEO-13.8 | EP-13b Public CLI | ✅ **Done** | Claude | 9 commands, table/JSON/CSV, 7 platform binaries, npm wrapper. No API key required. |
 | GEO-13.9 | EP-13b Public CLI | ⬜ Next | unassigned | Release automation: tag → cross-compile → npm + Homebrew + checksums. |
 | GEO-9.1–9.6 | EP-09 Identity | ✅ **Done** | Claude | Keys (argon2id, secret shown once), browser-key safety rules, anonymous-as-identity, Redis token bucket, cost classes, limit headers, immediate revocation. Verified live: 429 under concurrent load, 401 on revoke, no prefix enumeration. |

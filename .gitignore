@@ -46,3 +46,6 @@ next-env.d.ts
 cli/dist/
 bin/
 .dev-logs/
+
+# Local agent tooling scratch, not project source
+skill-observations/

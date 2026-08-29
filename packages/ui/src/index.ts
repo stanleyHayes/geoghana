@@ -5,6 +5,7 @@ export * from "./components/forms";
 export * from "./shell";
 export * from "./theme/provider";
 export * from "./theme/picker";
+export * from "./theme/menu";
 export * from "./theme/types";
 export {
   clampBrand, contrastRatio, oklchToRgb, relativeLuminance,

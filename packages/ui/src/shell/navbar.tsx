@@ -2,10 +2,10 @@
 
 import {
   Activity, Bell, ChevronRight, CircleHelp, ClipboardCheck, Grid3x3, Menu,
-  Heart, Moon, Package, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun,
+  Heart, Package, PanelLeftClose, PanelLeftOpen, Plus, Search,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useTheme } from "../theme/provider";
+import { ThemeMenu } from "../theme/menu";
 import { cn } from "../lib/utils";
 
 export interface Crumb {
@@ -43,8 +43,6 @@ export function Navbar({
   reviewCount, notificationCount, userMenu, canCreate = true,
   supportHref = "/support",
 }: NavbarProps) {
-  const { resolvedMode, toggleMode } = useTheme();
-
   return (
     <header
       className={cn("gg-navbar", environment === "production" && "gg-navbar--production")}
@@ -167,15 +165,10 @@ export function Navbar({
           <CircleHelp size={18} aria-hidden />
         </button>
 
-        {/* The signature interaction: a circular wipe from the click point. */}
-        <button
-          className="gg-button gg-button--ghost gg-button--icon"
-          onClick={(e) => toggleMode({ x: e.clientX, y: e.clientY })}
-          aria-label={resolvedMode === "dark" ? "Use light theme" : "Use dark theme"}
-          title={resolvedMode === "dark" ? "Use light theme" : "Use dark theme"}
-        >
-          {resolvedMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
+        {/* All three axes, not just mode — the same control every other app
+            carries, so the theme lives in one place across the platform. The
+            signature circular wipe still fires from the click point inside it. */}
+        <ThemeMenu />
 
         {userMenu}
       </div>

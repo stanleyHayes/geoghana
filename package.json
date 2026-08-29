@@ -11,7 +11,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "seed": "cd services/api && go run ./cmd/ghanageo-admin data seed --file ../../data/seed-data/manifest.json"
+    "seed": "cd services/api && go run ./cmd/ghanageo-admin data seed --file ../../data/seed-data/manifest.json",
+    "check:links": "node scripts/check-links.mjs"
   },
   "devDependencies": {
     "graphql": "16.13.0",

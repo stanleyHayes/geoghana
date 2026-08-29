@@ -1,5 +1,6 @@
-import { Card, Badge, Logo } from "@ghanageo/ui";
-import { Globe, ExternalLink } from "lucide-react";
+import { Card, Badge } from "@ghanageo/ui";
+import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
+import { ExternalLink } from "lucide-react";
 import { VISION, MISSION, CONTEXT, PLATFORM, AUDIENCES, UNVERIFIED } from "@/content/about";
 
 export const metadata = {
@@ -11,15 +12,7 @@ export const metadata = {
 export default function About() {
   return (
     <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
-      <header className="gg-navbar" data-intensity="balanced">
-        <div className="gg-navbar__left">
-          <a href="/" className="gg-logo-link" style={{ textDecoration: "none" }}><Logo size={22} /></a>
-        </div>
-        <div className="gg-navbar__right">
-          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="/">Home</a>
-          <a className="gg-button gg-button--primary gg-button--sm" href="http://localhost:3101">Sandbox</a>
-        </div>
-      </header>
+      <MarketingHeader active="/about" />
 
       <main id="main" className="gg-page gg-page--narrow">
         <section style={{ marginBottom: "var(--space-16)" }}>
@@ -128,12 +121,7 @@ export default function About() {
         </section>
       </main>
 
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "var(--space-8) var(--space-6)",
-                       color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-        <div className="gg-page gg-page--narrow" style={{ padding: 0 }}>
-          Contains data from GeoNames and geoBoundaries, licensed CC BY 4.0.
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }

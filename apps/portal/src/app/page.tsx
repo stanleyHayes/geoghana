@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Badge, Logo, SkipLink, SupportPanel } from "@ghanageo/ui";
+import { Card, Badge, Logo, SkipLink, SupportPanel, ThemeMenu } from "@ghanageo/ui";
 import { Globe, KeyRound, Activity, BookOpen, ShieldCheck } from "lucide-react";
 
 export default function Portal() {
@@ -15,6 +15,7 @@ export default function Portal() {
         </div>
         <div className="gg-navbar__right">
           <a className="gg-button gg-button--ghost gg-button--sm" href="http://localhost:3101">Sandbox</a>
+          <ThemeMenu />
           <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="http://localhost:3100">Home</a>
         </div>
       </header>
@@ -46,10 +47,7 @@ export default function Portal() {
 
         <Card style={{ marginBottom: "var(--space-8)" }}>
           <p style={{ fontWeight: 650, margin: "0 0 var(--space-2)" }}>Start without an account</p>
-          <pre style={{ margin: 0, padding: "var(--space-3)", background: "var(--bg-subtle)",
-                        border: "1px solid var(--border)", borderRadius: "var(--mat-radius-sm)",
-                        fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", lineHeight: 1.7,
-                        overflowX: "auto" }}>
+          <pre className="gg-code">
 {`curl "https://api.geo.digitalghana.dev/v1/search?q=osu"
 
 npx ghanageo search "tema comm"

@@ -1,136 +1,146 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { Card, Badge, Logo, SkipLink } from "@ghanageo/ui";
-import { Play, Terminal, Globe } from "lucide-react";
+import { Badge, SkipLink, ThemeMenu } from "@ghanageo/ui";
+import { ArrowLeft, Braces, Check, ChevronRight, Clock3, Code2, Copy, ExternalLink, FlaskConical, Gauge, Play, RotateCcw, Search, Sparkles, Terminal } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
-
-/** Sample queries from Spec §15, chosen because each demonstrates something
- *  specific rather than just returning a result. */
 const SAMPLES = [
-  { label: "Search with a typo", path: "/search?q=kumsai", why: "Typo tolerance: finds Kumasi" },
-  { label: "Abbreviation", path: "/search?q=tema%20comm", why: "“comm” expands to “community”" },
-  { label: "Ghanaian orthography", path: "/search?q=kwabenya", why: "Matches Kwabɛnya" },
-  { label: "Reverse geocode", path: "/reverse?lat=6.688&lng=-1.624", why: "Kumasi → region + district" },
-  { label: "Nearby", path: "/nearby?lat=5.556&lng=-0.182&radius=2000", why: "Places around central Accra" },
-  { label: "Boundary", path: "/boundaries/gh-region-greater-accra", why: "GeoJSON polygon" },
-  { label: "List regions", path: "/regions?limit=5", why: "Cursor pagination" },
-];
+  { label: "Kumasi, misspelled", path: "/search?q=kumsai", group: "Search", why: "Typo-tolerant ranking" },
+  { label: "Tema communities", path: "/search?q=tema%20comm", group: "Search", why: "Ghanaian abbreviations" },
+  { label: "Kwabɛnya", path: "/search?q=kwabenya", group: "Search", why: "Orthography folding" },
+  { label: "Reverse in Kumasi", path: "/reverse?lat=6.688&lng=-1.624", group: "Spatial", why: "Coordinates to district" },
+  { label: "Nearby central Accra", path: "/nearby?lat=5.556&lng=-0.182&radius=2000", group: "Spatial", why: "Places within 2 km" },
+  { label: "Greater Accra boundary", path: "/boundaries/gh-region-greater-accra", group: "Spatial", why: "GeoJSON boundary" },
+  { label: "First five regions", path: "/regions?limit=5", group: "Browse", why: "Cursor pagination" },
+] as const;
+
+type Snippet = "curl" | "javascript" | "go";
+type Run = { path: string; status: number | null; ms: number; at: string };
+
+function snippets(path: string): Record<Snippet, string> {
+  const url = `${API}${path}`;
+  return {
+    curl: `curl --request GET \\\n  --url "${url}" \\\n  --header "Accept: application/json"`,
+    javascript: `const response = await fetch("${url}", {
+  headers: { Accept: "application/json" },
+});
+
+const result = await response.json();`,
+    go: `req, _ := http.NewRequest(http.MethodGet, "${url}", nil)
+req.Header.Set("Accept", "application/json")
+
+response, err := http.DefaultClient.Do(req)`,
+  };
+}
 
 export default function Sandbox() {
-  const [path, setPath] = useState(SAMPLES[0]!.path);
+  const [path, setPath] = useState<string>(SAMPLES[0].path);
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<number | null>(null);
   const [ms, setMs] = useState<number | null>(null);
   const [cost, setCost] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const [snippet, setSnippet] = useState<Snippet>("curl");
+  const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<Run[]>([]);
+  const code = useMemo(() => snippets(path)[snippet], [path, snippet]);
 
-  const send = useCallback(async (p: string) => {
+  const send = useCallback(async (requestPath: string) => {
+    setPath(requestPath);
     setBusy(true);
-    const t0 = performance.now();
+    setError(false);
+    const started = performance.now();
     try {
-      const res = await fetch(API + p);
-      setStatus(res.status);
-      setCost(res.headers.get("X-RateLimit-Cost"));
-      const json = await res.json();
-      setBody(JSON.stringify(json, null, 2));
-    } catch (err) {
+      const response = await fetch(API + requestPath);
+      const elapsed = Math.round(performance.now() - started);
+      setStatus(response.status);
+      setMs(elapsed);
+      setCost(response.headers.get("X-RateLimit-Cost"));
+      const text = await response.text();
+      try { setBody(JSON.stringify(JSON.parse(text), null, 2)); }
+      catch { setBody(text || "The server returned an empty response."); }
+      setError(!response.ok);
+      setHistory((items) => [{ path: requestPath, status: response.status, ms: elapsed, at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...items.filter((item) => item.path !== requestPath)].slice(0, 4));
+    } catch (reason) {
+      const elapsed = Math.round(performance.now() - started);
       setStatus(null);
-      setBody(`Could not reach ${API}\n\n${String(err)}`);
-    } finally {
-      setMs(Math.round(performance.now() - t0));
-      setBusy(false);
-    }
+      setMs(elapsed);
+      setError(true);
+      setBody(`Could not reach ${API}\n\n${String(reason)}`);
+      setHistory((items) => [{ path: requestPath, status: null, ms: elapsed, at: "now" }, ...items].slice(0, 4));
+    } finally { setBusy(false); }
   }, []);
 
+  async function copySnippet() {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
+
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
+    <div className="sandbox-shell" data-intensity="balanced">
       <SkipLink />
-      <header className="gg-navbar" data-intensity="balanced">
-        <div className="gg-navbar__left">
-          <a href="http://localhost:3100" className="gg-logo-link" style={{ textDecoration: "none" }}>
-            <Logo size={22} suffix="Sandbox" />
-          </a>
-        </div>
-        <div className="gg-navbar__right">
-          <span className="gg-env gg-env--sandbox">Sandbox</span>
-          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="http://localhost:3100">Home</a>
+      <header className="sandbox-header">
+        <a className="sandbox-brand" href="http://localhost:3100" aria-label="Back to GhanaGeo">
+          <span className="sandbox-brand__mark" aria-hidden>GG</span>
+          <span><strong>GhanaGeo</strong><small>API sandbox</small></span>
+        </a>
+        <nav className="sandbox-protocols" aria-label="Protocol">
+          <button type="button" aria-current="page">REST</button>
+          <button type="button" disabled title="GraphQL explorer is planned in GEO-15.3">GraphQL <small>soon</small></button>
+          <button type="button" disabled title="gRPC playground depends on GEO-11.4">gRPC <small>soon</small></button>
+        </nav>
+        <div className="sandbox-header__actions">
+          <span className="sandbox-live"><i aria-hidden /> Public API</span>
+          <ThemeMenu />
+          <a className="sandbox-home" href="http://localhost:3100"><ArrowLeft size={15} aria-hidden /> <span>Website</span></a>
         </div>
       </header>
 
-      <main id="main" className="gg-page">
-        <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-2)" }}>Try it, no account needed</h1>
-        <p style={{ color: "var(--fg-muted)", margin: "0 0 var(--space-6)", maxWidth: "62ch" }}>
-          These requests run against the live API with no credential at all. GhanaGeo is
-          free — anonymous access is a supported path, not a trial.
-        </p>
-
-        {/* Was a fixed two-column grid, which stayed two columns at 320px and
-            pushed the response panel off-screen. */}
-        <div className="gg-split">
-          <div style={{ display: "grid", gap: "var(--space-2)" }}>
-            {SAMPLES.map((s) => (
-              <button key={s.path}
-                onClick={() => { setPath(s.path); void send(s.path); }}
-                className="gg-card"
-                style={{ textAlign: "start", cursor: "pointer", padding: "var(--space-3) var(--space-4)",
-                         border: path === s.path ? "1px solid var(--brand)" : undefined }}>
-                <span style={{ fontWeight: 650, fontSize: "var(--text-sm)" }}>{s.label}</span>
-                <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)",
-                               marginTop: 2 }}>{s.why}</span>
+      <main id="main" className="sandbox-main">
+        <aside className="sandbox-sidebar" aria-label="Sample requests">
+          <div className="sandbox-sidebar__intro"><p>Request library</p><span>Seven useful starting points</span></div>
+          <div className="sandbox-filter"><Search size={15} aria-hidden /><span>Curated examples</span><kbd>7</kbd></div>
+          <div className="sandbox-samples">
+            {SAMPLES.map((sample) => (
+              <button key={sample.path} type="button" className={path === sample.path ? "is-active" : undefined} aria-pressed={path === sample.path} onClick={() => void send(sample.path)}>
+                <span className="sandbox-samples__icon" aria-hidden>{sample.group === "Spatial" ? <Gauge size={15} /> : sample.group === "Browse" ? <Braces size={15} /> : <Search size={15} />}</span>
+                <span><strong>{sample.label}</strong><small>{sample.why}</small></span>
+                <ChevronRight size={14} aria-hidden />
               </button>
             ))}
           </div>
+          {history.length > 0 ? <div className="sandbox-history"><p>Recent runs</p>{history.map((run) => <button key={`${run.path}-${run.at}`} type="button" onClick={() => setPath(run.path)}><span>{run.path.split("?")[0]}</span><small>{run.status ?? "offline"} · {run.ms} ms</small></button>)}</div> : null}
+        </aside>
 
-          <div style={{ display: "grid", gap: "var(--space-3)" }}>
-            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-              <span className="gg-input" style={{ display: "flex", alignItems: "center", gap: "var(--space-2)",
-                                                   fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)",
-                                                   minWidth: 0 }}>
-                <span className="gg-navbar__hide-sm" style={{ color: "var(--fg-subtle)", whiteSpace: "nowrap" }}>GET {API}</span>
-                <input value={path} onChange={(e) => setPath(e.target.value)}
-                  aria-label="Request path"
-                  style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", outline: "none",
-                           color: "var(--fg)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }} />
-              </span>
-              <button className="gg-button gg-button--primary gg-button--md" disabled={busy}
-                onClick={() => void send(path)}>
-                <Play size={15} aria-hidden /> Send
-              </button>
-            </div>
-
-            {status !== null ? (
-              <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center",
-                            fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>
-                <Badge tone={status < 400 ? "canonical" : "danger"}>HTTP {status}</Badge>
-                <span>{ms} ms</span>
-                {cost ? <span>cost {cost} unit{cost === "1" ? "" : "s"}</span> : null}
-              </div>
-            ) : null}
-
-            <pre data-intensity="restrained" style={{
-              margin: 0, padding: "var(--space-4)", background: "var(--bg-subtle)",
-              border: "1px solid var(--border)", borderRadius: "var(--mat-radius-sm)",
-              fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", lineHeight: 1.55,
-              maxHeight: "60vh", overflow: "auto",
-            }}>{body || "Pick a sample on the left, or edit the path and press Send."}</pre>
-
-            <Card data-intensity="restrained">
-              <p style={{ fontWeight: 650, margin: "0 0 var(--space-2)", display: "flex",
-                          alignItems: "center", gap: "var(--space-2)" }}>
-                <Terminal size={15} aria-hidden /> The same request, elsewhere
-              </p>
-              <pre style={{ margin: 0, fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)",
-                            color: "var(--fg-muted)", lineHeight: 1.7 }}>
-{`curl "${API}${path}"
-
-ghanageo ${path.startsWith("/search") ? 'search "kumsai"' : path.startsWith("/reverse") ? "reverse 6.688 -1.624" : "regions"}`}
-              </pre>
-            </Card>
+        <section className="sandbox-workbench">
+          <div className="sandbox-workbench__head">
+            <div><p className="sandbox-kicker"><Sparkles size={14} aria-hidden /> No account or API key</p><h1>Make a real request.</h1><p>Explore Ghana&rsquo;s location data against the public API, then copy the exact code into your project.</p></div>
+            <a href="http://localhost:3102">Developer console <ExternalLink size={14} aria-hidden /></a>
           </div>
-        </div>
+          <div className="sandbox-requestbar">
+            <span className="sandbox-method">GET</span>
+            <label><span className="sr-only">Request path</span><span className="sandbox-requestbar__origin">{API}</span><input value={path} onChange={(event) => setPath(event.target.value)} spellCheck={false} /></label>
+            <button type="button" disabled={busy} onClick={() => void send(path)}>{busy ? <RotateCcw className="sandbox-spin" size={16} aria-hidden /> : <Play size={16} aria-hidden />}{busy ? "Sending" : "Send request"}</button>
+          </div>
+
+          <div className="sandbox-output-grid">
+            <section className="sandbox-panel sandbox-response" data-intensity="restrained" aria-live="polite" aria-busy={busy}>
+              <div className="sandbox-panel__bar"><div><Braces size={15} aria-hidden /><strong>Response</strong></div>{status !== null || ms !== null ? <div className="sandbox-metrics">{status !== null ? <Badge tone={status < 400 ? "canonical" : "danger"}>HTTP {status}</Badge> : <Badge tone="danger">Offline</Badge>}{ms !== null ? <span><Clock3 size={13} aria-hidden /> {ms} ms</span> : null}{cost ? <span>cost {cost}</span> : null}</div> : <span className="sandbox-panel__hint">JSON appears here</span>}</div>
+              <pre className={error ? "is-error" : undefined}>{busy ? "Sending request…" : body || `{\n  "ready": true,\n  "hint": "Choose a sample or edit the request path"\n}`}</pre>
+            </section>
+            <section className="sandbox-panel sandbox-snippet" data-intensity="restrained">
+              <div className="sandbox-panel__bar"><div><Code2 size={15} aria-hidden /><strong>Use this request</strong></div><button type="button" onClick={() => void copySnippet()} aria-label="Copy code snippet">{copied ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}{copied ? "Copied" : "Copy"}</button></div>
+              <div className="sandbox-code-tabs" role="tablist" aria-label="Code language">{(["curl", "javascript", "go"] as const).map((language) => <button key={language} type="button" role="tab" aria-selected={snippet === language} onClick={() => setSnippet(language)}>{language === "curl" ? <Terminal size={14} aria-hidden /> : language === "javascript" ? <Code2 size={14} aria-hidden /> : <Braces size={14} aria-hidden />}{language === "curl" ? "cURL" : language === "javascript" ? "JavaScript" : "Go"}</button>)}</div>
+              <pre>{code}</pre>
+            </section>
+          </div>
+        </section>
       </main>
+
+      <footer className="sandbox-footer"><p><FlaskConical size={15} aria-hidden /> Anonymous requests use stricter fair-use limits. They never use privileged credentials.</p><nav aria-label="Sandbox footer"><a href="http://localhost:3100/docs">API docs</a><a href="http://localhost:3100/about">Data sources</a><a href="https://github.com" rel="noopener noreferrer">GitHub <ExternalLink size={13} aria-hidden /></a></nav></footer>
     </div>
   );
 }

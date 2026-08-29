@@ -188,7 +188,17 @@
   }
   .gg-searchbar:hover { border-color: var(--brand); }
   .gg-searchbar__placeholder { flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 1279px) { .gg-searchbar__placeholder, .gg-searchbar .gg-kbd { display: none; } .gg-searchbar { max-width: 44px; justify-content: center; } }
+  /* Collapse to an icon-only button below 1280px — but ONLY inside the app
+     navbar. `.gg-searchbar` is also the marketing hero's live search field,
+     and crushing that to 44px pushes its placeholder outside the box on every
+     screen narrower than a desktop, phones included. Scoping the rule to the
+     navbar keeps the two contexts from sharing a breakpoint they never agreed
+     on. */
+  @media (max-width: 1279px) {
+    .gg-navbar .gg-searchbar__placeholder,
+    .gg-navbar .gg-searchbar .gg-kbd { display: none; }
+    .gg-navbar .gg-searchbar { max-width: 44px; justify-content: center; }
+  }
 
   .gg-kbd {
     font-family: var(--font-mono); font-size: 10px; line-height: 1;
@@ -419,6 +429,11 @@
     grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   }
   .gg-auto-grid--sm { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); }
+  /* Exactly two columns, for cards whose CONTENT sets the width — code
+     samples, mainly. auto-fit happily fits four across a desktop and then
+     every sample is clipped mid-line, which is worse than fewer, wider cards. */
+  .gg-auto-grid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 800px) { .gg-auto-grid--pair { grid-template-columns: 1fr; } }
 
   /* Sidebar-plus-content that becomes one column on small screens. */
   .gg-split {
@@ -592,4 +607,118 @@
   }
 
   .gg-logo { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; }
+}
+
+@layer components {
+  /* ---------------------------------------------------- Public site chrome */
+  .gg-sitenav { display: flex; align-items: center; gap: var(--space-1); flex: 1; justify-content: center; }
+  .gg-sitenav__link {
+    display: inline-flex; align-items: center; min-height: 44px;
+    padding-inline: var(--space-3);
+    color: var(--fg-muted); text-decoration: none;
+    font-size: var(--text-sm); font-weight: 550;
+    border-radius: var(--mat-radius-sm);
+    transition: color var(--dur-fast) var(--ease-out-quart),
+                background-color var(--dur-fast) var(--ease-out-quart);
+  }
+  .gg-sitenav__link:hover { color: var(--fg); background: var(--accent); }
+  .gg-sitenav__link[aria-current="page"] { color: var(--fg); font-weight: 700; }
+
+  /* ------------------------------------------------ Mobile navigation drawer
+     A DRAWER, not a dropdown: it holds the full link set — primary pages,
+     secondary pages and tools — rather than only what a collapsed bar can fit.
+     Hiding links without relocating them is how /docs became unreachable. */
+  .gg-drawer__toggle { display: none; }
+  @media (max-width: 900px) { .gg-drawer__toggle { display: inline-flex; } }
+
+  .gg-drawer__overlay {
+    position: fixed; inset: 0; z-index: 60;
+    background: var(--overlay);
+    backdrop-filter: blur(2px);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-drawer__overlay { animation: fade-in 160ms var(--ease-out-quart) both; }
+  }
+
+  .gg-drawer {
+    position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 61;
+    width: min(88vw, 360px);
+    display: flex; flex-direction: column;
+    background: var(--surface-raised);
+    backdrop-filter: var(--mat-backdrop);
+    -webkit-backdrop-filter: var(--mat-backdrop);
+    border-inline-start: 1px solid var(--border);
+    box-shadow: var(--mat-shadow-lifted);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-drawer[data-state="open"] { animation: drawer-in 220ms var(--ease-out-quart) both; }
+  }
+  @keyframes drawer-in { from { transform: translateX(100%) } to { transform: none } }
+
+  .gg-drawer__head {
+    display: flex; align-items: center; justify-content: space-between;
+    height: var(--shell-navbar-h); flex-shrink: 0;
+    padding-inline: var(--space-4);
+    border-block-end: 1px solid var(--border);
+  }
+  .gg-drawer__nav {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding: var(--space-3) var(--space-2);
+  }
+  .gg-drawer__heading {
+    font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.10em; color: var(--fg-subtle);
+    margin: var(--space-4) 0 var(--space-1); padding-inline: var(--space-3);
+  }
+  .gg-drawer__heading:first-child { margin-block-start: 0; }
+  .gg-drawer__link {
+    display: flex; align-items: center; gap: var(--space-3);
+    min-height: 52px; padding: var(--space-2) var(--space-3);
+    color: var(--fg); text-decoration: none;
+    border-radius: var(--mat-radius-sm);
+  }
+  .gg-drawer__link:hover { background: var(--accent); }
+  .gg-drawer__link[aria-current="page"] { background: var(--accent); }
+  .gg-drawer__link[aria-current="page"] .gg-drawer__label { color: var(--brand); font-weight: 700; }
+  .gg-drawer__labels { display: grid; line-height: 1.3; flex: 1; min-width: 0; }
+  .gg-drawer__label { font-weight: 600; font-size: var(--text-sm); }
+  .gg-drawer__hint { font-size: var(--text-xs); color: var(--fg-muted); }
+  .gg-drawer__foot {
+    flex-shrink: 0; display: grid; gap: var(--space-2);
+    padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+    border-block-start: 1px solid var(--border);
+  }
+  .gg-drawer__foot .gg-button { width: 100%; }
+  .gg-drawer__note { margin: 0; font-size: var(--text-xs); color: var(--fg-subtle); text-align: center; }
+
+  /* The bar's own links hide once the drawer takes over. */
+  @media (max-width: 900px) { .gg-sitenav { display: none; } }
+
+  .gg-sitefooter {
+    border-block-start: 1px solid var(--border);
+    padding: var(--space-10) var(--space-4);
+    color: var(--fg-muted); font-size: var(--text-sm);
+  }
+  .gg-sitefooter__grid {
+    display: grid; gap: var(--space-8);
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    margin-block-end: var(--space-8);
+  }
+  @media (max-width: 760px) { .gg-sitefooter__grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .gg-sitefooter__grid { grid-template-columns: 1fr; } }
+  .gg-sitefooter__lede { margin: var(--space-3) 0 0; max-width: 46ch; }
+  .gg-sitefooter__heading {
+    font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.10em; color: var(--fg-subtle); margin: 0 0 var(--space-2);
+  }
+  .gg-sitefooter__link {
+    display: block; min-height: 36px; line-height: 36px;
+    color: var(--fg-muted); text-decoration: none;
+  }
+  .gg-sitefooter__link:hover { color: var(--fg); }
+  .gg-sitefooter__attribution {
+    margin: 0; padding-block-start: var(--space-5);
+    border-block-start: 1px solid var(--border);
+    font-size: var(--text-xs); color: var(--fg-subtle);
+  }
 }
