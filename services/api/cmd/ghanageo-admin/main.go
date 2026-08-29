@@ -13,6 +13,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/geoboundaries"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/geonames"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/ingest"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
@@ -39,6 +40,8 @@ Usage:
   ghanageo-admin data reconcile --against canonical-staging
   ghanageo-admin data reindex
   ghanageo-admin data import --source geonames --file <GH.txt> [--limit N]
+  ghanageo-admin data boundaries --level ADM1|ADM2 --file <geojson> [--apply]
+  ghanageo-admin data assign-districts
   ghanageo migrate
 `)
 }
@@ -70,6 +73,10 @@ func run(args []string) error {
 			return cmdReindex(ctx)
 		case "import":
 			return cmdImport(ctx, args[2:])
+		case "boundaries":
+			return cmdBoundaries(ctx, args[2:])
+		case "assign-districts":
+			return cmdAssignDistricts(ctx)
 		}
 	case "keys":
 		if len(args) < 2 {
@@ -300,6 +307,153 @@ func cmdImport(ctx context.Context, args []string) error {
 	}
 	fmt.Println("\n  Records land as REFERENCE. A steward reconciles them against")
 	fmt.Printf("  GNHR/GSS before canonical publication. Environment: %s\n", cfg.Env)
+	return nil
+}
+
+// cmdBoundaries attaches administrative boundary polygons.
+//
+// Defaults to a DRY RUN. Attaching a boundary to the wrong district silently
+// misroutes every containment query for it, so seeing the match report before
+// writing is the safe default rather than an option.
+func cmdBoundaries(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("boundaries", flag.ContinueOnError)
+	level := fs.String("level", "ADM2", "ADM1 for regions, ADM2 for districts")
+	file := fs.String("file", "", "path to the geoBoundaries GeoJSON")
+	apply := fs.Bool("apply", false, "write the matches (default is a dry run)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *file == "" {
+		return fmt.Errorf("--file is required")
+	}
+
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+	if err := mongo.Migrate(ctx, store.DB()); err != nil {
+		return err
+	}
+
+	lic := geoboundaries.Licence()
+	fmt.Printf("→ %s boundaries from %s\n", *level, *file)
+	fmt.Printf("  licence: %s (%s)\n", lic.Name, lic.SPDX)
+	fmt.Printf("  attribution: %s\n", lic.Attribution)
+	if !*apply {
+		fmt.Println("  DRY RUN — nothing will be written. Re-run with --apply.")
+	}
+	fmt.Println()
+
+	features, err := geoboundaries.Load(*file)
+	if err != nil {
+		return err
+	}
+
+	regionRepo := mongo.NewRegionRepo(store)
+	districtRepo := mongo.NewDistrictRepo(store)
+
+	var candidates []ingest.NameCandidate
+	var writer ingest.BoundaryWriter
+	if *level == "ADM1" {
+		candidates, err = ingest.RegionCandidates(ctx, regionRepo)
+		writer = regionRepo
+	} else {
+		candidates, err = ingest.DistrictCandidates(ctx, districtRepo)
+		writer = districtRepo
+	}
+	if err != nil {
+		return err
+	}
+
+	res := ingest.BoundaryResult{Level: *level, Total: len(features)}
+	for _, f := range features {
+		name := f.Properties.ShapeName
+		m := ingest.MatchByName(name, candidates)
+
+		geom, gerr := geoboundaries.ToGeometry(f.Geometry)
+		if gerr != nil {
+			res.InvalidGeom = append(res.InvalidGeom, fmt.Sprintf("%s: %v", name, gerr))
+			continue
+		}
+		geoboundaries.NormalizeWinding(geom)
+
+		if m.TargetID == "" {
+			if strings.HasPrefix(m.Reason, "ambiguous") {
+				res.Ambiguous = append(res.Ambiguous, m)
+			} else {
+				res.Unmatched = append(res.Unmatched, m)
+			}
+			continue
+		}
+		if m.Exact {
+			res.Exact++
+		} else {
+			res.Fuzzy++
+			res.AppliedFuzzy = append(res.AppliedFuzzy, m)
+		}
+		if *apply {
+			if err := writer.SetGeometry(ctx, m.TargetID, geom); err != nil {
+				return fmt.Errorf("write %s: %w", m.TargetName, err)
+			}
+		}
+	}
+
+	fmt.Println(res)
+	if len(res.AppliedFuzzy) > 0 {
+		fmt.Printf("\n  Fuzzy matches applied (review these — %d):\n", len(res.AppliedFuzzy))
+		for _, m := range res.AppliedFuzzy {
+			fmt.Printf("    %-32s → %-32s %.2f\n", m.SourceName, m.TargetName, m.Score)
+		}
+	}
+	if len(res.Ambiguous) > 0 {
+		fmt.Printf("\n  AMBIGUOUS — not applied, needs a steward (%d):\n", len(res.Ambiguous))
+		for _, m := range res.Ambiguous {
+			fmt.Printf("    %-32s %s\n", m.SourceName, m.Reason)
+		}
+	}
+	if len(res.Unmatched) > 0 {
+		fmt.Printf("\n  UNMATCHED — not applied (%d):\n", len(res.Unmatched))
+		for _, m := range res.Unmatched {
+			fmt.Printf("    %-32s %s\n", m.SourceName, m.Reason)
+		}
+	}
+	if len(res.InvalidGeom) > 0 {
+		fmt.Printf("\n  INVALID GEOMETRY — rejected (%d):\n", len(res.InvalidGeom))
+		for _, s := range res.InvalidGeom {
+			fmt.Printf("    %s\n", s)
+		}
+	}
+	if !*apply {
+		fmt.Println("\n  Dry run complete. Re-run with --apply to write.")
+	}
+	return nil
+}
+
+// cmdAssignDistricts fills each place's district by point-in-polygon
+// containment against the district boundaries.
+func cmdAssignDistricts(ctx context.Context) error {
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	fmt.Println("→ assigning districts by containment ($geoWithin)")
+	places := mongo.NewPlaceRepo(store)
+	districts := mongo.NewDistrictRepo(store)
+
+	assigned, unassigned, err := places.AssignDistrictsByContainment(ctx, districts,
+		func(msg string) { fmt.Println(msg) })
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✓ assigned %d places to a district\n", assigned)
+	if unassigned > 0 {
+		fmt.Printf("  %d places with coordinates still have no district.\n", unassigned)
+		fmt.Println("  Expected causes: a district whose boundary did not match, or a")
+		fmt.Println("  place sitting just outside every polygon (coastline, border).")
+	}
 	return nil
 }
 

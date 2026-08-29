@@ -316,3 +316,105 @@ func (r *RedirectRepo) Put(ctx context.Context, in geography.Redirect) error {
 	}, options.Replace().SetUpsert(true))
 	return err
 }
+
+// SetGeometry attaches a validated boundary polygon to a region.
+//
+// Validation happens BEFORE this call, in the ingestion layer: MongoDB accepts
+// a self-intersecting polygon and then returns silently wrong $geoIntersects
+// results, so a bad polygon here would corrupt every containment query rather
+// than raising an error.
+func (r *RegionRepo) SetGeometry(ctx context.Context, id string, g *geography.Geometry) error {
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": id},
+		bson.M{"$set": bson.M{"geometry": geomOf(g)}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetGeometry attaches a validated boundary polygon to a district.
+func (r *DistrictRepo) SetGeometry(ctx context.Context, id string, g *geography.Geometry) error {
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": id},
+		bson.M{"$set": bson.M{"geometry": geomOf(g)}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// AssignDistrictsByContainment fills in each place's district using PostGIS-style
+// point-in-polygon containment, via MongoDB's $geoIntersects against the
+// district boundaries.
+//
+// This is what turns a coordinate into an administrative answer, and it is why
+// boundary geometry had to be validated first: a self-intersecting polygon
+// would assign places to the wrong district with no error anywhere.
+//
+// Returns (assigned, unassigned).
+func (r *PlaceRepo) AssignDistrictsByContainment(
+	ctx context.Context, districts *DistrictRepo, batchLog func(string),
+) (int, int, error) {
+	cur, err := districts.col.Find(ctx,
+		bson.M{"geometry": bson.M{"$ne": nil}},
+		options.Find().SetProjection(bson.M{"_id": 1, "name": 1, "regionId": 1, "regionName": 1}))
+	if err != nil {
+		return 0, 0, err
+	}
+	var dists []struct {
+		ID         string `bson:"_id"`
+		Name       string `bson:"name"`
+		RegionID   string `bson:"regionId"`
+		RegionName string `bson:"regionName"`
+	}
+	if err := cur.All(ctx, &dists); err != nil {
+		return 0, 0, err
+	}
+	if len(dists) == 0 {
+		return 0, 0, errors.New("no district has a boundary; import boundaries first")
+	}
+
+	assigned := 0
+	for i, d := range dists {
+		// One bulk update per district rather than one query per place: 260
+		// spatial queries instead of 15,925.
+		var full struct {
+			Geometry any `bson:"geometry"`
+		}
+		if err := districts.col.FindOne(ctx, bson.M{"_id": d.ID},
+			options.FindOne().SetProjection(bson.M{"geometry": 1})).Decode(&full); err != nil {
+			continue
+		}
+		ur, err := r.col.UpdateMany(ctx,
+			bson.M{
+				"districtId": bson.M{"$in": bson.A{nil, ""}},
+				"centroid":   bson.M{"$geoWithin": bson.M{"$geometry": full.Geometry}},
+			},
+			bson.M{"$set": bson.M{
+				"districtId":   d.ID,
+				"districtName": d.Name,
+			}},
+		)
+		if err != nil {
+			return assigned, 0, fmt.Errorf("assign %s: %w", d.Name, err)
+		}
+		assigned += int(ur.ModifiedCount)
+		if batchLog != nil && (i+1)%50 == 0 {
+			batchLog(fmt.Sprintf("  %d/%d districts processed, %d places assigned so far", i+1, len(dists), assigned))
+		}
+	}
+
+	unassigned, err := r.col.CountDocuments(ctx, bson.M{
+		"centroid":   bson.M{"$ne": nil},
+		"districtId": bson.M{"$in": bson.A{nil, ""}},
+	})
+	if err != nil {
+		return assigned, 0, err
+	}
+	return assigned, int(unassigned), nil
+}

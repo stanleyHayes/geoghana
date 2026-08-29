@@ -178,3 +178,47 @@ func TestPartialMatchStaysBelowFullMatch(t *testing.T) {
 		t.Errorf("a partial match (%.3f) must stay below a full match (%.3f)", partial, full)
 	}
 }
+
+// The most dangerous class of reconciliation error: Ghana has many district
+// pairs distinguished ONLY by a compass word. "north" and "south" are two
+// edits apart in a long string, so pure edit distance rated
+// "Atwima Nwabiagya South" against "Atwima Nwabiagya North" at 0.91 — high
+// enough to auto-apply, which would have attached one district's boundary to
+// the other and silently broken containment for both.
+func TestDirectionalWordsAreNeverInterchangeable(t *testing.T) {
+	pairs := [][2]string{
+		{"atwima nwabiagya south", "atwima nwabiagya north"},
+		{"awutu senya east", "awutu senya west"},
+		{"assin north", "assin south"},
+		{"upper manya krobo", "lower manya krobo"},
+		{"bolgatanga east", "bolgatanga central"},
+		{"old tafo", "new tafo"},
+	}
+	for _, p := range pairs {
+		if got := NameSimilarity(p[0], p[1]); got != 0 {
+			t.Errorf("NameSimilarity(%q, %q) = %.2f — these are DIFFERENT districts", p[0], p[1], got)
+		}
+	}
+}
+
+// The guard must not block genuine spelling variants that agree on direction.
+func TestDirectionalGuardAllowsRealVariants(t *testing.T) {
+	pairs := [][2]string{
+		{"kasena nankana west", "kassena nankana west"},
+		{"afadzato south", "afadjato south"},
+		{"twifo hemang lower denkyira", "twifo heman lower denkyira"},
+		{"akwapem north", "akuapim north"},
+	}
+	for _, p := range pairs {
+		if got := NameSimilarity(p[0], p[1]); got < 0.8 {
+			t.Errorf("NameSimilarity(%q, %q) = %.2f — a real spelling variant was blocked", p[0], p[1], got)
+		}
+	}
+}
+
+// Word order alone must not defeat a match: these are the same district.
+func TestTokenOrderDoesNotBreakAMatch(t *testing.T) {
+	if got := NameSimilarity("asene akroso manso", "asene manso akroso"); got < 0.99 {
+		t.Errorf("reordered tokens scored %.2f, expected ~1.00", got)
+	}
+}

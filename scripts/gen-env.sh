@@ -264,6 +264,37 @@ write "services/worker/.env.production" \
 "INGEST_CACHE_DIR=/var/cache/ghanageo/ingest" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\""
 
+# --------------------------------------------------------------------- cli
+#
+# The CLI is a binary that runs on OTHER PEOPLE'S machines, so it has no
+# deployed configuration and no .env.production — there is no environment of
+# ours for it to run in.
+#
+# This file is a convenience for working ON the CLI. The binary deliberately
+# does NOT auto-load it: a public tool that silently reads .env from whatever
+# directory it is invoked in would pick up unrelated projects' secrets. Source
+# it yourself, or use direnv:
+#
+#     cd cli && set -a && . ./.env && set +a
+#
+write "cli/.env" \
+"# GhanaGeo CLI — local development only. NEVER COMMIT." \
+"#" \
+"# The binary does not read this automatically, by design. Source it:" \
+"#   set -a && . ./.env && set +a" \
+"" \
+"# Point the CLI at the local API instead of production." \
+"GHANAGEO_BASE_URL=\"http://localhost:8180/v1\"" \
+"" \
+"# Optional. GhanaGeo is free, so the CLI works with no key at all; this only" \
+"# identifies heavy use for fair-use accounting. Issue one with:" \
+"#   cd services/api && go run ./cmd/ghanageo-admin keys create \\" \
+"#     --name 'cli local' --class SERVER --env test" \
+"GHANAGEO_API_KEY=$(read_existing cli/.env GHANAGEO_API_KEY)" \
+"" \
+"# Set to any value to disable colour (https://no-color.org)." \
+"NO_COLOR="
+
 # ------------------------------------------------------------------- Next apps
 #
 # CRITICAL: in Next.js, ONLY variables prefixed NEXT_PUBLIC_ reach the browser,

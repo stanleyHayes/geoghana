@@ -17,6 +17,7 @@ package relevance
 
 import (
 	"math"
+	"sort"
 	"strings"
 )
 
@@ -205,4 +206,96 @@ func levenshtein(a, b []rune) int {
 		prev, curr = curr, prev
 	}
 	return prev[len(b)]
+}
+
+// NameSimilarity measures how likely two administrative names refer to the
+// SAME place, in 0..1.
+//
+// This is a different question from Score, which ranks search results. Search
+// asks "how well does this candidate answer the user's query"; reconciliation
+// asks "are these two strings the same name written differently". Using the
+// search scorer for reconciliation produced nonsense: "kasena nankana west"
+// and "kassena nankana west" — one letter apart — scored 0.53, because the
+// search scorer picks the best-matching TOKEN pair and a perfect "west"/"west"
+// hit then scored badly on coverage.
+//
+// Two measures are combined, because Ghanaian administrative names vary in two
+// distinct ways:
+//
+//   - SPELLING: Mfantseman/Mfantsiman, Sagnerigu/Sagnarigu, Kasena/Kassena.
+//     Whole-string edit distance catches these.
+//   - WORD ORDER: "Asene Akroso Manso" and "Asene Manso Akroso" are the same
+//     district. Comparing sorted token sets catches these, and edit distance
+//     alone never would.
+func NameSimilarity(a, b string) float64 {
+	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
+	if a == "" || b == "" {
+		return 0
+	}
+	if a == b {
+		return 1
+	}
+
+	// DIRECTIONAL GUARD, and this one matters more than the rest of the
+	// function. Ghana has many district pairs distinguished ONLY by a compass
+	// word: Atwima Nwabiagya North and Atwima Nwabiagya South, Awutu Senya
+	// East and West, Assin North and South. "north" and "south" are two edits
+	// apart in a twenty-character string, so pure edit distance scored
+	// "Atwima Nwabiagya South" against "Atwima Nwabiagya North" at 0.91 and
+	// would have attached one district's boundary to the other — a silent,
+	// invisible error affecting every containment query for both.
+	//
+	// If either name carries a directional or ordinal word, both must carry
+	// the same ones.
+	if !directionsAgree(a, b) {
+		return 0
+	}
+
+	direct := similarity(a, b)
+
+	// Same tokens in a different order is the same name.
+	sorted := similarity(sortTokens(a), sortTokens(b))
+
+	if sorted > direct {
+		return sorted
+	}
+	return direct
+}
+
+// discriminatingTokens are words that, in Ghanaian administrative names, are
+// the whole difference between two distinct places rather than a variant
+// spelling of one.
+var discriminatingTokens = map[string]bool{
+	"north": true, "south": true, "east": true, "west": true,
+	"central": true, "upper": true, "lower": true,
+	"old": true, "new": true,
+}
+
+func directionsAgree(a, b string) bool {
+	da, db := directionSet(a), directionSet(b)
+	if len(da) != len(db) {
+		return false
+	}
+	for k := range da {
+		if !db[k] {
+			return false
+		}
+	}
+	return true
+}
+
+func directionSet(s string) map[string]bool {
+	out := map[string]bool{}
+	for _, t := range strings.Fields(s) {
+		if discriminatingTokens[t] {
+			out[t] = true
+		}
+	}
+	return out
+}
+
+func sortTokens(s string) string {
+	t := strings.Fields(s)
+	sort.Strings(t)
+	return strings.Join(t, " ")
 }
