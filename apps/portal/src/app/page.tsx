@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Badge, SkipLink, SupportPanel } from "@ghanageo/ui";
+import { Card, Badge, Logo, SkipLink, SupportPanel } from "@ghanageo/ui";
 import { Globe, KeyRound, Activity, BookOpen, ShieldCheck } from "lucide-react";
 
 export default function Portal() {
@@ -9,26 +9,24 @@ export default function Portal() {
       <SkipLink />
       <header className="gg-navbar" data-intensity="balanced">
         <div className="gg-navbar__left">
-          <Globe size={20} style={{ color: "var(--brand)" }} aria-hidden />
-          <strong style={{ fontFamily: "var(--font-display)" }}>GhanaGeo</strong>
-          <span style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".14em",
-                         color: "var(--fg-subtle)", fontWeight: 700 }}>Console</span>
+          <a href="http://localhost:3100" className="gg-logo-link" style={{ textDecoration: "none" }}>
+            <Logo size={22} suffix="Console" />
+          </a>
         </div>
         <div className="gg-navbar__right">
           <a className="gg-button gg-button--ghost gg-button--sm" href="http://localhost:3101">Sandbox</a>
-          <a className="gg-button gg-button--ghost gg-button--sm" href="http://localhost:3100">Home</a>
+          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="http://localhost:3100">Home</a>
         </div>
       </header>
 
-      <main id="main" style={{ maxWidth: 1000, margin: "0 auto", padding: "var(--space-8) var(--space-6)" }}>
+      <main id="main" className="gg-page gg-page--narrow">
         <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-2)" }}>Developer console</h1>
         <p style={{ color: "var(--fg-muted)", margin: "0 0 var(--space-6)", maxWidth: "62ch" }}>
           Keys, usage and logs. GhanaGeo is free, so a key is not required to call the API —
           it identifies heavy use for fair-use accounting and nothing else.
         </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))",
-                      gap: "var(--space-4)", marginBottom: "var(--space-8)" }}>
+<div className="gg-auto-grid" style={{ marginBottom: "var(--space-8)" }}>
           {[
             { icon: KeyRound, t: "API keys", d: "Create, rotate and revoke. Browser keys are origin-restricted; server keys are not for client bundles.", s: "GEO-16.4" },
             { icon: Activity, t: "Usage", d: "Requests, fair-use consumption, latency and errors by protocol and endpoint.", s: "GEO-16.5" },

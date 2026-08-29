@@ -162,3 +162,154 @@
     }
   }
 }
+
+@layer components {
+  /* ======================================================================
+     Form controls.
+
+     A native <select> renders in the OS's own chrome — on macOS a dark grey
+     panel with system type that ignores every token here, and no CSS can
+     restyle it. Same for native checkbox, radio and switch. These are Radix
+     primitives with only the token layer added, so they follow the material
+     and the theme like everything else.
+     ====================================================================== */
+
+  /* ---------------------------------------------------------- Select */
+  .gg-select__trigger {
+    display: inline-flex; align-items: center; justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%; min-height: 44px;
+    padding: 0 var(--space-3);
+    font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 500;
+    color: var(--fg);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--mat-radius-sm);
+    box-shadow: var(--mat-shadow-inset);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out-quart);
+  }
+  .gg-select__trigger:hover:not([data-disabled]) { border-color: var(--brand); }
+  .gg-select__trigger[data-placeholder] { color: var(--fg-subtle); }
+  .gg-select__trigger[data-disabled] { opacity: 0.55; cursor: not-allowed; }
+  .gg-select__icon { color: var(--fg-muted); display: inline-flex; flex-shrink: 0; }
+  .gg-select__trigger[data-state="open"] .gg-select__icon { transform: rotate(180deg); }
+
+  .gg-select__content {
+    z-index: 90;
+    min-width: var(--radix-select-trigger-width);
+    max-height: var(--radix-select-content-available-height);
+    background: var(--surface-raised);
+    backdrop-filter: var(--mat-backdrop);
+    -webkit-backdrop-filter: var(--mat-backdrop);
+    border: 1px solid var(--border);
+    border-radius: var(--mat-radius);
+    box-shadow: var(--mat-shadow-lifted);
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-select__content { animation: slide-up 180ms var(--ease-out-quart) both; }
+  }
+  .gg-select__viewport { padding: var(--space-1); }
+  .gg-select__scroll {
+    display: flex; align-items: center; justify-content: center;
+    height: 22px; color: var(--fg-muted); cursor: default;
+  }
+  .gg-select__item {
+    display: flex; align-items: center; gap: var(--space-2);
+    min-height: 40px; padding: var(--space-2) var(--space-3);
+    border-radius: var(--mat-radius-sm);
+    font-size: var(--text-sm); color: var(--fg);
+    cursor: pointer; user-select: none; outline: none;
+  }
+  .gg-select__item[data-highlighted] { background: var(--accent); }
+  .gg-select__item[data-state="checked"] { font-weight: 650; }
+  .gg-select__item[data-disabled] { opacity: 0.45; pointer-events: none; }
+  .gg-select__indicator {
+    width: 16px; display: inline-flex; justify-content: center;
+    color: var(--brand); flex-shrink: 0;
+  }
+  .gg-select__labels { display: grid; line-height: 1.25; min-width: 0; }
+  .gg-select__hint { font-size: var(--text-2xs); color: var(--fg-muted); }
+
+  /* -------------------------------------------- Checkbox / Radio / Switch */
+  .gg-choice { display: flex; align-items: flex-start; gap: var(--space-3); }
+  .gg-choice__label {
+    display: grid; line-height: 1.35;
+    font-size: var(--text-sm); color: var(--fg); cursor: pointer;
+    /* The whole label is a target, so the hit area is not just the 20px box. */
+    padding-block: 2px;
+  }
+  .gg-choice__hint { font-size: var(--text-xs); color: var(--fg-muted); }
+
+  .gg-checkbox, .gg-radio {
+    flex-shrink: 0;
+    width: 20px; height: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--surface-sunken);
+    /* A 1px border in EVERY material: a shadow-only checkbox is invisible at
+       20px, and neumorphism would otherwise render it edgeless. */
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--mat-shadow-inset);
+    cursor: pointer; padding: 0;
+    transition: background-color var(--dur-fast) var(--ease-out-quart),
+                border-color var(--dur-fast) var(--ease-out-quart);
+  }
+  .gg-checkbox { border-radius: 6px; }
+  .gg-radio { border-radius: 999px; }
+  .gg-checkbox:hover:not([data-disabled]), .gg-radio:hover:not([data-disabled]) { border-color: var(--brand); }
+  .gg-checkbox[data-state="checked"], .gg-checkbox[data-state="indeterminate"] {
+    background: var(--brand); border-color: var(--brand);
+  }
+  .gg-checkbox__indicator { display: inline-flex; color: var(--brand-fg); }
+  .gg-radio[data-state="checked"] { border-color: var(--brand); }
+  .gg-radio__indicator {
+    display: block; width: 10px; height: 10px;
+    border-radius: 999px; background: var(--brand);
+  }
+  .gg-checkbox[data-disabled], .gg-radio[data-disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  .gg-radiogroup { display: grid; gap: var(--space-3); }
+  .gg-radiogroup--horizontal { display: flex; flex-wrap: wrap; gap: var(--space-5); }
+
+  .gg-switch {
+    flex-shrink: 0;
+    width: 42px; height: 24px; padding: 2px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    box-shadow: var(--mat-shadow-inset);
+    cursor: pointer;
+    transition: background-color var(--dur-base) var(--ease-out-quart),
+                border-color var(--dur-base) var(--ease-out-quart);
+  }
+  .gg-switch[data-state="checked"] { background: var(--brand); border-color: var(--brand); }
+  .gg-switch[data-disabled] { opacity: 0.5; cursor: not-allowed; }
+  .gg-switch__thumb {
+    display: block; width: 18px; height: 18px;
+    background: var(--surface-raised);
+    border-radius: 999px;
+    box-shadow: 0 1px 3px oklch(0.2 0.02 260 / 0.35);
+    transition: transform var(--dur-base) var(--ease-out-quart);
+    will-change: transform;
+  }
+  .gg-switch[data-state="checked"] .gg-switch__thumb { transform: translateX(18px); }
+
+  /* ----------------------------------------------------------- Field */
+  .gg-field { display: grid; gap: var(--space-2); }
+  .gg-field__label {
+    font-size: var(--text-2xs); font-weight: 700;
+    letter-spacing: 0.10em; text-transform: uppercase;
+    color: var(--fg-subtle);
+  }
+  .gg-field__hint { margin: 0; font-size: var(--text-xs); color: var(--fg-muted); }
+  .gg-field__error { margin: 0; font-size: var(--text-xs); color: var(--danger); font-weight: 600; }
+
+  /* Native controls should never appear. If one slips through, make it
+     obvious in review rather than letting it ship looking like the OS. */
+  select:not([data-allow-native]),
+  input[type="checkbox"]:not([data-allow-native]),
+  input[type="radio"]:not([data-allow-native]) {
+    accent-color: var(--brand);
+  }
+}

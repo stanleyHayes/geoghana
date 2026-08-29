@@ -13,9 +13,12 @@
 @layer tokens {
   :root {
     /* ---- Type ---- */
-    --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
-    --font-sans: Outfit, ui-sans-serif, system-ui, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* Fraunces is a variable SERIF. Its optical-size axis means display sizes
+       tighten and gain contrast while small sizes stay open, so one family
+       covers a hero and a card title without looking stretched. */
+    --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+    --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+    --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 
     --text-2xs: 0.6875rem;
     --text-xs: 0.75rem;

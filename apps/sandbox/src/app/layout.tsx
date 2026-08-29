@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, JetBrains_Mono, Outfit } from "next/font/google";
+import { Fraunces, JetBrains_Mono, Outfit } from "next/font/google";
 import { ThemeProvider, themeInitScript } from "@ghanageo/ui";
 import "./globals.css";
 
@@ -7,10 +7,17 @@ import "./globals.css";
 // Latin Extended characters Twi, Ga and Ewe place names need. A place-names
 // product for Ghana rendering "Ɔsu" as a tofu box is broken.
 // (DESIGN_SYSTEM.md 4.4.1)
-const display = Bricolage_Grotesque({
+// Fraunces is a variable serif with an optical-size axis: at display sizes it
+// tightens and gains contrast, at small sizes it opens up. Requesting `opsz`
+// lets the browser do that automatically instead of us shipping two families.
+const display = Fraunces({
   subsets: ["latin", "latin-ext"],
-  variable: "--font-bricolage",
+  variable: "--font-fraunces",
   display: "swap",
+  // A variable font may declare axes OR explicit weights, not both. Keeping
+  // the axes means the whole weight range stays available and the optical-size
+  // axis works, which is the reason for choosing Fraunces.
+  axes: ["opsz", "SOFT", "WONK"],
 });
 const sans = Outfit({
   subsets: ["latin", "latin-ext"],

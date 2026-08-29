@@ -16,6 +16,9 @@
   @media (max-width: 1023px) { .gg-shell__content { margin-left: 0; } }
 
   .gg-main { padding: var(--space-6); max-width: var(--shell-content-max); margin-inline: auto; }
+  @media (max-width: 640px) {
+    .gg-main { padding: var(--space-4) var(--space-3); }
+  }
   @media (prefers-reduced-motion: no-preference) {
     .gg-main { animation: page-enter var(--dur-slow) var(--ease-out-quart) both; }
   }
@@ -70,6 +73,7 @@
   .gg-sidebar__group { margin-block-end: var(--space-2); }
   .gg-sidebar__group-header {
     width: 100%; display: flex; align-items: center; gap: var(--space-2);
+    min-height: 44px;
     padding: var(--space-2) var(--space-3);
     background: transparent; border: 0; cursor: pointer;
     border-radius: var(--mat-radius-sm);
@@ -105,7 +109,9 @@
   .gg-navlink {
     position: relative;
     display: flex; align-items: center; gap: var(--space-3);
-    min-height: 40px; padding: var(--space-2) var(--space-3);
+    /* 44px, not 40: DESIGN_SYSTEM.md §6.5 sets the minimum target size and the
+       shell was quietly violating its own rule on every nav item. */
+    min-height: 44px; padding: var(--space-2) var(--space-3);
     border-radius: var(--mat-radius-sm);
     color: var(--fg-muted); text-decoration: none;
     font-size: var(--text-sm); font-weight: 550;
@@ -398,4 +404,192 @@
   }
   .gg-sponsors__item a { color: var(--fg); text-decoration: none; font-weight: 600; }
   .gg-sponsors__months { color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  /* ------------------------------------------------- Responsive utilities
+     Page layouts kept hand-rolling inline grid templates, which cannot carry a
+     media query — so a two-column layout stayed two columns at 320px and blew
+     out the viewport. These are the shapes those pages actually needed. */
+
+  /* A grid that reflows by content width rather than by breakpoint. */
+  .gg-auto-grid {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  }
+  .gg-auto-grid--sm { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); }
+
+  /* Sidebar-plus-content that becomes one column on small screens. */
+  .gg-split {
+    display: grid;
+    gap: var(--space-5);
+    align-items: start;
+    grid-template-columns: minmax(260px, 340px) 1fr;
+  }
+  @media (max-width: 900px) {
+    .gg-split { grid-template-columns: 1fr; }
+  }
+
+  /* A page container with breathing room that shrinks on small screens. */
+  .gg-page {
+    max-width: var(--shell-content-max);
+    margin-inline: auto;
+    padding: var(--space-12) var(--space-6);
+  }
+  .gg-page--narrow { max-width: 820px; }
+  .gg-page--mid { max-width: 1100px; }
+  @media (max-width: 640px) {
+    .gg-page { padding: var(--space-6) var(--space-4); }
+  }
+
+  /* Marketing hero. Fraunces is a display serif, so it needs to come down
+     hard on small screens or a two-word line becomes four. */
+  .gg-hero__title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 7vw, 3.25rem);
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: var(--space-3) 0;
+    max-width: 18ch;
+  }
+  .gg-hero__lede {
+    font-size: clamp(0.9375rem, 2.4vw, 1.0625rem);
+    color: var(--fg-muted);
+    max-width: 58ch;
+    margin: 0;
+  }
+
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.015em; }
+
+  /* A row that stacks rather than overflowing. */
+  .gg-stack-row {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    align-items: baseline;
+  }
+
+  /* Long, unbreakable strings — ids, URLs, connection strings — must wrap
+     rather than force the page sideways. */
+  .gg-break { overflow-wrap: anywhere; word-break: break-word; }
+
+  /* Any pre/code block scrolls INSIDE itself. The page body never scrolls
+     horizontally, which is the rule the QA checklist enforces. */
+  pre { overflow-x: auto; max-width: 100%; }
+
+  /* THE min-width:auto TRAP.
+     A grid or flex item defaults to min-width:auto, meaning it refuses to
+     shrink below its content. So a <pre> with overflow-x:auto still forced its
+     CARD to 460px inside a 320px viewport: the pre was willing to scroll, but
+     its parent grew instead of letting it. Everything that can contain a long
+     unbreakable string needs min-width:0 for the scroll to actually engage. */
+  .gg-card,
+  .gg-split > *,
+  .gg-auto-grid > *,
+  .gg-page > * {
+    min-width: 0;
+  }
+
+  /* Below 640px the navbar drops decorative controls before it drops
+     identity: the logo and the primary action survive longest. */
+  @media (max-width: 640px) {
+    .gg-navbar { padding-inline: var(--space-3); gap: var(--space-2); }
+    .gg-navbar__hide-sm { display: none !important; }
+  }
+  @media (max-width: 420px) {
+    .gg-navbar__hide-xs { display: none !important; }
+  }
+
+  /* The app shell's navbar carries far more than a marketing one: rail toggle,
+     app switcher, breadcrumbs, search, create, dataset version, environment,
+     health, two counters, help, support, theme and avatar. At 320px that is
+     342px of controls in a 320px viewport.
+     Order of sacrifice: decoration first, then convenience, then context.
+     What NEVER goes is the environment badge and the dataset version — a
+     steward who cannot see which environment and which dataset they are
+     editing is the one situation genuinely worth breaking layout over. */
+  @media (max-width: 900px) {
+    .gg-navbar .gg-crumbs { display: none; }
+  }
+  @media (max-width: 640px) {
+    .gg-dataset-pill__text { display: none; }
+    .gg-navbar .gg-health,
+    .gg-navbar__centre { display: none; }
+  }
+  @media (max-width: 420px) {
+    .gg-navbar .gg-counter { display: none; }
+    .gg-navbar__right { gap: 2px; }
+    .gg-navbar__left { gap: 2px; }
+  }
+}
+
+@layer components {
+  /* The hue slider stays an <input type="range">: a custom drag implementation
+     would lose keyboard support, screen-reader announcement and touch handling
+     that the native element gives for free. It is styled end to end so nothing
+     of the OS shows through. */
+  .gg-picker__hue {
+    appearance: none; -webkit-appearance: none;
+    width: 100%; height: 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border);
+    background: linear-gradient(to right,
+      oklch(0.6 0.13 0), oklch(0.6 0.13 60), oklch(0.6 0.13 120),
+      oklch(0.6 0.13 180), oklch(0.6 0.13 240), oklch(0.6 0.13 300), oklch(0.6 0.13 360));
+  }
+  .gg-picker__hue::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; border-radius: 999px;
+    background: var(--surface-raised);
+    border: 2px solid var(--fg);
+    box-shadow: var(--mat-shadow-raised);
+    cursor: grab;
+  }
+  .gg-picker__hue::-webkit-slider-thumb:active { cursor: grabbing; }
+  .gg-picker__hue::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 999px;
+    background: var(--surface-raised);
+    border: 2px solid var(--fg);
+    box-shadow: var(--mat-shadow-raised);
+    cursor: grab;
+  }
+  .gg-picker__hue::-moz-range-track { background: transparent; }
+  .gg-picker__hue:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+}
+
+@layer components {
+  /* TOUCH TARGETS — and why this lives at the END of shell.css.
+     DESIGN_SYSTEM.md §6.5 sets a 44px minimum. These overrides were first
+     written in components.css and silently lost: globals.css imports
+     components.css BEFORE shell.css, and within the same cascade layer source
+     order decides, so shell.css's own 38px kept winning. Same-layer overrides
+     have to come after the rule they override, not merely be more specific in
+     intent.
+
+     `pointer: coarse` is the condition rather than a width breakpoint: a
+     narrow window on a laptop is still driven by a mouse, where 36px is
+     comfortable and inflating everything would waste space. */
+  @media (pointer: coarse) {
+    .gg-button--sm { min-height: 44px; padding-inline: var(--space-4); }
+    .gg-select__item { min-height: 44px; }
+    .gg-picker__chip { min-height: 44px; }
+    .gg-dataset-pill { min-height: 44px; }
+    .gg-searchbar { min-height: 44px; }
+    .gg-skip-link { min-height: 44px; display: inline-flex; align-items: center; }
+    .gg-sidebar__group-header { min-height: 44px; }
+    .gg-crumbs a { padding-block: var(--space-2); }
+
+    /* The checkbox and radio boxes go to 24px, not 44: inflating the box would
+       look wrong. Their LABEL is associated and part of the target, and
+       .gg-choice guarantees the row itself clears 44px — which is what a
+       thumb actually hits. */
+    .gg-checkbox, .gg-radio { width: 24px; height: 24px; }
+    .gg-radio__indicator { width: 12px; height: 12px; }
+    .gg-choice { min-height: 44px; align-items: center; }
+
+    a:has(> .gg-logo), .gg-logo-link { display: inline-flex; align-items: center; min-height: 44px; }
+  }
+
+  .gg-logo { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; }
 }

@@ -2,6 +2,7 @@
 
 import { Info, RotateCcw } from "lucide-react";
 import { Card } from "../components/primitives";
+import { RadioGroup } from "../components/forms";
 import { useTheme } from "./provider";
 import { BRAND_PRESETS, MATERIALS, type Density, type ModePreference } from "./types";
 
@@ -42,19 +43,19 @@ export function ThemePicker() {
 
       <section className="gg-picker__section">
         <h3 className="gg-picker__legend">Mode</h3>
-        <div className="gg-picker__row" role="radiogroup" aria-label="Mode">
-          {(["light", "dark", "system"] as ModePreference[]).map((m) => (
-            <button
-              key={m}
-              role="radio"
-              aria-checked={mode === m}
-              className={`gg-picker__chip ${mode === m ? "is-selected" : ""}`}
-              onClick={(e) => setMode(m, { x: e.clientX, y: e.clientY })}
-            >
-              {m === "system" ? "Match system" : m === "light" ? "Light" : "Dark"}
-            </button>
-          ))}
-        </div>
+        {/* A real radiogroup rather than buttons pretending to be one: arrow
+            keys move between options and only the selected one is tabbable. */}
+        <RadioGroup
+          ariaLabel="Mode"
+          orientation="horizontal"
+          value={mode}
+          onValueChange={(v) => setMode(v as ModePreference)}
+          options={[
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+            { value: "system", label: "Match system" },
+          ]}
+        />
       </section>
 
       <section className="gg-picker__section">
@@ -93,19 +94,16 @@ export function ThemePicker() {
 
       <section className="gg-picker__section">
         <h3 className="gg-picker__legend">Density</h3>
-        <div className="gg-picker__row" role="radiogroup" aria-label="Density">
-          {(["comfortable", "compact"] as Density[]).map((d) => (
-            <button
-              key={d}
-              role="radio"
-              aria-checked={density === d}
-              className={`gg-picker__chip ${density === d ? "is-selected" : ""}`}
-              onClick={() => setDensity(d)}
-            >
-              {d === "comfortable" ? "Comfortable" : "Compact"}
-            </button>
-          ))}
-        </div>
+        <RadioGroup
+          ariaLabel="Density"
+          orientation="horizontal"
+          value={density}
+          onValueChange={(v) => setDensity(v as Density)}
+          options={[
+            { value: "comfortable", label: "Comfortable", hint: "44px rows" },
+            { value: "compact", label: "Compact", hint: "36px rows" },
+          ]}
+        />
       </section>
 
       <section className="gg-picker__section">

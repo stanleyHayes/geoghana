@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from "react";
 import {
-  Badge, Card, CommandPalette, Navbar, Sidebar, SkipLink, SponsorWall,
-  SupportPanel, ThemePicker, verificationTone, type PlaceResult, type Role,
+  Badge, Card, CommandPalette, Logo, Navbar, Sidebar, SkipLink, SponsorWall,
+  SupportPanel, Select, Field, ThemePicker, verificationTone,
+  type PlaceResult, type Role,
 } from "@ghanageo/ui";
 import { Globe } from "lucide-react";
 import { NAVIGATION } from "@/config/navigation";
@@ -48,39 +49,24 @@ export default function AdminHome() {
           setPathname(href);
           setMobileOpen(false);
         }}
-        brand={
-          <span style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
-            <Globe size={22} style={{ color: "var(--brand)", flexShrink: 0 }} aria-hidden />
-            {!collapsed ? (
-              <span style={{ display: "grid", lineHeight: 1.1, minWidth: 0 }}>
-                <strong style={{ fontFamily: "var(--font-display)", fontSize: "1rem" }}>GhanaGeo</strong>
-                <span style={{ fontSize: "10px", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-subtle)", fontWeight: 700 }}>
-                  Admin
-                </span>
-              </span>
-            ) : null}
-          </span>
-        }
+        brand={<Logo size={22} showWordmark={!collapsed} suffix="Admin" />}
         footer={
           !collapsed ? (
-            <label style={{ display: "grid", gap: 4, fontSize: "var(--text-2xs)", color: "var(--fg-subtle)" }}>
-              <span style={{ textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>
-                Preview as role
-              </span>
-              <select
-                className="gg-input"
+            <Field label="Preview as role" htmlFor="role-picker">
+              <Select
+                ariaLabel="Preview as role"
                 value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-                style={{ minHeight: 36 }}
-              >
-                <option value="SUPER_ADMIN">Super Admin</option>
-                <option value="DATA_ADMIN">Data Admin</option>
-                <option value="DATA_REVIEWER">Data Reviewer</option>
-                <option value="DATA_CONTRIBUTOR">Data Contributor</option>
-                <option value="DEVELOPER_SUPPORT">Developer Support</option>
-                <option value="SECURITY_AUDITOR">Security / Auditor</option>
-              </select>
-            </label>
+                onValueChange={(v) => setRole(v as Role)}
+                options={[
+                  { value: "SUPER_ADMIN", label: "Super Admin", hint: "Everything" },
+                  { value: "DATA_ADMIN", label: "Data Admin", hint: "Canonical geography and releases" },
+                  { value: "DATA_REVIEWER", label: "Data Reviewer", hint: "Review and approve changes" },
+                  { value: "DATA_CONTRIBUTOR", label: "Data Contributor", hint: "Propose edits, cannot publish" },
+                  { value: "DEVELOPER_SUPPORT", label: "Developer Support", hint: "Accounts and keys" },
+                  { value: "SECURITY_AUDITOR", label: "Security / Auditor", hint: "Read-only, never mutates" },
+                ]}
+              />
+            </Field>
           ) : null
         }
       />
@@ -102,7 +88,7 @@ export default function AdminHome() {
         />
 
         <main id="main" className="gg-main">
-          <h1 style={{ fontSize: "var(--text-3xl)", marginBottom: "var(--space-2)" }}>
+          <h1 style={{ fontSize: "clamp(1.5rem, 5vw, 2rem)", marginBottom: "var(--space-2)" }}>
             Ghana&rsquo;s location data, as infrastructure
           </h1>
           <p style={{ color: "var(--fg-muted)", marginTop: 0, marginBottom: "var(--space-6)" }}>
@@ -110,7 +96,7 @@ export default function AdminHome() {
             261 districts · 16 places. Press <kbd className="gg-kbd">⌘K</kbd> to search.
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-4)", marginBottom: "var(--space-8)" }}>
+          <div className="gg-auto-grid" style={{ marginBottom: "var(--space-8)" }}>
             {[
               { label: "Regions", value: "16", status: "REFERENCE" },
               { label: "Districts / MMDAs", value: "261", status: "SEED_NEEDS_CANONICAL_RECONCILIATION" },

@@ -1,4 +1,4 @@
-import { Card, Badge } from "@ghanageo/ui";
+import { Card, Badge, Logo } from "@ghanageo/ui";
 import { Globe, ExternalLink } from "lucide-react";
 import { VISION, MISSION, CONTEXT, PLATFORM, AUDIENCES, UNVERIFIED } from "@/content/about";
 
@@ -13,22 +13,19 @@ export default function About() {
     <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
       <header className="gg-navbar" data-intensity="balanced">
         <div className="gg-navbar__left">
-          <Globe size={20} style={{ color: "var(--brand)" }} aria-hidden />
-          <a href="/" style={{ color: "var(--fg)", textDecoration: "none", fontWeight: 700,
-                               fontFamily: "var(--font-display)" }}>GhanaGeo</a>
+          <a href="/" className="gg-logo-link" style={{ textDecoration: "none" }}><Logo size={22} /></a>
         </div>
         <div className="gg-navbar__right">
-          <a className="gg-button gg-button--ghost gg-button--sm" href="/">Home</a>
+          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="/">Home</a>
           <a className="gg-button gg-button--primary gg-button--sm" href="http://localhost:3101">Sandbox</a>
         </div>
       </header>
 
-      <main id="main" style={{ maxWidth: 820, margin: "0 auto", padding: "var(--space-12) var(--space-6)" }}>
+      <main id="main" className="gg-page gg-page--narrow">
         <section style={{ marginBottom: "var(--space-16)" }}>
           <p style={{ fontSize: "var(--text-2xs)", letterSpacing: ".16em", textTransform: "uppercase",
                       color: "var(--brand)", fontWeight: 800, margin: 0 }}>Vision</p>
-          <h1 style={{ fontSize: "var(--text-3xl)", lineHeight: 1.12, margin: "var(--space-3) 0",
-                       letterSpacing: "-0.02em" }}>{VISION.headline}</h1>
+<h1 className="gg-hero__title" style={{ maxWidth: "24ch" }}>{VISION.headline}</h1>
           {VISION.body.trim().split("\n\n").map((p, i) => (
             <p key={i} style={{ color: "var(--fg-muted)", fontSize: "var(--text-base)",
                                 lineHeight: 1.65, maxWidth: "66ch" }}>{p}</p>
@@ -62,8 +59,7 @@ export default function About() {
           <div style={{ display: "grid", gap: "var(--space-3)" }}>
             {CONTEXT.map((f) => (
               <Card key={f.label} data-intensity="restrained">
-                <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "baseline",
-                              flexWrap: "wrap" }}>
+<div className="gg-stack-row">
                   <strong style={{ fontSize: "var(--text-2xl)", fontVariantNumeric: "tabular-nums",
                                    color: "var(--brand)", minWidth: 110 }}>{f.value}</strong>
                   <div style={{ flex: 1, minWidth: 240 }}>
@@ -134,7 +130,7 @@ export default function About() {
 
       <footer style={{ borderTop: "1px solid var(--border)", padding: "var(--space-8) var(--space-6)",
                        color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-        <div style={{ maxWidth: 820, margin: "0 auto" }}>
+        <div className="gg-page gg-page--narrow" style={{ padding: 0 }}>
           Contains data from GeoNames and geoBoundaries, licensed CC BY 4.0.
         </div>
       </footer>

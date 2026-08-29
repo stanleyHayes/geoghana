@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Card, Badge, SkipLink } from "@ghanageo/ui";
+import { Card, Badge, Logo, SkipLink } from "@ghanageo/ui";
 import { Play, Terminal, Globe } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
@@ -49,26 +49,26 @@ export default function Sandbox() {
       <SkipLink />
       <header className="gg-navbar" data-intensity="balanced">
         <div className="gg-navbar__left">
-          <Globe size={20} style={{ color: "var(--brand)" }} aria-hidden />
-          <strong style={{ fontFamily: "var(--font-display)" }}>GhanaGeo</strong>
-          <span style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".14em",
-                         color: "var(--fg-subtle)", fontWeight: 700 }}>Sandbox</span>
+          <a href="http://localhost:3100" className="gg-logo-link" style={{ textDecoration: "none" }}>
+            <Logo size={22} suffix="Sandbox" />
+          </a>
         </div>
         <div className="gg-navbar__right">
           <span className="gg-env gg-env--sandbox">Sandbox</span>
-          <a className="gg-button gg-button--ghost gg-button--sm" href="http://localhost:3100">Home</a>
+          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="http://localhost:3100">Home</a>
         </div>
       </header>
 
-      <main id="main" style={{ maxWidth: 1200, margin: "0 auto", padding: "var(--space-8) var(--space-6)" }}>
+      <main id="main" className="gg-page">
         <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-2)" }}>Try it, no account needed</h1>
         <p style={{ color: "var(--fg-muted)", margin: "0 0 var(--space-6)", maxWidth: "62ch" }}>
           These requests run against the live API with no credential at all. GhanaGeo is
           free — anonymous access is a supported path, not a trial.
         </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,340px) 1fr", gap: "var(--space-5)",
-                      alignItems: "start" }}>
+        {/* Was a fixed two-column grid, which stayed two columns at 320px and
+            pushed the response panel off-screen. */}
+        <div className="gg-split">
           <div style={{ display: "grid", gap: "var(--space-2)" }}>
             {SAMPLES.map((s) => (
               <button key={s.path}
@@ -84,13 +84,14 @@ export default function Sandbox() {
           </div>
 
           <div style={{ display: "grid", gap: "var(--space-3)" }}>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
               <span className="gg-input" style={{ display: "flex", alignItems: "center", gap: "var(--space-2)",
-                                                   fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}>
-                <span style={{ color: "var(--fg-subtle)" }}>GET {API}</span>
+                                                   fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)",
+                                                   minWidth: 0 }}>
+                <span className="gg-navbar__hide-sm" style={{ color: "var(--fg-subtle)", whiteSpace: "nowrap" }}>GET {API}</span>
                 <input value={path} onChange={(e) => setPath(e.target.value)}
                   aria-label="Request path"
-                  style={{ flex: 1, border: 0, background: "transparent", outline: "none",
+                  style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", outline: "none",
                            color: "var(--fg)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }} />
               </span>
               <button className="gg-button gg-button--primary gg-button--md" disabled={busy}

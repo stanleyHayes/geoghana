@@ -66,7 +66,7 @@
 | Motion — marketing | `motion` 13.1.1 + GSAP 3.15.0 with ScrollTrigger, **`apps/web` only** | Never imported by an authenticated app. Enforced by an ESLint `no-restricted-imports` rule per workspace. |
 | Maps | Leaflet 1.9.4 + react-leaflet 5.0.0 + `leaflet.markercluster` 1.5.3 | No API key required; OSM raster tiles with visible ODbL attribution. |
 | Charts | Recharts 3.10.1 | Themed from CSS variables, never props-hardcoded. |
-| Fonts | Display **Bricolage Grotesque** · UI/body **Outfit** · mono **JetBrains Mono**, via `next/font` | Outfit is the house UI face across all three reference products. |
+| Fonts | Display **Fraunces** (variable serif) · UI/body **Outfit** · mono **JetBrains Mono**, via `next/font` | Outfit is the house UI face across all three reference products. Fraunces carries an optical-size axis, so one family serves a 44px hero and an 17px card title without either looking stretched — and a serif display over a grotesque UI gives the product a voice rather than a template. |
 | Theme state | Hand-rolled `ThemeProvider` + blocking inline script | **Explicitly not `next-themes`** — it models one axis (mode). We have three (§3). |
 
 ---
@@ -148,7 +148,7 @@ Three layers — primitive → semantic → component — plus a **material laye
 ```css
 @theme {
   /* Type */
-  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-sans:    var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
   --font-mono:    var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -262,8 +262,8 @@ A size ramp alone is not a type system. Every size pairs with a line-height, wei
 
 | Role | Size | Line-height | Weight | Tracking |
 |---|---|---|---|---|
-| Display (marketing hero) | `--text-5xl` | 1.02 | 700 | −0.03em |
-| H1 page title | `--text-3xl` | 1.12 | 650 | −0.02em |
+| Display (marketing hero) | `--text-5xl` | 1.02 | 600 | −0.02em |
+| H1 page title | `--text-3xl` | 1.12 | 600 | −0.015em |
 | H2 section | `--text-xl` | 1.25 | 600 | −0.01em |
 | H3 card title | `--text-lg` | 1.35 | 600 | 0 |
 | Body (portal/marketing) | `--text-base` | 1.6 | 400 | 0 |
@@ -273,6 +273,8 @@ A size ramp alone is not a type system. Every size pairs with a line-height, wei
 | Code / mono | `--text-sm` | 1.55 | 400 | 0 |
 
 - **Measure:** docs and marketing prose cap at `68ch`; admin descriptions at `80ch`. Never full-bleed body text.
+- **Serif display, sans UI.** Fraunces sets headings; Outfit sets everything else. Do not use Fraunces below `--text-lg` — its optical-size axis is tuned for display, and at caption size it competes with the UI face rather than complementing it.
+- **Weights read heavier than a grotesque.** Fraunces at 700 carries more visual weight than a sans at 700, so headings use 600 and the hero 600, not 700.
 - **Optical matching:** JetBrains Mono runs ~6% larger than Outfit at the same nominal size. Inline code therefore sets `font-size: 0.92em` so a code span does not visually jump out of a sentence.
 - **Numerals:** `font-variant-numeric: tabular-nums` on every table, metric, ID, coordinate and version string. Proportional numerals only in prose.
 - Headings never go below `--text-sm`; a "small heading" is a label, and labels are a different role.
@@ -292,7 +294,7 @@ GhanaGeo stores aliases and name variants in **Twi, Ga and Ewe** (Spec §3.1 `pl
 **This is a release gate, not a nicety.** A place-names product for Ghana that renders `Ɔsu` as a tofu box is broken.
 
 Requirements:
-1. **Verify glyph coverage before locking any face.** Do not assume Outfit, Bricolage Grotesque or JetBrains Mono cover these — check the actual font binaries with `fc-query` or `hb-shape` and record the result in `packages/ui/src/styles/FONTS.md`.
+1. **Verify glyph coverage before locking any face.** Do not assume Outfit, Fraunces or JetBrains Mono cover these — check the actual font binaries with `fc-query` or `hb-shape` and record the result in `packages/ui/src/styles/FONTS.md`.
 2. If a chosen face lacks coverage, either pick a sibling that has it or declare a **scoped fallback** ahead of the generic stack — `Noto Sans` has full coverage and is metric-compatible enough for a fallback role.
 3. `next/font` subsets must include `latin-ext`, **not just `latin`**. `latin` alone drops U+014B and every Latin Extended-B character.
 4. Combining marks must not clip: line-height floors at 1.3 anywhere an alias can render, and no alias field uses `overflow: hidden` without `padding-block`.
@@ -1566,7 +1568,7 @@ glass --mat-radius: 1.125rem (18px)   --mat-radius-sm: 0.75rem
 clay  --mat-radius: 1.75rem  (28px)   --mat-radius-sm: 1.125rem
 
 /* Type */
-display Bricolage Grotesque · UI Outfit · mono JetBrains Mono
+display Fraunces (variable serif, opsz axis) · UI Outfit · mono JetBrains Mono
 admin body 13px · portal/marketing body 15px · nav eyebrow 11px
 tabular-nums on every numeric and ID column
 

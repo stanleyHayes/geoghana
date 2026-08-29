@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Card, Badge, SupportPanel, SponsorWall, SkipLink, verificationTone } from "@ghanageo/ui";
+import { Card, Badge, Logo, SupportPanel, SponsorWall, SkipLink, verificationTone } from "@ghanageo/ui";
 import { Globe, Search, Terminal, Zap, ShieldCheck, Scale } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
@@ -49,29 +49,28 @@ export default function Home() {
 
       <header className="gg-navbar" data-intensity="balanced">
         <div className="gg-navbar__left">
-          <Globe size={22} style={{ color: "var(--brand)" }} aria-hidden />
-          <strong style={{ fontFamily: "var(--font-display)", fontSize: "1.05rem" }}>GhanaGeo</strong>
-          <span style={{ fontSize: "var(--text-2xs)", letterSpacing: ".14em", textTransform: "uppercase",
+          <a href="/" className="gg-logo-link" style={{ textDecoration: "none" }}><Logo size={24} /></a>
+          <span className="gg-navbar__hide-sm"
+                style={{ fontSize: "var(--text-2xs)", letterSpacing: ".14em", textTransform: "uppercase",
                          color: "var(--fg-subtle)", fontWeight: 700 }}>digitalghana.dev</span>
         </div>
         <div className="gg-navbar__right">
-          <a className="gg-button gg-button--ghost gg-button--sm" href="/docs">Docs</a>
-          <a className="gg-button gg-button--ghost gg-button--sm" href="/support">Support</a>
-          <a className="gg-button gg-button--primary gg-button--sm" href="http://localhost:3101">Try the sandbox</a>
+          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-xs" href="/about">About</a>
+          <a className="gg-button gg-button--ghost gg-button--sm gg-navbar__hide-sm" href="/support">Support</a>
+          <a className="gg-button gg-button--primary gg-button--sm" href="http://localhost:3101">Sandbox</a>
         </div>
       </header>
 
-      <main id="main" style={{ maxWidth: 1100, margin: "0 auto", padding: "var(--space-12) var(--space-6)" }}>
+      <main id="main" className="gg-page gg-page--mid">
         <section style={{ marginBottom: "var(--space-16)" }}>
           <p style={{ fontSize: "var(--text-2xs)", letterSpacing: ".16em", textTransform: "uppercase",
                       color: "var(--brand)", fontWeight: 800, margin: 0 }}>
             Free public infrastructure
           </p>
-          <h1 style={{ fontSize: "var(--text-4xl)", lineHeight: 1.08, margin: "var(--space-3) 0",
-                       maxWidth: "18ch", letterSpacing: "-0.02em" }}>
+          <h1 className="gg-hero__title">
             Ghana&rsquo;s location data, as infrastructure
           </h1>
-          <p style={{ fontSize: "var(--text-lg)", color: "var(--fg-muted)", maxWidth: "58ch", margin: 0 }}>
+          <p className="gg-hero__lede">
             Regions, districts, towns, suburbs and boundaries — through one API,
             with provenance on every record. No account, no API key, no paid tier.
           </p>
@@ -119,7 +118,7 @@ export default function Home() {
 
         <section style={{ marginBottom: "var(--space-16)" }}>
           <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>What is in it</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "var(--space-4)" }}>
+          <div className="gg-auto-grid gg-auto-grid--sm">
             {COVERAGE.map((s) => (
               <Card key={s.label}>
                 <p style={{ fontSize: "var(--text-3xl)", fontWeight: 700, margin: 0,
@@ -133,7 +132,7 @@ export default function Home() {
 
         <section style={{ marginBottom: "var(--space-16)" }}>
           <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>Reach it how you like</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: "var(--space-4)" }}>
+          <div className="gg-auto-grid">
             {[
               { icon: Zap, t: "REST", d: "GET /v1/search?q=osu — works from anywhere, including curl." },
               { icon: Globe, t: "GraphQL", d: "Nested geography in one round trip, with a complexity budget." },
@@ -151,7 +150,7 @@ export default function Home() {
 
         <section style={{ marginBottom: "var(--space-16)" }}>
           <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>Why you can rely on it</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: "var(--space-4)" }}>
+          <div className="gg-auto-grid">
             <Card>
               <ShieldCheck size={18} style={{ color: "var(--brand)" }} aria-hidden />
               <p style={{ fontWeight: 650, margin: "var(--space-2) 0 var(--space-1)" }}>Provenance on every record</p>
@@ -192,9 +191,9 @@ export default function Home() {
         </section>
       </main>
 
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "var(--space-8) var(--space-6)",
+      <footer style={{ borderTop: "1px solid var(--border)", padding: "var(--space-8) var(--space-4)",
                        color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div className="gg-page gg-page--mid" style={{ padding: 0 }}>
           <p style={{ margin: 0 }}>
             GhanaGeo is the first product on <strong>digitalghana.dev</strong> — public digital
             infrastructure for Ghana.
