@@ -1,0 +1,660 @@
+openapi: 3.1.0
+info:
+  title: GhanaGeo API
+  version: "1.0.0"
+  summary: National location data for Ghana — regions, districts, places, aliases and boundaries.
+  description: |
+    GhanaGeo serves canonical Ghanaian geography. Every response carries the
+    dataset version it was served from, and every record carries source
+    provenance.
+
+    REST, GraphQL and gRPC are transport adapters over one shared application
+    layer, so equivalent queries return semantically identical results.
+
+    **Licensing note.** GhanaPostGPS digital addresses are not included and are
+    not redistributed. Derived OpenStreetMap data carries ODbL attribution;
+    GeoNames-derived names carry CC BY attribution.
+  license:
+    name: See per-record provenance and the licensing register
+    url: https://ghanageo.dev/about/open-data
+  contact:
+    name: GhanaGeo
+    url: https://ghanageo.dev
+
+servers:
+  - url: https://api.ghanageo.dev/v1
+    description: Production
+  - url: https://sandbox.ghanageo.dev/v1
+    description: Sandbox — capped dataset, aggressive limits
+  - url: "http://localhost:8180/v1"
+    description: Local development
+
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: Geography
+    description: Regions, districts and places.
+  - name: Spatial
+    description: Proximity and containment queries.
+  - name: Datasets
+    description: Published dataset versions and downloads.
+
+paths:
+  /regions:
+    get:
+      operationId: listRegions
+      summary: List Ghana's regions
+      tags: [Geography]
+      description: Returns the 16 regions. Cost class **cheap** (1 unit).
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of regions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegionPage" }
+        "401": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /regions/{id}:
+    get:
+      operationId: getRegion
+      summary: Get one region
+      tags: [Geography]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200":
+          description: The region.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Region" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/Gone" }
+
+  /regions/{id}/districts:
+    get:
+      operationId: listRegionDistricts
+      summary: List districts in a region
+      tags: [Geography]
+      description: |
+        Returns `404` for an unknown region rather than an empty list, so a
+        typo is distinguishable from a genuinely empty region.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of districts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DistrictPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /districts:
+    get:
+      operationId: listDistricts
+      summary: List and filter districts (MMDAs)
+      tags: [Geography]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: regionId
+          in: query
+          schema: { type: string }
+          description: "Restrict to one region."
+        - name: q
+          in: query
+          schema: { type: string }
+          description: "Prefix match on the normalized name."
+      responses:
+        "200":
+          description: A page of districts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DistrictPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /districts/{id}:
+    get:
+      operationId: getDistrict
+      summary: Get one district
+      tags: [Geography]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200":
+          description: The district.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/District" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/Gone" }
+
+  /districts/{id}/places:
+    get:
+      operationId: listDistrictPlaces
+      summary: List places in a district
+      tags: [Geography]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/PlaceType" }
+      responses:
+        "200":
+          description: A page of places.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlacePage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /places:
+    get:
+      operationId: listPlaces
+      summary: List and filter places
+      tags: [Geography]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: districtId
+          in: query
+          schema: { type: string }
+        - name: regionId
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/PlaceType" }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of places.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlacePage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /places/{id}:
+    get:
+      operationId: getPlace
+      summary: Resolve a place
+      tags: [Geography]
+      description: |
+        A merged or deprecated identifier returns `410` with
+        `error.details.mergedInto`, so stored ids keep resolving.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200":
+          description: The place.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Place" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/Gone" }
+
+  /search:
+    get:
+      operationId: search
+      summary: Full and fuzzy location search
+      tags: [Spatial]
+      description: |
+        Typo-tolerant search across names and aliases. Every result carries a
+        confidence score and a match explanation. Ambiguous queries return
+        multiple candidates rather than a guess. Cost class **normal** (2).
+      parameters:
+        - $ref: "#/components/parameters/Query"
+        - $ref: "#/components/parameters/Limit"
+        - name: regionId
+          in: query
+          schema: { type: string }
+          description: "Bias ranking toward this region."
+        - name: districtId
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/PlaceType" }
+      responses:
+        "200":
+          description: Ranked candidates.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /autocomplete:
+    get:
+      operationId: autocomplete
+      summary: Low-latency typeahead suggestions
+      tags: [Spatial]
+      description: Target p95 under 200 ms. Cost class **normal** (2).
+      parameters:
+        - $ref: "#/components/parameters/Query"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Suggestions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /geocode:
+    get:
+      operationId: geocode
+      summary: Text to ranked geographic candidates
+      tags: [Spatial]
+      parameters:
+        - $ref: "#/components/parameters/Query"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Ranked candidates.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /reverse:
+    get:
+      operationId: reverseGeocode
+      summary: Coordinates to containing geography
+      tags: [Spatial]
+      description: |
+        Returns the containing region and district plus nearby localities.
+        Coordinates outside Ghana return an empty result, not an error.
+        Cost class **spatial** (4).
+      parameters:
+        - $ref: "#/components/parameters/Lat"
+        - $ref: "#/components/parameters/Lng"
+      responses:
+        "200":
+          description: Containing geography and nearby places.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReverseResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /nearby:
+    get:
+      operationId: nearby
+      summary: Spatial proximity search
+      tags: [Spatial]
+      description: Cost class **spatial** (4).
+      parameters:
+        - $ref: "#/components/parameters/Lat"
+        - $ref: "#/components/parameters/Lng"
+        - name: radius
+          in: query
+          schema: { type: integer, default: 5000, minimum: 1, maximum: 50000 }
+          description: "Radius in metres."
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Nearby places, nearest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlacePage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /boundaries/{id}:
+    get:
+      operationId: getBoundary
+      summary: GeoJSON boundary for a region, district or place
+      tags: [Spatial]
+      description: Cost class **geometry** (5–10, by vertex count).
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200":
+          description: A GeoJSON Feature.
+          content:
+            application/geo+json:
+              schema: { $ref: "#/components/schemas/BoundaryFeature" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /datasets:
+    get:
+      operationId: listDatasets
+      summary: Published dataset versions
+      tags: [Datasets]
+      responses:
+        "200":
+          description: Published versions, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DatasetPage" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /datasets/{version}/downloads:
+    get:
+      operationId: listDatasetDownloads
+      summary: Bulk download metadata for a dataset version
+      tags: [Datasets]
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema: { type: string, pattern: '^\d{4}\.\d{2}\.\d+$' }
+          example: "2026.08.1"
+      responses:
+        "200":
+          description: Available formats with checksums and attribution.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DownloadList" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer gh_live_<prefix>_<secret>`.
+
+        Keys are labelled Browser, Server or Test. Browser keys are restricted
+        by origin allow-list, narrower scopes and lower quotas. A secret server
+        key must never reach a client bundle.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: "The stable internal identifier (ULID). Human codes are alternate identifiers, never primary keys."
+      example: gh-place-accra
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+      description: "Opaque cursor from a previous response's `nextCursor`."
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+    Query:
+      name: q
+      in: query
+      required: true
+      schema: { type: string, minLength: 2 }
+      description: "The search text. Abbreviations and Ghanaian orthography are normalized."
+      example: tema comm 25
+    Lat:
+      name: lat
+      in: query
+      required: true
+      schema: { type: number, format: double, minimum: -90, maximum: 90 }
+    Lng:
+      name: lng
+      in: query
+      required: true
+      schema: { type: number, format: double, minimum: -180, maximum: 180 }
+
+  responses:
+    BadRequest:
+      description: The request was malformed.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: No record matches that identifier.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Gone:
+      description: The record was merged; follow `error.details.mergedInto`.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Rate limit or quota exceeded.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds to wait before retrying.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId, docs]
+          properties:
+            code:
+              type: string
+              description: A stable machine code from contracts/errors/catalog.yaml.
+              enum:
+                [INVALID_ARGUMENT, INVALID_COORDINATES, RADIUS_OUT_OF_RANGE, QUERY_TOO_SHORT,
+                 PAYLOAD_TOO_LARGE, UNAUTHENTICATED, KEY_REVOKED, PERMISSION_DENIED,
+                 ORIGIN_NOT_ALLOWED, NOT_FOUND, RESOURCE_GONE, RATE_LIMIT_EXCEEDED,
+                 QUOTA_EXCEEDED, QUERY_TOO_COMPLEX, DEADLINE_EXCEEDED, INTERNAL]
+            message: { type: string }
+            requestId: { type: string, description: "Quote this when contacting support." }
+            details: { type: object, additionalProperties: true }
+            docs: { type: string, format: uri-reference }
+
+    Coordinate:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+
+    Ref:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+
+    Provenance:
+      type: object
+      required: [sourceId]
+      description: Where this record came from. A record without provenance cannot be published.
+      properties:
+        sourceId: { type: string }
+        sourceUrl: { type: string, format: uri }
+        retrievedAt: { type: string }
+
+    Status:
+      type: string
+      enum: [ACTIVE, DEPRECATED, MERGED]
+
+    VerificationStatus:
+      type: string
+      description: |
+        How far a record has moved toward canonical truth.
+        `SEED_NEEDS_CANONICAL_RECONCILIATION` rows are bootstrap data awaiting
+        official GNHR/GSS reconciliation and are never auto-promoted.
+      enum: [REFERENCE, SEED_NEEDS_CANONICAL_RECONCILIATION, REVIEWED, CANONICAL]
+
+    PlaceType:
+      type: string
+      enum: [CITY, TOWN, VILLAGE, COMMUNITY, SUBURB, NEIGHBOURHOOD, HAMLET, SETTLEMENT, LOCALITY, REGIONAL_CAPITAL]
+
+    Region:
+      type: object
+      required: [id, countryCode, name, status, verificationStatus, provenance, datasetVersion]
+      properties:
+        id: { type: string }
+        countryCode: { type: string, example: GH }
+        name: { type: string }
+        capital: { type: string }
+        code: { type: string, description: "Official code where reconciled." }
+        status: { $ref: "#/components/schemas/Status" }
+        verificationStatus: { $ref: "#/components/schemas/VerificationStatus" }
+        centroid: { $ref: "#/components/schemas/Coordinate" }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+        datasetVersion: { type: string }
+
+    District:
+      type: object
+      required: [id, name, region, status, verificationStatus, provenance, datasetVersion]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        code: { type: string }
+        type: { type: string, description: "Metropolitan, Municipal or District." }
+        capital: { type: string }
+        region: { $ref: "#/components/schemas/Ref" }
+        status: { $ref: "#/components/schemas/Status" }
+        verificationStatus: { $ref: "#/components/schemas/VerificationStatus" }
+        centroid: { $ref: "#/components/schemas/Coordinate" }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+        datasetVersion: { type: string }
+
+    Alias:
+      type: object
+      required: [value]
+      properties:
+        value: { type: string, description: "Preserves the true orthography, including Twi, Ga and Ewe characters." }
+        type: { type: string }
+        language: { type: string, example: tw }
+        isPreferred: { type: boolean }
+
+    Place:
+      type: object
+      required: [id, name, normalizedName, type, aliases, status, verificationStatus, provenance, datasetVersion]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        normalizedName: { type: string, description: "Deterministic search token; folded for matching only." }
+        type: { $ref: "#/components/schemas/PlaceType" }
+        region: { $ref: "#/components/schemas/Ref" }
+        district: { $ref: "#/components/schemas/Ref" }
+        parentPlaceId: { type: string }
+        aliases:
+          type: array
+          items: { $ref: "#/components/schemas/Alias" }
+        centroid: { $ref: "#/components/schemas/Coordinate" }
+        population: { type: integer, format: int64 }
+        status: { $ref: "#/components/schemas/Status" }
+        verificationStatus: { $ref: "#/components/schemas/VerificationStatus" }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+        datasetVersion: { type: string }
+
+    SearchResult:
+      allOf:
+        - $ref: "#/components/schemas/Place"
+        - type: object
+          properties:
+            score: { type: number, format: double, description: "Confidence, 0 to 1." }
+            matchReason: { type: string, description: 'Why this matched, e.g. "alias match: Osu RE".' }
+
+    PageMeta:
+      type: object
+      required: [datasetVersion]
+      properties:
+        nextCursor: { type: string }
+        datasetVersion: { type: string }
+
+    RegionPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [data]
+          properties:
+            data: { type: array, items: { $ref: "#/components/schemas/Region" } }
+
+    DistrictPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [data]
+          properties:
+            data: { type: array, items: { $ref: "#/components/schemas/District" } }
+
+    PlacePage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [data]
+          properties:
+            data: { type: array, items: { $ref: "#/components/schemas/Place" } }
+
+    SearchPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [data]
+          properties:
+            data: { type: array, items: { $ref: "#/components/schemas/SearchResult" } }
+
+    ReverseResult:
+      type: object
+      required: [datasetVersion]
+      properties:
+        region: { $ref: "#/components/schemas/Ref" }
+        district: { $ref: "#/components/schemas/Ref" }
+        nearby:
+          type: array
+          items: { $ref: "#/components/schemas/Place" }
+        datasetVersion: { type: string }
+
+    BoundaryFeature:
+      type: object
+      required: [type, geometry, properties]
+      properties:
+        type: { type: string, const: Feature }
+        geometry:
+          type: object
+          description: GeoJSON geometry in WGS84 (EPSG:4326).
+          required: [type, coordinates]
+          properties:
+            type:
+              type: string
+              enum: [Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon]
+            coordinates: { type: array, items: {} }
+        properties:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            datasetVersion: { type: string }
+            attribution: { type: string, description: "Required for ODbL and CC BY derived geometry." }
+
+    DatasetVersion:
+      type: object
+      required: [version, status]
+      properties:
+        version: { type: string, example: "2026.08.1" }
+        status: { type: string, enum: [draft, validation, review, approved, published, rolled_back] }
+        publishedAt: { type: string, format: date-time }
+        changelog: { type: string }
+        checksum: { type: string }
+
+    DatasetPage:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/DatasetVersion" } }
+
+    DownloadList:
+      type: object
+      required: [version, downloads]
+      properties:
+        version: { type: string }
+        downloads:
+          type: array
+          items:
+            type: object
+            required: [format, url, checksum]
+            properties:
+              format: { type: string, enum: [json, csv, geojson, parquet] }
+              url: { type: string, format: uri }
+              sizeBytes: { type: integer, format: int64 }
+              checksum: { type: string }
+              attribution: { type: string }

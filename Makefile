@@ -12,6 +12,12 @@ validate:
 	cd services/api && go run ./cmd/ghanageo data validate --dataset seed
 api:
 	cd services/api && go run ./cmd/api
+contracts:  ## Regenerate error code artifacts and validate all three contracts
+	cd services/api && go run ./cmd/gencontracts ../..
+	npx --yes @redocly/cli@latest lint contracts/openapi/v1.yaml
+	npx --yes @bufbuild/buf@latest lint
+	node -e "const{buildSchema}=require('graphql');buildSchema(require('fs').readFileSync('contracts/graphql/schema.graphql','utf8'));console.log('graphql schema ok')"
+
 test:
 	cd services/api && go test ./... && pnpm test
 lint:

@@ -1,0 +1,221 @@
+# GhanaGeo GraphQL, version 1.
+#
+# GraphQL exists for clients that need nested geography without multiple REST
+# round-trips. It is a transport adapter over the same use cases as REST and
+# gRPC, so equivalent queries return semantically identical results.
+#
+# Protections (Spec 8.4): mandatory pagination on every list field, a maximum
+# page size, a weighted complexity budget with higher multipliers for geometry
+# and spatial fields, per-request DataLoader batching, and query plus statement
+# timeouts. Breaking changes follow a deprecation policy; fields are never
+# removed without one.
+
+"A GeoJSON geometry object, in WGS84 (EPSG:4326)."
+scalar GeoJSON
+
+"An RFC 3339 timestamp."
+scalar DateTime
+
+"Lifecycle state of a canonical record."
+enum Status {
+  ACTIVE
+  DEPRECATED
+  MERGED
+}
+
+"""
+How far a record has moved toward canonical truth.
+
+`SEED_NEEDS_CANONICAL_RECONCILIATION` marks bootstrap data awaiting official
+GNHR/GSS reconciliation. Such records are never promoted automatically.
+"""
+enum VerificationStatus {
+  REFERENCE
+  SEED_NEEDS_CANONICAL_RECONCILIATION
+  REVIEWED
+  CANONICAL
+}
+
+"Human geography. Ghana is deliberately not modelled as country/state/city."
+enum PlaceType {
+  CITY
+  TOWN
+  VILLAGE
+  COMMUNITY
+  SUBURB
+  NEIGHBOURHOOD
+  HAMLET
+  SETTLEMENT
+  LOCALITY
+  REGIONAL_CAPITAL
+}
+
+type Coordinate {
+  latitude: Float!
+  longitude: Float!
+}
+
+"Where a record came from. A record without provenance cannot be published."
+type Provenance {
+  sourceId: String!
+  sourceUrl: String
+  retrievedAt: String
+}
+
+"An alternative name, preserving the true Twi, Ga or Ewe orthography."
+type PlaceAlias {
+  value: String!
+  type: String
+  language: String
+  isPreferred: Boolean!
+}
+
+type Region {
+  id: ID!
+  code: String
+  name: String!
+  countryCode: String!
+  capital: String
+  centroid: Coordinate
+  status: Status!
+  verificationStatus: VerificationStatus!
+  provenance: Provenance!
+  datasetVersion: String!
+
+  "Costs more than a scalar field: it is a full geometry fetch."
+  boundary: GeoJSON
+
+  districts(first: Int = 20, after: String): DistrictConnection!
+}
+
+type District {
+  id: ID!
+  code: String
+  name: String!
+  type: String
+  capital: String
+  region: Region!
+  centroid: Coordinate
+  status: Status!
+  verificationStatus: VerificationStatus!
+  provenance: Provenance!
+  datasetVersion: String!
+  boundary: GeoJSON
+
+  places(type: PlaceType, first: Int = 20, after: String): PlaceConnection!
+}
+
+type Place {
+  id: ID!
+  name: String!
+  normalizedName: String!
+  type: PlaceType!
+  aliases: [PlaceAlias!]!
+  region: Region
+  district: District
+  parent: Place
+  children(first: Int = 20, after: String): PlaceConnection!
+  centroid: Coordinate
+  boundary: GeoJSON
+  population: Int
+  status: Status!
+  verificationStatus: VerificationStatus!
+  provenance: Provenance!
+  datasetVersion: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+type RegionEdge {
+  node: Region!
+  cursor: String!
+}
+type RegionConnection {
+  edges: [RegionEdge!]!
+  nodes: [Region!]!
+  pageInfo: PageInfo!
+  datasetVersion: String!
+}
+
+type DistrictEdge {
+  node: District!
+  cursor: String!
+}
+type DistrictConnection {
+  edges: [DistrictEdge!]!
+  nodes: [District!]!
+  pageInfo: PageInfo!
+  datasetVersion: String!
+}
+
+type PlaceEdge {
+  node: Place!
+  cursor: String!
+}
+type PlaceConnection {
+  edges: [PlaceEdge!]!
+  nodes: [Place!]!
+  pageInfo: PageInfo!
+  datasetVersion: String!
+}
+
+"""
+A search hit. `score` and `matchReason` are required by Spec 10: an ambiguous
+query returns several candidates with their confidence rather than a guess.
+"""
+type SearchResult {
+  place: Place!
+  score: Float!
+  matchReason: String
+}
+
+type SearchConnection {
+  nodes: [SearchResult!]!
+  pageInfo: PageInfo!
+  datasetVersion: String!
+}
+
+"Coordinates outside Ghana return empty fields, not an error."
+type ReverseGeocodeResult {
+  region: Region
+  district: District
+  nearby: [Place!]!
+  datasetVersion: String!
+}
+
+type NearbyResult {
+  place: Place!
+  distanceMeters: Float!
+}
+
+type DatasetVersion {
+  version: String!
+  status: String!
+  publishedAt: DateTime
+  changelog: String
+  checksum: String
+}
+
+type Query {
+  region(id: ID!): Region
+  regions(first: Int = 20, after: String): RegionConnection!
+
+  district(id: ID!): District
+  districts(regionId: ID, query: String, first: Int = 20, after: String): DistrictConnection!
+
+  place(id: ID!): Place
+  places(districtId: ID, regionId: ID, type: PlaceType, query: String, first: Int = 20, after: String): PlaceConnection!
+
+  search(query: String!, types: [PlaceType!], regionId: ID, first: Int = 20): SearchConnection!
+  autocomplete(query: String!, first: Int = 10): [SearchResult!]!
+  geocode(query: String!, first: Int = 10): [SearchResult!]!
+  reverse(latitude: Float!, longitude: Float!): ReverseGeocodeResult!
+  nearby(latitude: Float!, longitude: Float!, radiusMeters: Int = 5000, first: Int = 20): [NearbyResult!]!
+
+  "The dataset version currently being served."
+  datasetVersion: DatasetVersion!
+  datasetVersions(first: Int = 20, after: String): [DatasetVersion!]!
+}

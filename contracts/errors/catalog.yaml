@@ -1,0 +1,128 @@
+# GhanaGeo error catalog — the single source of truth for machine error codes.
+#
+# Go constants, TypeScript types and the public /docs/errors/{CODE} pages are
+# all GENERATED from this file. Never hand-edit a generated artifact.
+# Spec section 19; agent_plan.md Appendix B.
+version: 1
+errors:
+  - code: INVALID_ARGUMENT
+    http: 400
+    grpc: INVALID_ARGUMENT
+    message: A request parameter was malformed or missing.
+    when: A parameter failed wire-format validation.
+    remedy: Check the parameter names and types against the OpenAPI contract.
+
+  - code: INVALID_COORDINATES
+    http: 400
+    grpc: INVALID_ARGUMENT
+    message: Coordinates are out of range.
+    when: Latitude outside -90..90 or longitude outside -180..180.
+    remedy: Send latitude and longitude as decimal degrees, in that order.
+    details: [latitude, longitude]
+
+  - code: RADIUS_OUT_OF_RANGE
+    http: 400
+    grpc: INVALID_ARGUMENT
+    message: Radius exceeds the maximum.
+    when: A nearby search asked for more than the documented maximum radius.
+    remedy: Reduce radius to 50000 metres or fewer.
+    details: [maxRadiusMeters]
+
+  - code: QUERY_TOO_SHORT
+    http: 400
+    grpc: INVALID_ARGUMENT
+    message: The search query is too short.
+    when: A search or autocomplete query was below the minimum length.
+    remedy: Send at least 2 characters.
+    details: [minLength]
+
+  - code: PAYLOAD_TOO_LARGE
+    http: 413
+    grpc: RESOURCE_EXHAUSTED
+    message: The request body is too large.
+    when: A request body or gRPC message exceeded the size limit.
+    remedy: Split the request into smaller batches.
+
+  - code: UNAUTHENTICATED
+    http: 401
+    grpc: UNAUTHENTICATED
+    message: No valid credential was supplied.
+    when: The API key was missing or malformed.
+    remedy: "Send an API key as `Authorization: Bearer gh_live_...`."
+
+  - code: KEY_REVOKED
+    http: 401
+    grpc: UNAUTHENTICATED
+    message: This API key is no longer valid.
+    when: The key was revoked or has expired.
+    remedy: Rotate the key in the developer portal.
+
+  - code: PERMISSION_DENIED
+    http: 403
+    grpc: PERMISSION_DENIED
+    message: This key lacks the required scope.
+    when: The operation needs a scope the key was not granted.
+    remedy: Grant the required scope in the developer portal.
+    details: [requiredScope]
+
+  - code: ORIGIN_NOT_ALLOWED
+    http: 403
+    grpc: PERMISSION_DENIED
+    message: This origin is not on the key's allow-list.
+    when: A browser key was used from an unlisted origin.
+    remedy: Add the origin to the application's allowed origins.
+    details: [origin]
+
+  - code: NOT_FOUND
+    http: 404
+    grpc: NOT_FOUND
+    message: No record matches that identifier.
+    when: The id does not exist in the current dataset version.
+    remedy: Check the id, or search for the place by name.
+    details: [id]
+
+  - code: RESOURCE_GONE
+    http: 410
+    grpc: NOT_FOUND
+    message: This record was merged into another.
+    when: The id was deprecated or merged during reconciliation.
+    remedy: Follow `details.mergedInto` and update your stored identifier.
+    details: [mergedInto, reason]
+
+  - code: RATE_LIMIT_EXCEEDED
+    http: 429
+    grpc: RESOURCE_EXHAUSTED
+    message: Request rate exceeded.
+    when: The burst limit for this key, application or IP was hit.
+    remedy: Retry after the interval in the Retry-After header.
+    details: [retryAfterSeconds, limit]
+
+  - code: QUOTA_EXCEEDED
+    http: 429
+    grpc: RESOURCE_EXHAUSTED
+    message: The monthly quota for this plan is exhausted.
+    when: Cumulative cost-class usage passed the plan allowance.
+    remedy: Upgrade the plan or wait for the quota window to reset.
+    details: [resetsAt]
+
+  - code: QUERY_TOO_COMPLEX
+    http: 400
+    grpc: INVALID_ARGUMENT
+    message: The GraphQL query exceeds the complexity budget.
+    when: Query depth or weighted field cost passed the allowed budget.
+    remedy: Request fewer nested fields, or paginate with a smaller page size.
+    details: [cost, maxCost, depth, maxDepth]
+
+  - code: DEADLINE_EXCEEDED
+    http: 504
+    grpc: DEADLINE_EXCEEDED
+    message: The request took too long and was cancelled.
+    when: A query or database statement passed its timeout.
+    remedy: Narrow the query, or retry with a smaller radius or page size.
+
+  - code: INTERNAL
+    http: 500
+    grpc: INTERNAL
+    message: An unexpected error occurred.
+    when: An unhandled failure. Always logged with the request id.
+    remedy: Retry. If it persists, contact support quoting the requestId.
