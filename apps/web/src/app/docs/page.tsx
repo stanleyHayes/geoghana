@@ -4,7 +4,7 @@ import { Terminal, Code2, Package, Boxes, ExternalLink } from "lucide-react";
 
 export const metadata = {
   title: "GhanaGeo documentation",
-  description: "Quick starts for REST, the CLI, npm and GraphQL. No account required.",
+  description: "Quick starts for REST, GraphQL, gRPC, the CLI and npm. No account required.",
 };
 
 const QUICKSTARTS = [
@@ -41,8 +41,17 @@ const { data } = useAutocomplete(query);`,
     code: `query { place(id: "gh-place-gn-2306104") {
   name district { name region { name } }
 } }`,
-    ready: false,
-    story: "GEO-10.1",
+    ready: true,
+  },
+  {
+    icon: Boxes,
+    title: "gRPC",
+    body: "Typed service-to-service access over the same use cases as REST. Reflection is on, so grpcurl needs no .proto.",
+    code: `grpcurl -plaintext api.geo.digitalghana.dev:443 list
+
+grpcurl -d '{"limit":2}' api.geo.digitalghana.dev:443 \\
+  ghanageo.v1.GeographyService/ListRegions`,
+    ready: true,
   },
 ];
 
