@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+credentials.txt
+*.pem
+*.key
+
+# Test & coverage
+coverage/
+playwright-report/
+test-results/
+
+# Go
+*.exe
+*.test
+vendor/
+
+# Tooling caches
+.turbo/
+.cache/
+.raven/.cache/
+.raven/state/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+.raven/
