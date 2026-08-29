@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from "react";
 import {
-  Badge, Card, CommandPalette, Navbar, Sidebar, SkipLink, ThemePicker,
-  verificationTone, type PlaceResult, type Role,
+  Badge, Card, CommandPalette, Navbar, Sidebar, SkipLink, SponsorWall,
+  SupportPanel, ThemePicker, verificationTone, type PlaceResult, type Role,
 } from "@ghanageo/ui";
 import { Globe } from "lucide-react";
 import { NAVIGATION } from "@/config/navigation";
@@ -130,6 +130,21 @@ export default function AdminHome() {
                 </Card>
               );
             })}
+          </div>
+
+          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-4)" }}>Support</h2>
+          <div style={{ display: "grid", gap: "var(--space-5)", marginBottom: "var(--space-8)" }}>
+            <SupportPanel
+              donateHref="/support"
+              figures={{ monthlyCostMinor: 48000, monthlyReceivedMinor: 17500, currency: "GHS" }}
+            />
+            <SponsorWall
+              sponsors={[
+                { id: "a", name: "Ghana Open Data Initiative", months: 14 },
+                { id: "b", name: "Accra Dev Collective", months: 6 },
+                { id: "c", name: "Individual supporters", months: 3 },
+              ]}
+            />
           </div>
 
           <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-4)" }}>Appearance</h2>

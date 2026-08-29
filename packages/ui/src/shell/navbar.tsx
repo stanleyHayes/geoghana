@@ -2,7 +2,7 @@
 
 import {
   Activity, Bell, ChevronRight, CircleHelp, ClipboardCheck, Grid3x3, Menu,
-  Moon, Package, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun,
+  Heart, Moon, Package, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTheme } from "../theme/provider";
@@ -34,12 +34,14 @@ export interface NavbarProps {
   notificationCount: number;
   userMenu?: ReactNode;
   canCreate?: boolean;
+  supportHref?: string;
 }
 
 export function Navbar({
   crumbs, collapsed, onToggleCollapse, onOpenMobileNav, onOpenPalette,
   datasetVersion, datasetStatus, environment, pipelineHealth,
   reviewCount, notificationCount, userMenu, canCreate = true,
+  supportHref = "/support",
 }: NavbarProps) {
   const { resolvedMode, toggleMode } = useTheme();
 
@@ -149,6 +151,17 @@ export function Navbar({
             <span className="gg-counter__badge">{notificationCount > 99 ? "99+" : notificationCount}</span>
           ) : null}
         </button>
+
+        {/* A plain link. It must never become a modal, and never appear on a
+            429 page where it would read as "pay to continue" (rule F5). */}
+        <a
+          className="gg-button gg-button--ghost gg-button--icon gg-navbar__desktop-only"
+          href={supportHref}
+          aria-label="Support GhanaGeo"
+          title="Support GhanaGeo — it is free and stays free"
+        >
+          <Heart size={18} aria-hidden />
+        </a>
 
         <button className="gg-button gg-button--ghost gg-button--icon gg-navbar__desktop-only" aria-label="Help" title="Help">
           <CircleHelp size={18} aria-hidden />

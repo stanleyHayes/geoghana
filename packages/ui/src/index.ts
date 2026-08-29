@@ -1,4 +1,5 @@
 export * from "./components/primitives";
+export * from "./components/support";
 export * from "./shell";
 export * from "./theme/provider";
 export * from "./theme/picker";

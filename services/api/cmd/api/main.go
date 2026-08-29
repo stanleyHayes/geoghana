@@ -12,7 +12,9 @@ import (
 	"time"
 
 	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
+	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
+	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/rest"
 )
@@ -54,17 +56,27 @@ func run(cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
+	const datasetVersion = "2026.08.1-seed"
+
 	geo := appgeo.NewService(
 		mongoadapter.NewRegionRepo(store),
 		mongoadapter.NewDistrictRepo(store),
 		mongoadapter.NewPlaceRepo(store),
 		mongoadapter.NewRedirectRepo(store),
-		"2026.08.1-seed",
+		datasetVersion,
+	)
+
+	searchSvc := appsearch.NewService(
+		typesense.New(cfg.TypesenseURL, cfg.TypesenseKey),
+		mongoadapter.NewRegionRepo(store),
+		mongoadapter.NewDistrictRepo(store),
+		mongoadapter.NewPlaceRepo(store),
+		datasetVersion,
 	)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
-		Handler:           rest.New(geo, log, cfg.AllowedOrigins).Routes(),
+		Handler:           rest.New(geo, searchSvc, log, cfg.AllowedOrigins).Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

@@ -42,12 +42,13 @@
 22. [Quality, Security & Go-Live](#21-quality-security--go-live)
 23. [Risk Register](#22-risk-register)
 24. [Post-V1 — Specification v2 Roadmap](#23-post-v1--specification-v2-roadmap)
-25. [Appendix A — API Scope Catalog](#appendix-a--api-scope-catalog)
-26. [Appendix B — Error Code Catalog](#appendix-b--error-code-catalog)
-27. [Appendix C — RBAC Permission Catalog](#appendix-c--rbac-permission-catalog)
-28. [Appendix D — Quota Cost Class Registry](#appendix-d--quota-cost-class-registry)
-29. [Appendix E — Seed Data Contract](#appendix-e--seed-data-contract)
-30. [Appendix F — Service / Port / Owner Registry](#appendix-f--service--port--owner-registry)
+25. [Funding Model — Free Forever](#24-funding-model--free-forever)
+26. [Appendix A — API Scope Catalog](#appendix-a--api-scope-catalog)
+27. [Appendix B — Error Code Catalog](#appendix-b--error-code-catalog)
+28. [Appendix C — RBAC Permission Catalog](#appendix-c--rbac-permission-catalog)
+29. [Appendix D — Quota Cost Class Registry](#appendix-d--quota-cost-class-registry)
+30. [Appendix E — Seed Data Contract](#appendix-e--seed-data-contract)
+31. [Appendix F — Service / Port / Owner Registry](#appendix-f--service--port--owner-registry)
 
 ---
 
@@ -481,6 +482,7 @@ A story is Done only when **every** line is true. This extends the Workflow Manu
 | EP-14 | Design System & UI Platform | L7 | 0–4 | `DESIGN_SYSTEM.md` |
 | EP-15 | Interactive Sandbox | L9 | 5 | §15 |
 | EP-16 | Developer Portal | L10 | 5 | §14 |
+| EP-16b | Support & Funding (free-forever model) | L8/L10 | 5–6 | product decision, 2026-08-29 |
 | EP-17 | Admin & Data Steward Portal | L11 | 5 | §17 |
 | EP-18 | Marketing Website & Documentation Hub | L8 | 6 | §16 |
 | EP-19 | Observability, SLOs & Status | L12 | 6 | §20 |
@@ -488,7 +490,7 @@ A story is Done only when **every** line is true. This extends the Workflow Manu
 | EP-21 | Backups, DR & Runbooks | L12 | 6 | §27 |
 | EP-22 | Acceptance, Load & Compatibility Testing | all | 6 | §22 |
 | **EP-23** | **SDK Family Expansion** (Python/Go/Dart/Java/C#/PHP) | L6 | **V2.0** | §28, §32.6 |
-| **EP-24** | **Enterprise Access** (OAuth2 CC, SSO/SAML, service accounts, private datasets, paid plans) | L4/L10 | **V2.1** | §28 |
+| **EP-24** | **Enterprise Access** (OAuth2 CC, SSO/SAML, service accounts, private datasets) | L4/L10 | **V2.1** | §28 |
 | **EP-25** | **Data Depth** (POI registry, roads, offline datasets, vector tiles, address validation) | L1/L5 | **V2.2** | §28 |
 | **EP-26** | **Ecosystem** (webhooks, change feed, contributor reputation, steward programme) | L1/L11 | **V2.3** | §28 |
 | **EP-27** | **GhanaPostGPS Adapter** — *gated on a signed licence, no date* | L1 | **gated** | §28, R1 |
@@ -966,9 +968,13 @@ Spec §14 defines nine areas; each is a story.
 **Depends-On:** GEO-9.2, GEO-9.7 · **Spec:** §14
 **Acceptance criteria:** Passkeys/MFA management, active sessions with revocation, audit history, security contacts.
 
-#### GEO-16.9 — Billing scaffold
-**Depends-On:** GEO-16.3 · **Spec:** §14
-**Acceptance criteria:** Plans, invoices and payment **architecture** present with no payment provider wired. Plan limits map to the quota model (Appendix D).
+#### GEO-16.9 — Support & sponsorship surface
+**Depends-On:** GEO-16.3 · **Supersedes** the billing scaffold in Spec §14 · **See §24**
+**Acceptance criteria:**
+- **No billing.** There is no plan upgrade, no invoice, no payment method, no card on file, and no code path that could ever charge a developer. The API is free for every consumer.
+- The portal shows a **Support GhanaGeo** panel: what it costs to run, what donations fund next, and a donate action.
+- Organizations may optionally record a **sponsor** profile (name, logo, link) for public recognition on the marketing site. Sponsorship buys recognition and nothing else — **never** a higher rate limit, priority support, or any access an unsponsored developer lacks. A test asserts sponsorship has zero effect on quota resolution.
+- Fair-use limits remain and are identical for everyone (Appendix D). They exist to stop one consumer degrading the service for others, not to sell a way around themselves.
 
 ### EP-17 — Admin & Data Steward Portal (L11)
 
@@ -1006,9 +1012,9 @@ Spec §17. The IA, shell, sidebar, navbar, dropdowns and per-screen chrome are s
 **Depends-On:** GEO-9.3 · **Spec:** §17
 **Acceptance criteria:** Search organizations/applications/keys; suspend a key instantly; view usage. Developer Support role reaches this without any canonical-edit permission.
 
-#### GEO-17.9 — Rate-limit plan management
-**Depends-On:** GEO-9.6 · **Spec:** §17
-**Acceptance criteria:** Edit plans and per-plan cost-class limits. Changes take effect without a deploy and are audited.
+#### GEO-17.9 — Fair-use limit management
+**Depends-On:** GEO-9.6 · **Spec:** §17 · **See §24**
+**Acceptance criteria:** Edit the default fair-use limits and per-cost-class ceilings. Changes take effect without a deploy and are audited. A steward can raise a limit for a specific application **on documented need** — a research project, a government integration — recording the reason in the audit log. There is no paid tier and no way to buy an exemption.
 
 #### GEO-17.10 — System health
 **Depends-On:** GEO-20.1 · **Spec:** §17
@@ -1032,7 +1038,7 @@ Spec §16 defines ten pages; each is a story. All build to the **expressive** in
 | GEO-18.2 | Products | API, npm, datasets, geocoding, boundaries, enterprise |
 | GEO-18.3 | Developers | Quick-start paths by REST / GraphQL / gRPC / npm |
 | GEO-18.4 | Data coverage | Contents, source & provenance policy, **stated limitations** |
-| GEO-18.5 | Pricing | Free / developer / business / enterprise tiers |
+| GEO-18.5 | **Support** | Free-forever commitment, running costs, donate action, sponsor wall. **Replaces the pricing page** — there is nothing to price. |
 | GEO-18.6 | Docs hub | Technical documentation centre |
 | GEO-18.7 | Changelog | API **and** dataset changes, generated from GEO-6.3 |
 | GEO-18.8 | Status | Operational status and incident history |
@@ -1102,6 +1108,7 @@ Spec §16 defines ten pages; each is a story. All build to the **expressive** in
 - [ ] Search, autocomplete, geocode, reverse and nearby meet functional **and** performance acceptance tests
 - [ ] Admin can review, import, edit, publish and roll back a dataset version with complete audit history
 - [ ] Marketing website and documentation are public with quick starts for REST, GraphQL, gRPC and npm
+- [ ] The free-forever commitment is stated publicly, and a working donate action exists (§24)
 - [ ] Monitoring, alerting, backups and a completed restoration drill
 - [ ] Security review with no unresolved critical or high findings
 - [ ] **No unlicensed GhanaPostGPS digital-address data exists in the canonical dataset**
@@ -1154,7 +1161,7 @@ Sources: Build Specification §25 (Phase 6 — Expansion), §28 (Beyond V1), §3
 | Wave | Release | Theme | Gate to start |
 |---|---|---|---|
 | **V2.0** | Distribution | The full multi-language SDK family | V1 launched; REST/GraphQL/gRPC contracts frozen for 1 release cycle |
-| **V2.1** | Enterprise | OAuth2 client credentials, SSO/SAML, service accounts, private datasets, paid plans | ≥1 signed enterprise/government pilot |
+| **V2.1** | Enterprise | OAuth2 client credentials, SSO/SAML, service accounts, private datasets | ≥1 signed enterprise/government pilot |
 | **V2.2** | Data depth | POI/business registry, road network expansion, address validation, vector tiles | Canonical geography stable; steward programme staffed |
 | **V2.3** | Ecosystem | Webhooks/change feeds, contributor reputation, regional data-steward programme | Community contribution volume justifies moderation tooling |
 | **V2.X** | *Gated* | **Licensed GhanaPostGPS adapter** | **Signed licence or written integration agreement. This is a legal gate, not an engineering one — it has no target date and must never be "started early".** |
@@ -1205,7 +1212,7 @@ Spec §28 names six additional languages. The engineering problem is **not** wri
 | GEO-25.2 | **SSO/SAML + OIDC** for enterprise organizations, with SCIM user provisioning | §28 |
 | GEO-25.3 | **Service accounts** — non-human identities with scoped, rotatable credentials and their own audit identity | §28 |
 | GEO-25.4 | **Private datasets** — government/enterprise layers over the public canonical geography, with per-organization visibility enforced in the repository layer, not the transport | §28 |
-| GEO-25.5 | **Paid plans** — billing provider integration on the GEO-16.9 scaffold; plan limits bind to the Appendix D cost classes | §25 Phase 6 |
+| GEO-25.5 | **Funding sustainability** — recurring donations, institutional sponsorship agreements, and grant reporting. Still no paid access tier; see §24. | product decision |
 | GEO-25.6 | **Enterprise SLAs** — per-contract availability targets, priority support routing, configurable log retention (Spec §21) | §20, §21 |
 
 ---
@@ -1258,6 +1265,64 @@ Naming these prevents scope drift as much as naming what it does include.
 - Property ownership or personal household data (Spec §2.2, R3).
 - Emergency-service dispatch (Spec §2.2).
 - Redistribution of any GhanaPostGPS digital address, licensed or not — the licence in EP-27 permits *lookup*, never *redistribution* (R1).
+
+---
+
+## 24. Funding Model — Free Forever
+
+**Decision, 2026-08-29: GhanaGeo is free. There is no paid tier, and there will
+not be one.** It is funded by voluntary donations and institutional sponsorship.
+This supersedes every pricing and billing item in Build Specification §14, §16
+and §28.
+
+### 24.1 Why this is written down as a rule
+
+A free product drifts toward a paid one one exception at a time: an enterprise
+asks for a higher limit, a plan field appears "just in case", and eventually
+access is for sale. The rules below exist so that drift requires an explicit,
+visible decision rather than a quiet PR.
+
+| # | Rule |
+|---|---|
+| F1 | **No code path may charge a developer for access.** No payment provider, no card on file, no invoice, no plan upgrade. CI fails on a dependency on a payments SDK. |
+| F2 | **Fair-use limits are identical for everyone.** Quota resolution takes account of environment and key class only. It must not read donation or sponsorship state — a test asserts this. |
+| F3 | **Sponsorship buys recognition, never capability.** A sponsor gets a logo on the marketing site and in the docs. It does not get a higher limit, priority support, earlier data, or any endpoint an anonymous developer cannot reach. |
+| F4 | **A limit may be raised on documented need, never on payment.** A steward can lift a specific application's ceiling for a research, humanitarian or government use, recording the reason in the audit log. Money is never the reason. |
+| F5 | **Donation is never a dark pattern.** No interstitial, no rate-limit page that suggests donating as the fix, no countdown, no guilt. One honest, dismissible ask. |
+| F6 | **Funding is reported publicly.** What came in, what it cost to run, what it paid for. A public-good project asking for public money shows its books. |
+
+### 24.2 What donations actually fund
+
+Stated plainly on the support page, because a vague ask gets vague support:
+
+- Hosting: the API, database, search index and CDN.
+- Data acquisition: licensed source data and the steward time to reconcile it.
+- The bandwidth cost of bulk dataset downloads, which is the single largest variable expense.
+- Nothing else. No salaries are implied until the page says so.
+
+### 24.3 Stories
+
+#### GEO-29.1 — Support page (`apps/web`)
+**Depends-On:** GEO-18.1 · **Lane:** L8 · **Replaces** GEO-18.5
+**Acceptance criteria:**
+- States the free-forever commitment in the first screenful, without qualification.
+- Shows current monthly running cost and current funding against it. Real numbers or none — no fabricated progress bar.
+- A donate action supporting one-off and recurring gifts, with a Ghana-appropriate rail (mobile money) alongside card, since a Ghanaian audience should not be forced through a card-only flow.
+- A sponsor wall, ordered by longevity rather than amount, so the page does not become a leaderboard.
+- An explicit line: *"Donating does not change your rate limits."*
+- Accessible, keyboard-operable, and rendering correctly in all three materials.
+
+#### GEO-29.2 — Support control in the shell
+**Depends-On:** GEO-14.5, GEO-29.1 · **Lane:** L7/L10
+**Acceptance criteria:** A **Support** entry in the navbar help menu and in the marketing footer. It is a link, never a modal, never an interstitial (F5). It never appears on a `429` page.
+
+#### GEO-29.3 — Sponsor model and recognition
+**Depends-On:** GEO-16.3 · **Lane:** L10
+**Acceptance criteria:** An organization may record a sponsor profile. Recognition renders on the marketing site and docs footer. **A test asserts that quota resolution produces an identical result for a sponsored and an unsponsored organization** (F2, F3).
+
+#### GEO-29.4 — Transparency report
+**Depends-On:** GEO-29.1 · **Lane:** L8
+**Acceptance criteria:** A public page showing income, running costs and what was funded, updated on a stated cadence. Generated from recorded figures, never hand-written prose about them (F6).
 
 ---
 
@@ -1346,6 +1411,8 @@ Spec §13.
 | gRPC stream | Connection cost + per-message accounting | **dynamic** |
 
 Burst limits are tracked separately from monthly quotas. Sandbox limits are strictly tighter than authenticated production.
+
+**These are fair-use limits, not a price ladder.** Every authenticated developer gets the same allowance regardless of whether they donate. Limits exist so one consumer cannot degrade the service for everyone else; they are never a lever to sell an upgrade (§24).
 
 ---
 

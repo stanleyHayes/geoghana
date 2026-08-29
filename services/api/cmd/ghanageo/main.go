@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
+	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
+	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/seed"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 )
@@ -27,6 +29,7 @@ Usage:
   ghanageo data seed      --file <manifest.json> [--environment local]
   ghanageo data validate  --dataset seed
   ghanageo data reconcile --against canonical-staging
+  ghanageo data reindex
   ghanageo migrate
 `)
 }
@@ -54,6 +57,8 @@ func run(args []string) error {
 			return cmdValidate(ctx, args[2:])
 		case "reconcile":
 			return cmdReconcile(ctx, args[2:])
+		case "reindex":
+			return cmdReindex(ctx)
 		}
 	}
 	usage()
@@ -181,6 +186,30 @@ func cmdValidate(ctx context.Context, args []string) error {
 		return fmt.Errorf("%d active districts reference a missing region", orphans)
 	}
 	fmt.Println("✓ every active district references an active region")
+	return nil
+}
+
+// cmdReindex rebuilds the search index from canonical data.
+func cmdReindex(ctx context.Context) error {
+	store, cfg, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	svc := search.NewService(
+		typesense.New(cfg.TypesenseURL, cfg.TypesenseKey),
+		mongo.NewRegionRepo(store),
+		mongo.NewDistrictRepo(store),
+		mongo.NewPlaceRepo(store),
+		"2026.08.1-seed",
+	)
+	fmt.Printf("→ reindexing into %s\n", cfg.TypesenseURL)
+	n, err := svc.Reindex(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✓ indexed %d documents (regions, districts and places)\n", n)
 	return nil
 }
 

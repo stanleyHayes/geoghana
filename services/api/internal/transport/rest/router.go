@@ -12,22 +12,24 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	app "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
+	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
 )
 
 type Handler struct {
 	geo            *app.Service
+	search         *appsearch.Service
 	log            *slog.Logger
 	allowedOrigins map[string]bool
 }
 
-func New(geo *app.Service, log *slog.Logger, allowedOrigins []string) *Handler {
+func New(geo *app.Service, search *appsearch.Service, log *slog.Logger, allowedOrigins []string) *Handler {
 	set := make(map[string]bool, len(allowedOrigins))
 	for _, o := range allowedOrigins {
 		set[strings.TrimSpace(o)] = true
 	}
-	return &Handler{geo: geo, log: log, allowedOrigins: set}
+	return &Handler{geo: geo, search: search, log: log, allowedOrigins: set}
 }
 
 // Routes returns the /v1 router. Paths match contracts/openapi/v1.yaml exactly.
@@ -55,6 +57,15 @@ func (h *Handler) Routes() http.Handler {
 		r.Get("/places/{id}", h.getPlace)
 
 		r.Get("/nearby", h.nearby)
+
+		// Search surface (EP-12). Registered only when a SearchPort is wired,
+		// so a deployment without one returns 404 rather than a 500.
+		if h.search != nil {
+			r.Get("/search", h.searchHandler)
+			r.Get("/autocomplete", h.autocompleteHandler)
+			r.Get("/geocode", h.geocodeHandler)
+			r.Get("/reverse", h.reverseHandler)
+		}
 	})
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {

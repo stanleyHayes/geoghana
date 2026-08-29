@@ -81,7 +81,7 @@ func normalizePath(p string) string {
 // TestErrorEnvelopeShape locks the Spec 19 contract: every failure carries a
 // stable code, a request id and a docs link.
 func TestErrorEnvelopeShape(t *testing.T) {
-	h := New(nil, discardLogger(), nil)
+	h := New(nil, nil, discardLogger(), nil)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/definitely-not-a-route", nil)
 	h.Routes().ServeHTTP(rec, req)
@@ -117,7 +117,7 @@ func TestErrorEnvelopeShape(t *testing.T) {
 // TestCORSAllowList proves an unlisted origin receives no CORS header, so the
 // browser blocks it. A wildcard here would be a security bug (Spec 12.4).
 func TestCORSAllowList(t *testing.T) {
-	h := New(nil, discardLogger(), []string{"http://localhost:3103"})
+	h := New(nil, nil, discardLogger(), []string{"http://localhost:3103"})
 	router := h.Routes()
 
 	for _, tc := range []struct {

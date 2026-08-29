@@ -347,3 +347,55 @@
   .gg-picker__preview-meta { font-size: var(--text-xs); color: var(--fg-muted); margin: 0; }
   .gg-picker__preview-actions { display: flex; gap: var(--space-2); }
 }
+
+@layer components {
+  /* ----------------------------------------------------------- Support */
+  .gg-support { display: grid; gap: var(--space-4); max-width: 560px; }
+  .gg-support__head { display: flex; gap: var(--space-3); align-items: flex-start; }
+  .gg-support__icon { color: var(--brand); flex-shrink: 0; margin-top: 2px; }
+  .gg-support__title { font-size: var(--text-lg); margin: 0 0 var(--space-1); }
+  .gg-support__lede { margin: 0; font-size: var(--text-sm); color: var(--fg-muted); }
+
+  .gg-support__figures { display: grid; gap: var(--space-2); }
+  .gg-support__meter {
+    height: 8px; border-radius: 999px;
+    background: var(--surface-sunken); box-shadow: var(--mat-shadow-inset);
+    overflow: hidden;
+  }
+  .gg-support__meter-fill {
+    display: block; height: 100%; border-radius: 999px; background: var(--brand);
+    transition: width var(--dur-slow) var(--ease-out-quart);
+  }
+  .gg-support__figures-text { margin: 0; font-size: var(--text-xs); color: var(--fg-muted); }
+  .gg-support__figures-text strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+  .gg-support__list {
+    margin: 0; padding-inline-start: var(--space-5);
+    font-size: var(--text-sm); color: var(--fg-muted);
+    display: grid; gap: var(--space-1);
+  }
+  .gg-support__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+  .gg-support__note {
+    margin: 0; font-size: var(--text-xs); color: var(--fg-subtle);
+    border-inline-start: 2px solid var(--border-strong);
+    padding-inline-start: var(--space-3);
+  }
+
+  .gg-sponsors { display: grid; gap: var(--space-3); }
+  .gg-sponsors__title {
+    font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.10em; color: var(--fg-subtle); margin: 0;
+  }
+  .gg-sponsors__list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-wrap: wrap; gap: var(--space-2);
+  }
+  .gg-sponsors__item {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; font-size: var(--text-xs);
+  }
+  .gg-sponsors__item a { color: var(--fg); text-decoration: none; font-weight: 600; }
+  .gg-sponsors__months { color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+}

@@ -91,16 +91,24 @@ type SearchPort interface {
 	EnsureSchema(ctx context.Context) error
 }
 
+// SearchDoc is one indexed record. Search spans regions, districts AND places,
+// because a user typing "Tema" means a district as readily as a locality.
 type SearchDoc struct {
 	ID           string
 	Name         string
 	Normalized   string
 	Type         string
+	RegionID     string
 	RegionName   string
+	DistrictID   string
 	DistrictName string
 	Aliases      []string
 	Latitude     float64
 	Longitude    float64
+	// Kind is "region", "district" or "place" — what the id resolves to.
+	Kind string
+	// Weight breaks ties: administrative units rank above minor localities.
+	Weight int32
 }
 
 type SearchQuery struct {
