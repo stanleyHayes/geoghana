@@ -102,6 +102,10 @@ func run(cfg config.Config, log *slog.Logger) error {
 		cfg.Env == "sandbox",
 	).WithSecurityAlerts(securityAlerts)
 
+	// Steward writes: permission-checked in the domain and audited, including
+	// the attempts that are refused.
+	geo = geo.WithMutations(mongoadapter.NewAuditRepo(store))
+
 	datasetSvc := appdataset.NewService(
 		mongoadapter.NewDatasetRepo(store),
 		cfg.ExportDir,
@@ -118,8 +122,10 @@ func run(cfg config.Config, log *slog.Logger) error {
 	).WithSecurityAlerts(securityAlerts)
 	developerSvc := appdeveloper.NewService(
 		mongoadapter.NewOrganizationRepo(store), mongoadapter.NewApplicationRepo(store),
-		mongoadapter.NewKeyRepo(store), mongoadapter.NewAuditRepo(store),
+		mongoadapter.NewKeyRepo(store), mongoadapter.NewOrganizationInvitationRepo(store),
+		mongoadapter.NewAuditRepo(store),
 	)
+	usageRepo := mongoadapter.NewUsageRepo(store)
 
 	// WebAuthn. A misconfigured RPID silently breaks every ceremony, so a
 	// failure here is logged loudly and passkeys are simply unavailable
@@ -145,6 +151,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		WithDatasets(datasetSvc).
 		WithAccounts(accountSvc).
 		WithDeveloper(developerSvc).
+		WithUsage(usageRepo).
 		Routes()
 
 	srv := &http.Server{
@@ -170,7 +177,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	// proto/ has been claimed on the marketing site, so it has to be real.
 	grpcSrv := grpcserver.NewServer(geo, searchSvc, store, log)
 	go func() {
-		if err := grpcserver.Serve(ctx, ":"+cfg.GRPCPort, grpcSrv, authenticator, log); err != nil {
+		if err := grpcserver.Serve(ctx, ":"+cfg.GRPCPort, grpcSrv, authenticator, log, usageRepo); err != nil {
 			errCh <- err
 		}
 	}()

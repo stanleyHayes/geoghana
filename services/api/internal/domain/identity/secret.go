@@ -2,6 +2,7 @@ package identity
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
@@ -87,6 +88,20 @@ func NewID(prefix string) (string, error) {
 		return "", fmt.Errorf("generate id: %w", err)
 	}
 	return prefix + "_" + hex.EncodeToString(raw), nil
+}
+
+func GenerateInvitationToken() (string, string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", "", fmt.Errorf("generate invitation token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	sum := sha256.Sum256([]byte(token))
+	return token, hex.EncodeToString(sum[:]), nil
+}
+func InvitationTokenHash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 // HashSecret produces a self-describing argon2id digest, so the parameters can

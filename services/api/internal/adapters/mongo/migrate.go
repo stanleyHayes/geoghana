@@ -79,6 +79,15 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			},
 		},
 		{
+			name:      ColOrgInvitations,
+			validator: organizationInvitationSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "tokenHash", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "organizationId", Value: 1}, {Key: "status", Value: 1}, {Key: "createdAt", Value: -1}}},
+				{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)},
+			},
+		},
+		{
 			name:      ColAPIKeys,
 			validator: apiKeySchema(),
 			indexes: []mongo.IndexModel{
@@ -153,6 +162,15 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			},
 		},
 		{
+			name:      ColUsageEvents,
+			validator: usageEventSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "organizationId", Value: 1}, {Key: "applicationId", Value: 1}, {Key: "at", Value: -1}}},
+				{Keys: bson.D{{Key: "at", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(int32((30 * 24 * time.Hour).Seconds()))},
+				{Keys: bson.D{{Key: "requestId", Value: 1}}, Options: options.Index().SetUnique(true)},
+			},
+		},
+		{
 			name:      ColDatasetVersion,
 			validator: datasetVersionSchema(),
 			indexes: []mongo.IndexModel{
@@ -168,6 +186,9 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 	have := map[string]bool{}
 	for _, n := range existing {
 		have[n] = true
+	}
+	if err := backfillIdentityDocuments(ctx, db, have); err != nil {
+		return err
 	}
 
 	for _, s := range steps {
@@ -199,6 +220,37 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 		}
 	}
 	return nil
+}
+
+func backfillIdentityDocuments(ctx context.Context, db *mongo.Database, have map[string]bool) error {
+	if have[ColOrganizations] {
+		_, err := db.Collection(ColOrganizations).UpdateMany(ctx, bson.M{"members": bson.M{"$exists": false}}, mongo.Pipeline{{{Key: "$set", Value: bson.M{"members": bson.A{bson.M{"accountId": "$ownerId", "email": "", "role": "OWNER", "joinedAt": bson.M{"$ifNull": bson.A{"$createdAt", time.Now().UTC()}}}}}}}})
+		if err != nil {
+			return fmt.Errorf("backfill organization members: %w", err)
+		}
+	}
+	if have[ColApplications] {
+		_, err := db.Collection(ColApplications).UpdateMany(ctx, bson.M{}, bson.M{"$set": bson.M{"environments": bson.A{"test", "live"}, "plan": "free"}})
+		if err != nil {
+			return fmt.Errorf("backfill application metadata: %w", err)
+		}
+	}
+	return nil
+}
+
+func usageEventSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": bson.A{"_id", "requestId", "organizationId", "applicationId", "keyId", "protocol", "operation", "status", "success", "latencyMs", "quotaCost", "quotaLimit", "quotaRemaining", "geography", "at"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "string"}, "requestId": bson.M{"bsonType": "string"},
+			"organizationId": bson.M{"bsonType": "string"}, "applicationId": bson.M{"bsonType": "string"}, "keyId": bson.M{"bsonType": "string"},
+			"protocol": bson.M{"enum": bson.A{"rest", "graphql", "grpc"}}, "operation": bson.M{"bsonType": "string"}, "status": bson.M{"bsonType": "string"},
+			"success": bson.M{"bsonType": "bool"}, "latencyMs": bson.M{"bsonType": bson.A{"int", "long"}},
+			"quotaCost": bson.M{"bsonType": bson.A{"int", "long"}}, "quotaLimit": bson.M{"bsonType": bson.A{"int", "long"}}, "quotaRemaining": bson.M{"bsonType": bson.A{"int", "long"}},
+			"geography": bson.M{"bsonType": "string"}, "at": bson.M{"bsonType": "date"},
+		},
+	}}
 }
 
 // geoJSONSchema is the shared shape for any stored geometry. MongoDB only
@@ -365,10 +417,11 @@ func apiKeySchema() bson.M {
 func organizationSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
-		"required": []string{"_id", "name", "ownerId", "createdAt"},
+		"required": []string{"_id", "name", "ownerId", "members", "createdAt"},
 		"properties": bson.M{
 			"_id": bson.M{"bsonType": "string"}, "name": bson.M{"bsonType": "string"},
 			"ownerId": bson.M{"bsonType": "string"}, "createdAt": bson.M{"bsonType": "date"},
+			"members": bson.M{"bsonType": "array", "items": bson.M{"bsonType": "object", "required": []string{"accountId", "email", "role", "joinedAt"}, "properties": bson.M{"accountId": bson.M{"bsonType": "string"}, "email": bson.M{"bsonType": "string"}, "role": bson.M{"enum": []string{"OWNER", "ADMIN", "MEMBER", "VIEWER"}}, "joinedAt": bson.M{"bsonType": "date"}}}},
 		},
 	}}
 }
@@ -376,13 +429,25 @@ func organizationSchema() bson.M {
 func applicationSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
-		"required": []string{"_id", "organizationId", "name", "createdAt"},
+		"required": []string{"_id", "organizationId", "name", "environments", "plan", "createdAt"},
 		"properties": bson.M{
 			"_id": bson.M{"bsonType": "string"}, "organizationId": bson.M{"bsonType": "string"},
 			"name": bson.M{"bsonType": "string"}, "description": bson.M{"bsonType": []string{"string", "null"}},
+			"environments": bson.M{"bsonType": "array", "items": bson.M{"enum": []string{"test", "live"}}},
+			"domains":      bson.M{"bsonType": []string{"array", "null"}, "items": bson.M{"bsonType": "string"}},
+			"callbackUrl":  bson.M{"bsonType": []string{"string", "null"}}, "plan": bson.M{"enum": []string{"free"}},
 			"createdAt": bson.M{"bsonType": "date"},
 		},
 	}}
+}
+
+func organizationInvitationSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{"bsonType": "object", "required": []string{"_id", "organizationId", "email", "role", "tokenHash", "status", "invitedBy", "createdAt", "expiresAt"}, "properties": bson.M{
+		"_id": bson.M{"bsonType": "string"}, "organizationId": bson.M{"bsonType": "string"}, "email": bson.M{"bsonType": "string"},
+		"role": bson.M{"enum": []string{"ADMIN", "MEMBER", "VIEWER"}}, "tokenHash": bson.M{"bsonType": "string"},
+		"status": bson.M{"enum": []string{"PENDING", "ACCEPTED", "REVOKED"}}, "invitedBy": bson.M{"bsonType": "string"},
+		"createdAt": bson.M{"bsonType": "date"}, "expiresAt": bson.M{"bsonType": "date"}, "acceptedAt": bson.M{"bsonType": []string{"date", "null"}},
+	}}}
 }
 
 func webauthnChallengeSchema() bson.M {

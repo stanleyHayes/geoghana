@@ -25,6 +25,7 @@ import (
 	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
+	usageDomain "github.com/ghanageo/ghanageo/services/api/internal/domain/usage"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
@@ -334,15 +335,19 @@ func hitsToPB(hits []ports.SearchHit) []*pb.SearchResult {
 }
 
 // Serve starts the gRPC server on addr and blocks until ctx is cancelled.
-func Serve(ctx context.Context, addr string, s *Server, authenticator *auth.Authenticator, log *slog.Logger) error {
+func Serve(ctx context.Context, addr string, s *Server, authenticator *auth.Authenticator, log *slog.Logger, usageRepository ...usageDomain.Repository) error {
+	var repository usageDomain.Repository
+	if len(usageRepository) > 0 {
+		repository = usageRepository[0]
+	}
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("grpc listen %s: %w", addr, err)
 	}
 
 	srv := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(unaryMiddleware(authenticator, log)),
-		grpc.ChainStreamInterceptor(streamMiddleware(authenticator, log)),
+		grpc.ChainUnaryInterceptor(unaryMiddleware(authenticator, log, repository)),
+		grpc.ChainStreamInterceptor(streamMiddleware(authenticator, log, repository)),
 		grpc.MaxRecvMsgSize(maxMessage),
 		grpc.MaxSendMsgSize(maxMessage),
 	)

@@ -100,7 +100,45 @@ type Organization struct {
 	ID        string
 	Name      string
 	OwnerID   string
+	Members   []OrganizationMember
 	CreatedAt time.Time
+}
+
+type OrganizationRole string
+
+const (
+	OrganizationOwner      OrganizationRole = "OWNER"
+	OrganizationAdmin      OrganizationRole = "ADMIN"
+	OrganizationMemberRole OrganizationRole = "MEMBER"
+	OrganizationViewer     OrganizationRole = "VIEWER"
+)
+
+type OrganizationMember struct {
+	AccountID string
+	Email     string
+	Role      OrganizationRole
+	JoinedAt  time.Time
+}
+
+type InvitationStatus string
+
+const (
+	InvitationPending  InvitationStatus = "PENDING"
+	InvitationAccepted InvitationStatus = "ACCEPTED"
+	InvitationRevoked  InvitationStatus = "REVOKED"
+)
+
+type OrganizationInvitation struct {
+	ID             string
+	OrganizationID string
+	Email          string
+	Role           OrganizationRole
+	TokenHash      string
+	Status         InvitationStatus
+	InvitedBy      string
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	AcceptedAt     *time.Time
 }
 
 func (o Organization) Validate() error {
@@ -119,6 +157,10 @@ type Application struct {
 	OrganizationID string
 	Name           string
 	Description    string
+	Environments   []Environment
+	Domains        []string
+	CallbackURL    string
+	Plan           string
 	CreatedAt      time.Time
 }
 
@@ -128,6 +170,9 @@ func (a Application) Validate() error {
 	}
 	if strings.TrimSpace(a.OrganizationID) == "" {
 		return ErrOrganizationRequired
+	}
+	if a.Plan != "" && a.Plan != "free" {
+		return errors.New("GhanaGeo applications use the free plan")
 	}
 	return nil
 }

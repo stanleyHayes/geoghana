@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
+	usageDomain "github.com/ghanageo/ghanageo/services/api/internal/domain/usage"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"google.golang.org/grpc"
@@ -109,18 +110,37 @@ func authenticate(ctx context.Context, a *auth.Authenticator, method string) (co
 	return resolved, decision, nil
 }
 
-func unaryMiddleware(a *auth.Authenticator, log *slog.Logger) grpc.UnaryServerInterceptor {
+func recordUsage(ctx context.Context, repository usageDomain.Repository, requestID, protocol, operation, result string, geography string, latency time.Duration, decision auth.Decision, cost identity.CostClass) {
+	caller := auth.FromContext(ctx)
+	if repository == nil || caller.Key == nil {
+		return
+	}
+	id, err := identity.NewID("use")
+	if err != nil {
+		return
+	}
+	recordCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_ = repository.Record(recordCtx, usageDomain.Event{ID: id, RequestID: requestID, OrganizationID: caller.Key.OrganizationID, ApplicationID: caller.Key.ApplicationID, KeyID: caller.Key.ID, Protocol: protocol, Operation: operation, Status: result, Success: result == codes.OK.String(), LatencyMS: latency.Milliseconds(), QuotaCost: cost.Units(), QuotaLimit: decision.Limit, QuotaRemaining: decision.Remaining, Geography: geography, At: time.Now().UTC()})
+}
+
+func unaryMiddleware(a *auth.Authenticator, log *slog.Logger, usageRepository ...usageDomain.Repository) grpc.UnaryServerInterceptor {
+	var repository usageDomain.Repository
+	if len(usageRepository) > 0 {
+		repository = usageRepository[0]
+	}
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		started := time.Now()
-		requestID := fmt.Sprintf("grpc-%d", requestSequence.Add(1))
+		requestID := grpcRequestID()
 		ctx, cancel := context.WithTimeout(ctx, unaryTimeout)
 		defer cancel()
 
 		var response any
 		resolved := ctx
 		var err error
+		var decision auth.Decision
 		if !systemMethod(info.FullMethod) {
-			resolved, _, err = authenticate(ctx, a, info.FullMethod)
+			resolved, decision, err = authenticate(ctx, a, info.FullMethod)
 		}
 		if err == nil {
 			ctx = resolved
@@ -129,8 +149,16 @@ func unaryMiddleware(a *auth.Authenticator, log *slog.Logger) grpc.UnaryServerIn
 		log.Info("request", "request_id", requestID, "protocol", "grpc", "operation", info.FullMethod,
 			"status", status.Code(err).String(), "latency_ms", time.Since(started).Milliseconds(),
 			"caller", auth.FromContext(ctx).RateKey)
+		recordUsage(resolved, repository, requestID, "grpc", info.FullMethod, status.Code(err).String(), "", time.Since(started), decision, grpcCost(info.FullMethod))
 		return response, err
 	}
+}
+
+func grpcRequestID() string {
+	if id, err := identity.NewID("grpc"); err == nil {
+		return id
+	}
+	return fmt.Sprintf("grpc-%d-%d", time.Now().UnixMilli(), requestSequence.Add(1))
 }
 
 type contextStream struct {
@@ -140,22 +168,29 @@ type contextStream struct {
 
 func (s *contextStream) Context() context.Context { return s.ctx }
 
-func streamMiddleware(a *auth.Authenticator, log *slog.Logger) grpc.StreamServerInterceptor {
+func streamMiddleware(a *auth.Authenticator, log *slog.Logger, usageRepository ...usageDomain.Repository) grpc.StreamServerInterceptor {
+	var repository usageDomain.Repository
+	if len(usageRepository) > 0 {
+		repository = usageRepository[0]
+	}
 	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		started := time.Now()
 		ctx, cancel := context.WithTimeout(stream.Context(), streamTimeout)
 		defer cancel()
 		resolved := ctx
 		var err error
+		var decision auth.Decision
 		if !systemMethod(info.FullMethod) {
-			resolved, _, err = authenticate(ctx, a, info.FullMethod)
+			resolved, decision, err = authenticate(ctx, a, info.FullMethod)
 		}
 		if err == nil {
 			err = handler(srv, &contextStream{ServerStream: stream, ctx: resolved})
 		}
-		log.Info("request", "request_id", fmt.Sprintf("grpc-%d", requestSequence.Add(1)), "protocol", "grpc",
+		requestID := grpcRequestID()
+		log.Info("request", "request_id", requestID, "protocol", "grpc",
 			"operation", info.FullMethod, "status", status.Code(err).String(), "latency_ms", time.Since(started).Milliseconds(),
 			"caller", auth.FromContext(resolved).RateKey)
+		recordUsage(resolved, repository, requestID, "grpc", info.FullMethod, status.Code(err).String(), "", time.Since(started), decision, grpcCost(info.FullMethod))
 		return err
 	}
 }

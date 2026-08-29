@@ -24,6 +24,9 @@ type Service struct {
 	places    ports.PlaceRepository
 	redirects ports.RedirectRepository
 	version   string
+
+	// Attached by WithMutations; nil in read-only deployments.
+	auditSink AuditSink
 }
 
 func NewService(

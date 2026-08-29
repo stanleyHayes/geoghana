@@ -13,16 +13,25 @@ import (
 )
 
 const (
-	ColOrganizations = "organizations"
-	ColApplications  = "applications"
-	ColAPIKeys       = "api_keys"
+	ColOrganizations  = "organizations"
+	ColApplications   = "applications"
+	ColAPIKeys        = "api_keys"
+	ColOrgInvitations = "organization_invitations"
 )
 
 type organizationDoc struct {
-	ID        string    `bson:"_id"`
-	Name      string    `bson:"name"`
-	OwnerID   string    `bson:"ownerId"`
-	CreatedAt time.Time `bson:"createdAt"`
+	ID        string                  `bson:"_id"`
+	Name      string                  `bson:"name"`
+	OwnerID   string                  `bson:"ownerId"`
+	Members   []organizationMemberDoc `bson:"members"`
+	CreatedAt time.Time               `bson:"createdAt"`
+}
+
+type organizationMemberDoc struct {
+	AccountID string    `bson:"accountId"`
+	Email     string    `bson:"email"`
+	Role      string    `bson:"role"`
+	JoinedAt  time.Time `bson:"joinedAt"`
 }
 
 type applicationDoc struct {
@@ -30,7 +39,24 @@ type applicationDoc struct {
 	OrganizationID string    `bson:"organizationId"`
 	Name           string    `bson:"name"`
 	Description    string    `bson:"description,omitempty"`
+	Environments   []string  `bson:"environments"`
+	Domains        []string  `bson:"domains,omitempty"`
+	CallbackURL    string    `bson:"callbackUrl,omitempty"`
+	Plan           string    `bson:"plan"`
 	CreatedAt      time.Time `bson:"createdAt"`
+}
+
+type organizationInvitationDoc struct {
+	ID             string     `bson:"_id"`
+	OrganizationID string     `bson:"organizationId"`
+	Email          string     `bson:"email"`
+	Role           string     `bson:"role"`
+	TokenHash      string     `bson:"tokenHash"`
+	Status         string     `bson:"status"`
+	InvitedBy      string     `bson:"invitedBy"`
+	CreatedAt      time.Time  `bson:"createdAt"`
+	ExpiresAt      time.Time  `bson:"expiresAt"`
+	AcceptedAt     *time.Time `bson:"acceptedAt,omitempty"`
 }
 
 type OrganizationRepo struct{ col *mongo.Collection }
@@ -43,7 +69,11 @@ func (r *OrganizationRepo) Create(ctx context.Context, org identity.Organization
 	if err := org.Validate(); err != nil {
 		return err
 	}
-	_, err := r.col.InsertOne(ctx, organizationDoc{ID: org.ID, Name: org.Name, OwnerID: org.OwnerID, CreatedAt: org.CreatedAt})
+	members := make([]organizationMemberDoc, 0, len(org.Members))
+	for _, m := range org.Members {
+		members = append(members, organizationMemberDoc{AccountID: m.AccountID, Email: m.Email, Role: string(m.Role), JoinedAt: m.JoinedAt})
+	}
+	_, err := r.col.InsertOne(ctx, organizationDoc{ID: org.ID, Name: org.Name, OwnerID: org.OwnerID, Members: members, CreatedAt: org.CreatedAt})
 	return err
 }
 
@@ -55,7 +85,18 @@ func (r *OrganizationRepo) ByIDForOwner(ctx context.Context, id, ownerID string)
 		}
 		return nil, err
 	}
-	return &identity.Organization{ID: d.ID, Name: d.Name, OwnerID: d.OwnerID, CreatedAt: d.CreatedAt}, nil
+	return organizationFromDoc(d), nil
+}
+
+func (r *OrganizationRepo) ByIDForAccount(ctx context.Context, id, accountID string) (*identity.Organization, error) {
+	var d organizationDoc
+	if err := r.col.FindOne(ctx, bson.M{"_id": id, "members.accountId": accountID}).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, identity.ErrNotFound
+		}
+		return nil, err
+	}
+	return organizationFromDoc(d), nil
 }
 
 func (r *OrganizationRepo) ListByOwner(ctx context.Context, ownerID string) ([]identity.Organization, error) {
@@ -70,9 +111,57 @@ func (r *OrganizationRepo) ListByOwner(ctx context.Context, ownerID string) ([]i
 	}
 	out := make([]identity.Organization, 0, len(docs))
 	for _, d := range docs {
-		out = append(out, identity.Organization{ID: d.ID, Name: d.Name, OwnerID: d.OwnerID, CreatedAt: d.CreatedAt})
+		out = append(out, *organizationFromDoc(d))
 	}
 	return out, nil
+}
+
+func (r *OrganizationRepo) ListByAccount(ctx context.Context, accountID string) ([]identity.Organization, error) {
+	cur, err := r.col.Find(ctx, bson.M{"members.accountId": accountID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var docs []organizationDoc
+	if err := cur.All(ctx, &docs); err != nil {
+		return nil, err
+	}
+	out := make([]identity.Organization, 0, len(docs))
+	for _, d := range docs {
+		out = append(out, *organizationFromDoc(d))
+	}
+	return out, nil
+}
+
+func organizationFromDoc(d organizationDoc) *identity.Organization {
+	members := make([]identity.OrganizationMember, 0, len(d.Members))
+	for _, m := range d.Members {
+		members = append(members, identity.OrganizationMember{AccountID: m.AccountID, Email: m.Email, Role: identity.OrganizationRole(m.Role), JoinedAt: m.JoinedAt})
+	}
+	return &identity.Organization{ID: d.ID, Name: d.Name, OwnerID: d.OwnerID, Members: members, CreatedAt: d.CreatedAt}
+}
+
+func (r *OrganizationRepo) AddMember(ctx context.Context, orgID string, member identity.OrganizationMember) error {
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": orgID, "members.accountId": bson.M{"$ne": member.AccountID}}, bson.M{"$push": bson.M{"members": organizationMemberDoc{AccountID: member.AccountID, Email: member.Email, Role: string(member.Role), JoinedAt: member.JoinedAt}}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return identity.ErrNotFound
+	}
+	return nil
+}
+
+func (r *OrganizationRepo) TransferOwnership(ctx context.Context, orgID, currentOwnerID, nextOwnerID string, at time.Time) error {
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": orgID, "ownerId": currentOwnerID, "members.accountId": nextOwnerID}, bson.M{"$set": bson.M{"ownerId": nextOwnerID, "members.$[next].role": string(identity.OrganizationOwner), "members.$[old].role": string(identity.OrganizationAdmin)}}, options.UpdateOne().SetArrayFilters([]any{bson.M{"next.accountId": nextOwnerID}, bson.M{"old.accountId": currentOwnerID}}))
+	_ = at
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return identity.ErrNotFound
+	}
+	return nil
 }
 
 type ApplicationRepo struct{ col *mongo.Collection }
@@ -85,7 +174,11 @@ func (r *ApplicationRepo) Create(ctx context.Context, app identity.Application) 
 	if err := app.Validate(); err != nil {
 		return err
 	}
-	_, err := r.col.InsertOne(ctx, applicationDoc{ID: app.ID, OrganizationID: app.OrganizationID, Name: app.Name, Description: app.Description, CreatedAt: app.CreatedAt})
+	envs := make([]string, 0, len(app.Environments))
+	for _, e := range app.Environments {
+		envs = append(envs, string(e))
+	}
+	_, err := r.col.InsertOne(ctx, applicationDoc{ID: app.ID, OrganizationID: app.OrganizationID, Name: app.Name, Description: app.Description, Environments: envs, Domains: app.Domains, CallbackURL: app.CallbackURL, Plan: app.Plan, CreatedAt: app.CreatedAt})
 	return err
 }
 
@@ -97,7 +190,7 @@ func (r *ApplicationRepo) ByID(ctx context.Context, id, orgID string) (*identity
 		}
 		return nil, err
 	}
-	return &identity.Application{ID: d.ID, OrganizationID: d.OrganizationID, Name: d.Name, Description: d.Description, CreatedAt: d.CreatedAt}, nil
+	return applicationFromDoc(d), nil
 }
 
 func (r *ApplicationRepo) ListByOrganization(ctx context.Context, orgID string) ([]identity.Application, error) {
@@ -112,9 +205,77 @@ func (r *ApplicationRepo) ListByOrganization(ctx context.Context, orgID string) 
 	}
 	out := make([]identity.Application, 0, len(docs))
 	for _, d := range docs {
-		out = append(out, identity.Application{ID: d.ID, OrganizationID: d.OrganizationID, Name: d.Name, Description: d.Description, CreatedAt: d.CreatedAt})
+		out = append(out, *applicationFromDoc(d))
 	}
 	return out, nil
+}
+
+func applicationFromDoc(d applicationDoc) *identity.Application {
+	envs := make([]identity.Environment, 0, len(d.Environments))
+	for _, e := range d.Environments {
+		envs = append(envs, identity.Environment(e))
+	}
+	return &identity.Application{ID: d.ID, OrganizationID: d.OrganizationID, Name: d.Name, Description: d.Description, Environments: envs, Domains: d.Domains, CallbackURL: d.CallbackURL, Plan: d.Plan, CreatedAt: d.CreatedAt}
+}
+
+type OrganizationInvitationRepo struct{ col *mongo.Collection }
+
+func NewOrganizationInvitationRepo(s *Store) *OrganizationInvitationRepo {
+	return &OrganizationInvitationRepo{col: s.db.Collection(ColOrgInvitations)}
+}
+func invitationFromDoc(d organizationInvitationDoc) identity.OrganizationInvitation {
+	return identity.OrganizationInvitation{ID: d.ID, OrganizationID: d.OrganizationID, Email: d.Email, Role: identity.OrganizationRole(d.Role), TokenHash: d.TokenHash, Status: identity.InvitationStatus(d.Status), InvitedBy: d.InvitedBy, CreatedAt: d.CreatedAt, ExpiresAt: d.ExpiresAt, AcceptedAt: d.AcceptedAt}
+}
+func (r *OrganizationInvitationRepo) Create(ctx context.Context, v identity.OrganizationInvitation) error {
+	_, err := r.col.InsertOne(ctx, organizationInvitationDoc{ID: v.ID, OrganizationID: v.OrganizationID, Email: v.Email, Role: string(v.Role), TokenHash: v.TokenHash, Status: string(v.Status), InvitedBy: v.InvitedBy, CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt})
+	return err
+}
+func (r *OrganizationInvitationRepo) ListPending(ctx context.Context, orgID string) ([]identity.OrganizationInvitation, error) {
+	cur, err := r.col.Find(ctx, bson.M{"organizationId": orgID, "status": string(identity.InvitationPending)}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var docs []organizationInvitationDoc
+	if err := cur.All(ctx, &docs); err != nil {
+		return nil, err
+	}
+	out := make([]identity.OrganizationInvitation, 0, len(docs))
+	for _, d := range docs {
+		out = append(out, invitationFromDoc(d))
+	}
+	return out, nil
+}
+func (r *OrganizationInvitationRepo) ByTokenHash(ctx context.Context, hash string) (*identity.OrganizationInvitation, error) {
+	var d organizationInvitationDoc
+	if err := r.col.FindOne(ctx, bson.M{"tokenHash": hash, "status": string(identity.InvitationPending)}).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, identity.ErrNotFound
+		}
+		return nil, err
+	}
+	v := invitationFromDoc(d)
+	return &v, nil
+}
+func (r *OrganizationInvitationRepo) Accept(ctx context.Context, id string, at time.Time) error {
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": id, "status": string(identity.InvitationPending)}, bson.M{"$set": bson.M{"status": string(identity.InvitationAccepted), "acceptedAt": at}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return identity.ErrNotFound
+	}
+	return nil
+}
+func (r *OrganizationInvitationRepo) Revoke(ctx context.Context, id, orgID string) error {
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": id, "organizationId": orgID, "status": string(identity.InvitationPending)}, bson.M{"$set": bson.M{"status": string(identity.InvitationRevoked)}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return identity.ErrNotFound
+	}
+	return nil
 }
 
 // The stored key never contains the secret — only the public prefix and an

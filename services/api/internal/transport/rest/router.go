@@ -13,6 +13,7 @@ import (
 
 	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
+	usageDomain "github.com/ghanageo/ghanageo/services/api/internal/domain/usage"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 
 	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
@@ -35,9 +36,15 @@ type Handler struct {
 	datasets       *appdataset.Service
 	accounts       *appaccount.Service
 	developer      *appdeveloper.Service
+	usage          usageDomain.Repository
 }
 
 func (h *Handler) WithDeveloper(a *appdeveloper.Service) *Handler { h.developer = a; return h }
+
+func (h *Handler) WithUsage(repository usageDomain.Repository) *Handler {
+	h.usage = repository
+	return h
+}
 
 // WithAccounts attaches account authentication. Absent in unit tests, where
 // the endpoints report that they are not configured rather than panicking.
@@ -131,6 +138,9 @@ func (h *Handler) Routes() http.Handler {
 			// every endpoint below, so no handler can forget to.
 			r.Use(h.auth.Middleware(costOf))
 		}
+		if h.usage != nil {
+			r.Use(h.captureUsage("rest"))
+		}
 		// Account authentication (GEO-9.2). Deliberately NOT behind
 		// RequireScope: these are humans signing in with a session cookie, not
 		// API keys presenting scopes. Every state-changing route is a POST, so
@@ -160,12 +170,19 @@ func (h *Handler) Routes() http.Handler {
 			r.Route("/developer", func(r chi.Router) {
 				r.Get("/organizations", h.developerOrganizations)
 				r.Post("/organizations", h.developerCreateOrganization)
+				r.Get("/organizations/{orgId}/invitations", h.developerInvitations)
+				r.Post("/organizations/{orgId}/invitations", h.developerInviteMember)
+				r.Post("/organizations/{orgId}/invitations/{inviteId}/revoke", h.developerRevokeInvitation)
+				r.Post("/organizations/{orgId}/transfer-ownership", h.developerTransferOwnership)
+				r.Post("/invitations/accept", h.developerAcceptInvitation)
 				r.Get("/organizations/{orgId}/applications", h.developerApplications)
 				r.Post("/organizations/{orgId}/applications", h.developerCreateApplication)
 				r.Get("/organizations/{orgId}/applications/{appId}/keys", h.developerKeys)
 				r.Post("/organizations/{orgId}/applications/{appId}/keys", h.developerCreateKey)
 				r.Post("/organizations/{orgId}/applications/{appId}/keys/{keyId}/rotate", h.developerRotateKey)
 				r.Post("/organizations/{orgId}/applications/{appId}/keys/{keyId}/revoke", h.developerRevokeKey)
+				r.Get("/organizations/{orgId}/applications/{appId}/usage", h.developerUsageSummary)
+				r.Get("/organizations/{orgId}/applications/{appId}/requests", h.developerRequestLogs)
 			})
 		}
 
@@ -185,6 +202,17 @@ func (h *Handler) Routes() http.Handler {
 
 		// Bulk downloads (GEO-8.3). Cheaper for a consumer than paginating
 		// the whole dataset, and cheaper for us to serve.
+		// Steward mutations (GEO-17.3). Session-authenticated, permission
+		// checked, and audited — including refusals. There is deliberately no
+		// DELETE: a record is deprecated into a redirect, never removed.
+		r.Route("/admin", func(r chi.Router) {
+			r.Get("/permissions", h.adminPermissions)
+			r.Patch("/regions/{id}", h.adminUpdateRegion)
+			r.Patch("/districts/{id}", h.adminUpdateDistrict)
+			r.Patch("/places/{id}", h.adminUpdatePlace)
+			r.Post("/places/{id}/deprecate", h.adminDeprecatePlace)
+		})
+
 		r.With(auth.RequireScope(identity.ScopeDatasetsRead)).Get("/datasets", h.listDatasets)
 		r.With(auth.RequireScope(identity.ScopeDatasetsRead)).Get("/datasets/{version}/downloads", h.datasetDownloads)
 		r.With(auth.RequireScope(identity.ScopeDatasetsRead)).Get("/datasets/{version}/downloads/{entity}.{format}", h.datasetArtifact)
@@ -213,9 +241,13 @@ func (h *Handler) graphqlRoute() http.Handler {
 	if h.auth == nil {
 		return h.graphql
 	}
+	handler := auth.RequireScope(identity.ScopeGraphQLAccess)(h.graphql)
+	if h.usage != nil {
+		handler = h.captureUsage("graphql")(handler)
+	}
 	return h.auth.Middleware(func(*http.Request) identity.CostClass {
 		return identity.CostNormal
-	})(auth.RequireScope(identity.ScopeGraphQLAccess)(h.graphql))
+	})(handler)
 }
 
 // ---- middleware ----

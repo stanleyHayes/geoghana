@@ -18,7 +18,10 @@ import (
 
 type ctxKey int
 
-const identityKey ctxKey = iota
+const (
+	identityKey ctxKey = iota
+	decisionKey
+)
 
 // KeyLookup resolves a public prefix to a stored key. Returns nil when unknown.
 type KeyLookup interface {
@@ -63,6 +66,15 @@ func FromContext(ctx context.Context) identity.Identity {
 		return id
 	}
 	return identity.Anonymous("unknown")
+}
+
+// DecisionFromContext exposes the quota charge to transport telemetry without
+// coupling it to a limiter implementation.
+func DecisionFromContext(ctx context.Context) Decision {
+	if decision, ok := ctx.Value(decisionKey).(Decision); ok {
+		return decision
+	}
+	return Decision{}
 }
 
 // Resolve turns an Authorization header into an Identity.
@@ -157,7 +169,8 @@ func (a *Authenticator) Authorize(
 			WithDetail("limit", decision.Limit)
 	}
 
-	return context.WithValue(ctx, identityKey, id), decision, nil
+	ctx = context.WithValue(ctx, identityKey, id)
+	return context.WithValue(ctx, decisionKey, decision), decision, nil
 }
 
 // Middleware resolves the caller, charges the fair-use bucket and attaches the
