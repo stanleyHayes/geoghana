@@ -1,6 +1,6 @@
-import { Card, Badge } from "@ghanageo/ui";
+import { Badge } from "@ghanageo/ui";
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
-import { ExternalLink } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Database, MapPin, ShieldCheck } from "lucide-react";
 import { VISION, MISSION, CONTEXT, PLATFORM, AUDIENCES, UNVERIFIED } from "@/content/about";
 
 export const metadata = {
@@ -11,116 +11,127 @@ export const metadata = {
 
 export default function About() {
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
+    <div className="site-page about-page">
       <MarketingHeader active="/about" />
-
-      <main id="main" className="gg-page gg-page--narrow">
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <p style={{ fontSize: "var(--text-2xs)", letterSpacing: ".16em", textTransform: "uppercase",
-                      color: "var(--brand)", fontWeight: 800, margin: 0 }}>Vision</p>
-<h1 className="gg-hero__title" style={{ maxWidth: "24ch" }}>{VISION.headline}</h1>
-          {VISION.body.trim().split("\n\n").map((p, i) => (
-            <p key={i} style={{ color: "var(--fg-muted)", fontSize: "var(--text-base)",
-                                lineHeight: 1.65, maxWidth: "66ch" }}>{p}</p>
-          ))}
+      <main id="main">
+        <section className="about-hero" aria-labelledby="about-title">
+          <div className="about-hero__copy">
+            <p className="site-eyebrow"><MapPin size={14} aria-hidden /> Why GhanaGeo exists</p>
+            <h1 id="about-title">{VISION.headline}</h1>
+          </div>
+          <div className="about-hero__statement">
+            <span className="about-index" aria-hidden>01 / Vision</span>
+            {VISION.body.trim().split("\n\n").map((paragraph) => (
+              <p key={paragraph}>{paragraph.replace(/\n/g, " ")}</p>
+            ))}
+            <a href="#mission">Read our commitments <ArrowRight size={16} aria-hidden /></a>
+          </div>
+          <div className="about-hero__terrain" aria-hidden>
+            <span>Upper West</span><span>Ashanti</span><span>Greater Accra</span><i /><i /><i />
+          </div>
+          <div className="about-hero__principles" aria-label="GhanaGeo principles">
+            <span><strong>Open</strong><small>Free to use and leave</small></span>
+            <span><strong>Traceable</strong><small>A source on every record</small></span>
+            <span><strong>Ghanaian</strong><small>Names preserved as written</small></span>
+          </div>
         </section>
 
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <p style={{ fontSize: "var(--text-2xs)", letterSpacing: ".16em", textTransform: "uppercase",
-                      color: "var(--brand)", fontWeight: 800, margin: 0 }}>Mission</p>
-          <h2 style={{ fontSize: "var(--text-2xl)", margin: "var(--space-3) 0 var(--space-6)" }}>
-            {MISSION.headline}
-          </h2>
-          <div style={{ display: "grid", gap: "var(--space-4)" }}>
-            {MISSION.pillars.map((p) => (
-              <Card key={p.title}>
-                <h3 style={{ fontSize: "var(--text-lg)", margin: "0 0 var(--space-2)" }}>{p.title}</h3>
-                <p style={{ color: "var(--fg-muted)", margin: 0, lineHeight: 1.6 }}>
-                  {p.body.replace(/\n/g, " ")}
-                </p>
-              </Card>
+        <section id="mission" className="gg-page gg-page--mid about-mission" aria-labelledby="mission-title">
+          <header className="about-section-intro">
+            <div>
+              <p className="site-eyebrow"><ShieldCheck size={14} aria-hidden /> Our contract</p>
+              <span className="about-index" aria-hidden>02 / Mission</span>
+            </div>
+            <h2 id="mission-title">{MISSION.headline}</h2>
+          </header>
+          <div className="about-mission__grid">
+            {MISSION.pillars.map((pillar, index) => (
+              <article key={pillar.title}>
+                <span aria-hidden>{String(index + 1).padStart(2, "0")}</span>
+                <h3>{pillar.title}</h3>
+                <p>{pillar.body.replace(/\n/g, " ")}</p>
+              </article>
             ))}
           </div>
         </section>
 
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <h2 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-2)" }}>Why now</h2>
-          <p style={{ color: "var(--fg-muted)", margin: "0 0 var(--space-6)", maxWidth: "66ch" }}>
-            Every figure below links to its primary source and states the date it applies to.
-            We publish nothing we cannot point at.
-          </p>
-          <div style={{ display: "grid", gap: "var(--space-3)" }}>
-            {CONTEXT.map((f) => (
-              <Card key={f.label} data-intensity="restrained">
-<div className="gg-stack-row">
-                  <strong style={{ fontSize: "var(--text-2xl)", fontVariantNumeric: "tabular-nums",
-                                   color: "var(--brand)", minWidth: 110 }}>{f.value}</strong>
-                  <div style={{ flex: 1, minWidth: 240 }}>
-                    <p style={{ margin: 0, fontWeight: 600 }}>{f.label}</p>
-                    <p style={{ margin: "var(--space-1) 0 0", fontSize: "var(--text-xs)",
-                                color: "var(--fg-subtle)" }}>
-                      <a href={f.url} rel="noopener noreferrer" target="_blank"
-                         style={{ color: "var(--fg-muted)" }}>
-                        {f.source} <ExternalLink size={11} style={{ display: "inline" }} aria-hidden />
-                      </a>
-                      {" · "}{f.asOf}
-                    </p>
-                    {f.caveat ? (
-                      <p style={{ margin: "var(--space-2) 0 0", fontSize: "var(--text-xs)",
-                                  color: "var(--fg-muted)",
-                                  borderInlineStart: "2px solid var(--border-strong)",
-                                  paddingInlineStart: "var(--space-3)" }}>{f.caveat}</p>
-                    ) : null}
+        <section className="about-context" aria-labelledby="context-title">
+          <div className="gg-page gg-page--mid about-context__inner">
+            <header>
+              <p className="site-eyebrow"><Database size={14} aria-hidden /> The context</p>
+              <h2 id="context-title">Why now?</h2>
+              <p>Every figure links to its primary source and states the date it applies to. We publish nothing we cannot point at.</p>
+            </header>
+            <div className="about-ledger">
+              {CONTEXT.map((fact, index) => (
+                <article key={fact.label}>
+                  <span className="about-ledger__number" aria-hidden>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{fact.value}</strong>
+                  <div>
+                    <h3>{fact.label}</h3>
+                    <a href={fact.url} rel="noopener noreferrer" target="_blank">
+                      {fact.source} <ArrowUpRight size={13} aria-hidden />
+                    </a>
+                    <small>{fact.asOf}</small>
+                    {fact.caveat ? <p>{fact.caveat}</p> : null}
                   </div>
-                </div>
-              </Card>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="gg-page gg-page--mid about-audiences" aria-labelledby="audiences-title">
+          <header className="about-section-intro">
+            <div><p className="site-eyebrow">Built for real work</p><span className="about-index" aria-hidden>03 / People</span></div>
+            <h2 id="audiences-title">Who this is for</h2>
+          </header>
+          <div className="about-audiences__list">
+            {AUDIENCES.map((audience, index) => (
+              <article key={audience.who}>
+                <span aria-hidden>{String(index + 1).padStart(2, "0")}</span>
+                <h3>{audience.who}</h3>
+                <p>{audience.breaks}</p>
+              </article>
             ))}
           </div>
         </section>
 
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <h2 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-5)" }}>Who this is for</h2>
-          <div style={{ display: "grid", gap: "var(--space-2)" }}>
-            {AUDIENCES.map((a) => (
-              <div key={a.who} style={{ display: "flex", gap: "var(--space-4)", padding: "var(--space-3) 0",
-                                        borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
-                <strong style={{ minWidth: 200 }}>{a.who}</strong>
-                <span style={{ color: "var(--fg-muted)", flex: 1, minWidth: 260 }}>{a.breaks}</span>
-              </div>
+        <section className="gg-page gg-page--mid about-platform" aria-labelledby="platform-title">
+          <div className="about-platform__visual" aria-hidden>
+            <span>digitalghana.dev</span><i /><i /><i />
+          </div>
+          <div className="about-platform__copy">
+            <p className="site-eyebrow">The wider platform</p>
+            <h2 id="platform-title">{PLATFORM.headline}</h2>
+            {PLATFORM.body.trim().split("\n\n").map((paragraph) => (
+              <p key={paragraph}>{paragraph.replace(/\n/g, " ")}</p>
             ))}
+            <div className="about-platform__actions">
+              <a className="site-button site-button--primary" href="/docs">Read the documentation <ArrowRight size={16} aria-hidden /></a>
+              <a className="site-button" href="http://localhost:3101">Try the API <ArrowUpRight size={16} aria-hidden /></a>
+            </div>
           </div>
         </section>
 
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <h2 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-3)" }}>{PLATFORM.headline}</h2>
-          {PLATFORM.body.trim().split("\n\n").map((p, i) => (
-            <p key={i} style={{ color: "var(--fg-muted)", lineHeight: 1.65, maxWidth: "66ch" }}>{p}</p>
-          ))}
-        </section>
-
-        {/* Publishing what we deliberately did not claim is itself the argument
-            for trusting what we did. */}
-        <section>
-          <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
-            What we chose not to claim
-          </h2>
-          <p style={{ color: "var(--fg-muted)", margin: "0 0 var(--space-5)", maxWidth: "66ch" }}>
-            Figures we considered and left out, with the reason. If the pitch is provenance,
-            the pitch has to apply to the pitch.
-          </p>
-          <div style={{ display: "grid", gap: "var(--space-3)" }}>
-            {UNVERIFIED.map((u) => (
-              <Card key={u.claim} data-intensity="restrained">
-                <Badge tone="needsRecon">! not published</Badge>
-                <p style={{ fontWeight: 600, margin: "var(--space-2) 0 var(--space-1)" }}>{u.claim}</p>
-                <p style={{ color: "var(--fg-muted)", margin: 0, fontSize: "var(--text-sm)",
-                            lineHeight: 1.6 }}>{u.why.replace(/\n/g, " ")}</p>
-              </Card>
-            ))}
+        <section className="about-restraint" aria-labelledby="restraint-title">
+          <div className="gg-page gg-page--mid">
+            <header>
+              <div><Badge tone="needsRecon">Editorial restraint</Badge><span className="about-index" aria-hidden>04 / Disclosures</span></div>
+              <div><h2 id="restraint-title">What we chose not to claim</h2><p>Figures we considered and left out, with the reason. If the pitch is provenance, the pitch has to apply to the pitch.</p></div>
+            </header>
+            <div className="about-restraint__list">
+              {UNVERIFIED.map((item, index) => (
+                <article key={item.claim}>
+                  <span aria-hidden>{String(index + 1).padStart(2, "0")}</span>
+                  <h3>{item.claim}</h3>
+                  <p>{item.why.replace(/\n/g, " ")}</p>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
       </main>
-
       <MarketingFooter />
     </div>
   );

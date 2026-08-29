@@ -1,3 +1,5 @@
+import { resolveApiBase } from "@ghanageo/ui";
+
 /**
  * Typed access to the GhanaGeo REST API for admin screens.
  *
@@ -7,7 +9,7 @@
  * first, as a screen we cannot build.
  */
 
-const BASE = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
+const BASE = resolveApiBase(process.env.NEXT_PUBLIC_GHANAGEO_API_URL);
 
 export interface Provenance {
   sourceId: string;

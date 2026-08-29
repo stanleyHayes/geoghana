@@ -3,7 +3,7 @@
 import { Command } from "cmdk";
 import { CornerDownLeft, MapPin, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, verificationTone } from "../components/primitives";
+import { Badge, Skeleton, verificationTone } from "../components/primitives";
 import { filterNav, type NavGroup, type Role } from "./types";
 
 /** A geographic result. Hierarchy is always shown, because "Osu" alone is
@@ -135,7 +135,17 @@ export function CommandPalette({
               </Command.Group>
             ) : null}
 
-            {loading ? <div className="gg-palette__status">Searching…</div> : null}
+            {loading ? (
+              <div className="gg-palette__skeleton" role="status" aria-label="Searching places">
+                {[0, 1, 2].map((item) => (
+                  <div key={item}>
+                    <Skeleton className="gg-palette__skeleton-icon" />
+                    <span><Skeleton /><Skeleton /></span>
+                    <Skeleton className="gg-palette__skeleton-badge" />
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             {results.length > 0 ? (
               <Command.Group heading="Places" className="gg-palette__group">

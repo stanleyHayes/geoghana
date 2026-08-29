@@ -64,3 +64,13 @@ Technical Notes · Definition of Done · Estimates · Dependencies.
   need. Always request `latin-ext`.
 - MongoDB accepts a self-intersecting polygon and then returns silently wrong
   `$geoIntersects` results. Geometry validity is a blocking Go-layer gate.
+- `NEXT_PUBLIC_*` is inlined at **build** time and `next build` runs in
+  production mode, so it bakes in `.env.production` — which points at
+  `api.geo.digitalghana.dev`, a domain that does not exist yet. A locally
+  served production build could therefore never reach the API and every data
+  screen read "unreachable" no matter what was running. The clients resolve
+  the base URL at runtime when the page is served from localhost.
+- A wedged Docker still **accepts TCP** on every forwarded port, because the
+  userland proxy answers before the container does. `nc -z` says the port is
+  open while mongod resets the handshake. Prove a service is alive by speaking
+  its protocol, never by connecting to its port.

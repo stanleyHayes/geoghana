@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@ghanageo/ui";
+import { Card, Pagination } from "@ghanageo/ui";
 import { Search } from "lucide-react";
 import { PageHeader } from "@/components/screen";
 import { AsyncState, Provenance, VerificationBadge, useApi } from "@/components/data";
@@ -9,7 +9,21 @@ import { listPlaces, type Page, type Place } from "@/lib/api";
 
 export default function PlacesScreen() {
   const [q, setQ] = useState("");
-  const state = useApi<Page<Place>>((s) => listPlaces({ limit: 60, q: q.trim() || undefined }, s), [q]);
+  const [cursor, setCursor] = useState<string | undefined>();
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([]);
+  const state = useApi<Page<Place>>((s) => listPlaces({ limit: 25, q: q.trim() || undefined, cursor }, s), [q, cursor]);
+  const pageNumber = cursorHistory.length + 1;
+
+  const changePage = (nextPage: number, nextCursor?: string) => {
+    if (nextPage > pageNumber && nextCursor) {
+      setCursorHistory((history) => [...history, cursor]);
+      setCursor(nextCursor);
+    } else if (nextPage < pageNumber) {
+      const previous = cursorHistory[cursorHistory.length - 1];
+      setCursor(previous);
+      setCursorHistory((history) => history.slice(0, -1));
+    }
+  };
 
   return (
     <>
@@ -24,7 +38,7 @@ export default function PlacesScreen() {
         <Search size={16} aria-hidden />
         <input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => { setQ(e.target.value); setCursor(undefined); setCursorHistory([]); }}
           placeholder="Filter by name…"
           aria-label="Filter places by name"
           style={{ flex: 1, border: 0, background: "transparent", outline: "none",
@@ -37,7 +51,7 @@ export default function PlacesScreen() {
           <>
             <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)",
                         margin: "0 0 var(--space-4)" }}>
-              Showing {page.data.length}{page.nextCursor ? " (more available)" : ""}
+              Showing {page.data.length} places on page {pageNumber}
             </p>
             <Card style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ overflowX: "auto", maxHeight: "70vh" }}>
@@ -80,6 +94,7 @@ export default function PlacesScreen() {
                 </table>
               </div>
             </Card>
+            <Pagination page={pageNumber} hasNext={Boolean(page.nextCursor)} onPageChange={(next) => changePage(next, page.nextCursor)} label="Places pages" />
           </>
         )}
       </AsyncState>

@@ -1,10 +1,10 @@
 "use client";
 
-import { Badge, SkipLink, ThemeMenu } from "@ghanageo/ui";
-import { ArrowLeft, Braces, Check, ChevronRight, Clock3, Code2, Copy, ExternalLink, FlaskConical, Gauge, Play, RotateCcw, Search, Sparkles, Terminal } from "lucide-react";
+import { Badge, Skeleton, SkipLink, ThemeMenu, resolveApiBase } from "@ghanageo/ui";
+import { ArrowLeft, Braces, Check, ChevronRight, Clock3, Code2, Copy, ExternalLink, FlaskConical, Gauge, Play, Search, Sparkles, Terminal } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
+const API = resolveApiBase(process.env.NEXT_PUBLIC_GHANAGEO_API_URL);
 const SAMPLES = [
   { label: "Kumasi, misspelled", path: "/search?q=kumsai", group: "Search", why: "Typo-tolerant ranking" },
   { label: "Tema communities", path: "/search?q=tema%20comm", group: "Search", why: "Ghanaian abbreviations" },
@@ -123,13 +123,13 @@ export default function Sandbox() {
           <div className="sandbox-requestbar">
             <span className="sandbox-method">GET</span>
             <label><span className="sr-only">Request path</span><span className="sandbox-requestbar__origin">{API}</span><input value={path} onChange={(event) => setPath(event.target.value)} spellCheck={false} /></label>
-            <button type="button" disabled={busy} onClick={() => void send(path)}>{busy ? <RotateCcw className="sandbox-spin" size={16} aria-hidden /> : <Play size={16} aria-hidden />}{busy ? "Sending" : "Send request"}</button>
+            <button type="button" disabled={busy} onClick={() => void send(path)} aria-label={busy ? "Sending request" : undefined}>{busy ? <Skeleton className="sandbox-button-skeleton" /> : <><Play size={16} aria-hidden />Send request</>}</button>
           </div>
 
           <div className="sandbox-output-grid">
             <section className="sandbox-panel sandbox-response" data-intensity="restrained" aria-live="polite" aria-busy={busy}>
               <div className="sandbox-panel__bar"><div><Braces size={15} aria-hidden /><strong>Response</strong></div>{status !== null || ms !== null ? <div className="sandbox-metrics">{status !== null ? <Badge tone={status < 400 ? "canonical" : "danger"}>HTTP {status}</Badge> : <Badge tone="danger">Offline</Badge>}{ms !== null ? <span><Clock3 size={13} aria-hidden /> {ms} ms</span> : null}{cost ? <span>cost {cost}</span> : null}</div> : <span className="sandbox-panel__hint">JSON appears here</span>}</div>
-              <pre className={error ? "is-error" : undefined}>{busy ? "Sending request…" : body || `{\n  "ready": true,\n  "hint": "Choose a sample or edit the request path"\n}`}</pre>
+              {busy ? <div className="sandbox-response-skeleton" role="status" aria-label="Loading response">{[88,64,76,52,70,38].map((width,index)=><Skeleton key={index} style={{width:`${width}%`}}/>)}</div> : <pre className={error ? "is-error" : undefined}>{body || `{\n  "ready": true,\n  "hint": "Choose a sample or edit the request path"\n}`}</pre>}
             </section>
             <section className="sandbox-panel sandbox-snippet" data-intensity="restrained">
               <div className="sandbox-panel__bar"><div><Code2 size={15} aria-hidden /><strong>Use this request</strong></div><button type="button" onClick={() => void copySnippet()} aria-label="Copy code snippet">{copied ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}{copied ? "Copied" : "Copy"}</button></div>

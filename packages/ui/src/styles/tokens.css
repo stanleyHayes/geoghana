@@ -13,10 +13,9 @@
 @layer tokens {
   :root {
     /* ---- Type ---- */
-    /* Fraunces is a variable SERIF. Its optical-size axis means display sizes
-       tighten and gain contrast while small sizes stay open, so one family
-       covers a hero and a card title without looking stretched. */
-    --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+    /* Outfit carries both interface and display typography so every GhanaGeo
+       surface speaks in one voice. Weight and tracking create hierarchy. */
+    --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
     --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
     --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -169,9 +168,22 @@
     --fg-subtle: oklch(0.615 0.016 250);
     --border: oklch(0.345 0.020 256);
     --border-strong: oklch(0.475 0.020 250);
-    /* NOT white — a lifted neutral, or the highlight blows out. */
-    --mat-light: oklch(0.40 0.020 256 / 0.55);
-    --mat-dark: oklch(0.10 0.020 260 / 0.72);
+    /* Dark surfaces need a restrained reflected edge, not a white halo. */
+    --mat-light: oklch(0.36 0.022 var(--brand-h) / 0.30);
+    --mat-dark: oklch(0.11 0.018 260 / 0.58);
+    --mat-shadow-raised:
+      calc(4px * var(--mat-shadow-scale)) calc(5px * var(--mat-shadow-scale))
+      calc(11px * var(--mat-shadow-scale)) var(--mat-dark),
+      calc(-3px * var(--mat-shadow-scale)) calc(-3px * var(--mat-shadow-scale))
+      calc(9px * var(--mat-shadow-scale)) var(--mat-light);
+    --mat-shadow-lifted:
+      calc(7px * var(--mat-shadow-scale)) calc(9px * var(--mat-shadow-scale))
+      calc(20px * var(--mat-shadow-scale)) var(--mat-dark),
+      calc(-4px * var(--mat-shadow-scale)) calc(-4px * var(--mat-shadow-scale))
+      calc(14px * var(--mat-shadow-scale)) var(--mat-light);
+    --mat-shadow-inset:
+      inset 3px 3px 7px var(--mat-dark),
+      inset -2px -2px 6px var(--mat-light);
   }
 
   /* ======================================================================
@@ -183,8 +195,8 @@
     --mat-radius-sm: 0.75rem;
     --mat-blur: calc(16px * var(--mat-blur-scale));
     --mat-backdrop: blur(var(--mat-blur)) saturate(150%);
-    --mat-border-width: 1px;
-    --mat-border-color: oklch(1 0 0 / 0.28);
+    --mat-border-width: 0px;
+    --mat-border-color: transparent;
     --mat-press-transform: none;
 
     --bg: oklch(0.955 0.010 250);
@@ -222,7 +234,7 @@
     --fg-subtle: oklch(0.625 0.016 250);
     --border: oklch(0.345 0.020 256);
     --border-strong: oklch(0.495 0.020 250);
-    --mat-border-color: oklch(1 0 0 / 0.12);
+    --mat-border-color: transparent;
   }
 
   /* ======================================================================

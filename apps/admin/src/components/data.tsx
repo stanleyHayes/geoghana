@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Badge, Card, verificationTone } from "@ghanageo/ui";
-import { AlertTriangle, Loader2, SearchX } from "lucide-react";
+import { Badge, Card, Skeleton, verificationTone } from "@ghanageo/ui";
+import { AlertTriangle, SearchX } from "lucide-react";
 import { ApiError } from "@/lib/api";
 
 export interface Async<T> {
@@ -50,11 +50,15 @@ export function AsyncState<T>({
 }) {
   if (state.loading) {
     return (
-      <Card data-intensity="restrained">
-        <div className="gg-stack-row" style={{ color: "var(--fg-muted)" }}>
-          <Loader2 size={16} className="gg-spin" aria-hidden />
-          <span>Loading…</span>
+      <Card className="admin-data-skeleton" data-intensity="restrained" role="status" aria-label="Loading data">
+        <div className="admin-data-skeleton__head">
+          <Skeleton /><Skeleton />
         </div>
+        {[0, 1, 2, 3, 4, 5].map((row) => (
+          <div className="admin-data-skeleton__row" key={row}>
+            <Skeleton /><Skeleton /><Skeleton /><Skeleton />
+          </div>
+        ))}
       </Card>
     );
   }

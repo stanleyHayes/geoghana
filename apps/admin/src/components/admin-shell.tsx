@@ -3,12 +3,12 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
-  CommandPalette, Field, Logo, Navbar, Select, Sidebar, SkipLink,
+  CommandPalette, Field, Logo, Navbar, resolveApiBase, Select, Sidebar, SkipLink,
   type Crumb, type PlaceResult, type Role,
 } from "@ghanageo/ui";
 import { NAVIGATION } from "@/config/navigation";
 
-const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
+const API = resolveApiBase(process.env.NEXT_PUBLIC_GHANAGEO_API_URL);
 
 /**
  * The persistent admin shell.

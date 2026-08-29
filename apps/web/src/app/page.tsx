@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge, SkipLink, verificationTone } from "@ghanageo/ui";
+import { Badge, Skeleton, SkipLink, verificationTone, resolveApiBase } from "@ghanageo/ui";
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { ArrowRight, Braces, Check, ChevronRight, Database, Globe2, Map, MapPin, Search, ShieldCheck, Sparkles, Terminal } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
+const API = resolveApiBase(process.env.NEXT_PUBLIC_GHANAGEO_API_URL);
 const COVERAGE = [{ value: "16", label: "Regions" }, { value: "261", label: "Districts / MMDAs" }, { value: "15,925", label: "Mapped places" }, { value: "248", label: "Boundaries" }];
 type Hit = { id:string; name:string; kind:string; type:string; regionName?:string; districtName?:string; score:number };
 
@@ -18,8 +18,8 @@ export default function Home() {
     <section className="home-hero">
       <div className="home-hero__map" aria-hidden><span>ACCRA</span><span>KUMASI</span><span>TAMALE</span><i/><i/><i/></div>
       <div className="home-hero__content"><p className="site-eyebrow"><Sparkles size={14}/> Open data. Built for Ghana.</p><h1>Every place in Ghana,<br/><em>finally in one place.</em></h1><p className="home-hero__lede">A dependable, open location layer for regions, districts, towns and boundaries—designed for the way Ghanaian places are actually named.</p>
-        <div className="home-search-wrap"><label className="home-search"><Search size={20}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search Osu, Kwabenya, Tema Community 25…" aria-label="Search Ghanaian places"/>{loading?<span>Searching…</span>:<kbd>⌘ K</kbd>}</label>
-          {hits.length>0?<div className="home-results">{hits.map(h=>{const v=verificationTone("REFERENCE");return <div key={h.id}><MapPin size={16}/><span><strong>{h.name}</strong><small>{[h.districtName,h.regionName].filter(Boolean).join(" · ")||h.kind}</small></span><Badge tone={v.tone}>{h.kind}</Badge></div>})}</div>:q.trim().length>=2&&!loading?<p className="home-no-result">No match yet. Try “kumsai” for typo-tolerant search.</p>:null}
+        <div className="home-search-wrap"><label className="home-search"><Search size={20}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search Osu, Kwabenya, Tema Community 25…" aria-label="Search Ghanaian places"/>{loading?<Skeleton className="home-search__status"/>:<kbd>⌘ K</kbd>}</label>
+          {loading?<div className="home-results home-results--skeleton" role="status" aria-label="Searching places">{[0,1,2].map(item=><div key={item}><Skeleton className="home-result-skeleton__icon"/><span><Skeleton/><Skeleton/></span><Skeleton className="home-result-skeleton__badge"/></div>)}</div>:hits.length>0?<div className="home-results">{hits.map(h=>{const v=verificationTone("REFERENCE");return <div key={h.id}><MapPin size={16}/><span><strong>{h.name}</strong><small>{[h.districtName,h.regionName].filter(Boolean).join(" · ")||h.kind}</small></span><Badge tone={v.tone}>{h.kind}</Badge></div>})}</div>:q.trim().length>=2?<p className="home-no-result">No match yet. Try “kumsai” for typo-tolerant search.</p>:null}
         </div>
         <div className="home-hero__actions"><a href="http://localhost:3101" className="site-button site-button--primary">Explore the API <ArrowRight size={16}/></a><a href="/docs" className="site-button">Read documentation</a></div>
       </div>

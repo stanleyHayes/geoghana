@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Field, Select } from "@ghanageo/ui";
+import { Card, Field, Pagination, Select } from "@ghanageo/ui";
 import { PageHeader } from "@/components/screen";
 import { AsyncState, VerificationBadge, useApi } from "@/components/data";
 import {
@@ -10,9 +10,11 @@ import {
 } from "@/lib/api";
 
 const ALL = "__all__";
+const PAGE_SIZE = 25;
 
 export default function DistrictsScreen() {
   const [region, setRegion] = useState(ALL);
+  const [pageNumber, setPageNumber] = useState(1);
 
   const regions = useApi<Page<Region>>((s) => listRegions({ limit: 100 }, s), []);
   /* Paginated, because the API caps a page at 100 and Ghana has 261 MMDAs.
@@ -41,7 +43,7 @@ export default function DistrictsScreen() {
               <Select
                 ariaLabel="Filter by region"
                 value={region}
-                onValueChange={setRegion}
+                onValueChange={(value) => { setRegion(value); setPageNumber(1); }}
                 options={[
                   { value: ALL, label: "All regions", hint: "261 districts" },
                   ...(regions.data?.data ?? []).map((r) => ({ value: r.id, label: r.name })),
@@ -53,11 +55,14 @@ export default function DistrictsScreen() {
       />
 
       <AsyncState state={districts} empty="No districts for that region.">
-        {(page) => (
+        {(page) => {
+          const pageCount = Math.max(1, Math.ceil(page.data.length / PAGE_SIZE));
+          const visibleDistricts = page.data.slice((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE);
+          return (
           <>
             <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)",
                         margin: "0 0 var(--space-4)" }}>
-              {page.data.length} districts
+              {page.data.length} districts · showing {visibleDistricts.length} on page {pageNumber}
               {region !== ALL ? " in this region" : ""}
               {page.datasetVersion ? (
                 <> · dataset <code style={{ fontFamily: "var(--font-mono)" }}>{page.datasetVersion}</code></>
@@ -80,7 +85,7 @@ export default function DistrictsScreen() {
                     </tr>
                   </thead>
                   <tbody>
-                    {page.data.map((d) => (
+                    {visibleDistricts.map((d) => (
                       <tr key={d.id}>
                         <td>
                           <span style={{ fontWeight: 600 }}>{d.name}</span>
@@ -101,8 +106,10 @@ export default function DistrictsScreen() {
                 </table>
               </div>
             </Card>
+            <Pagination page={pageNumber} pageCount={pageCount} onPageChange={setPageNumber} label="District pages" />
           </>
-        )}
+          );
+        }}
       </AsyncState>
     </>
   );

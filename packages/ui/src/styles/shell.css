@@ -180,13 +180,14 @@
     width: 100%; max-width: 420px; min-height: 38px;
     padding-inline: var(--space-3);
     background: var(--surface-sunken);
-    border: 1px solid var(--border-strong);
+    border: 0;
     border-radius: var(--mat-radius-sm);
     box-shadow: var(--mat-shadow-inset);
     color: var(--fg-subtle); font-size: var(--text-sm); cursor: pointer;
-    transition: border-color var(--dur-fast) var(--ease-out-quart);
+    transition: box-shadow var(--dur-fast) var(--ease-out-quart);
   }
-  .gg-searchbar:hover { border-color: var(--brand); }
+  .gg-searchbar:hover { box-shadow: var(--mat-shadow-inset), 0 0 0 2px var(--brand-tint); }
+  .gg-searchbar:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   .gg-searchbar__placeholder { flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Collapse to an icon-only button below 1280px — but ONLY inside the app
      navbar. `.gg-searchbar` is also the marketing hero's live search field,
@@ -203,15 +204,15 @@
   .gg-kbd {
     font-family: var(--font-mono); font-size: 10px; line-height: 1;
     padding: 3px 5px; border-radius: 4px;
-    background: var(--bg-subtle); border: 1px solid var(--border);
+    background: var(--bg-subtle); border: 0; box-shadow: var(--mat-shadow-inset);
     color: var(--fg-muted);
   }
 
   .gg-dataset-pill {
     display: flex; align-items: center; gap: var(--space-2);
     min-height: 38px; padding-inline: var(--space-3);
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--mat-radius-sm); color: var(--fg); cursor: pointer;
+    background: var(--surface); border: 0;
+    border-radius: var(--mat-radius-sm); box-shadow: var(--mat-shadow-raised); color: var(--fg); cursor: pointer;
     font-size: var(--text-xs);
   }
   .gg-dataset-pill__text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
@@ -222,7 +223,7 @@
   .gg-env {
     font-size: var(--text-2xs); font-weight: 800; letter-spacing: 0.08em;
     text-transform: uppercase; padding: 4px var(--space-2); border-radius: 999px;
-    border: 1px solid currentColor;
+    border: 0; background: var(--surface); box-shadow: var(--mat-shadow-raised);
   }
   .gg-env--production { color: var(--danger); }
   .gg-env--staging    { color: var(--warning); }
@@ -260,7 +261,7 @@
     background: var(--surface-raised);
     backdrop-filter: var(--mat-backdrop);
     -webkit-backdrop-filter: var(--mat-backdrop);
-    border: 1px solid var(--border);
+    border: 0;
     border-radius: var(--mat-radius);
     box-shadow: var(--mat-shadow-lifted);
     overflow: hidden;
@@ -292,6 +293,13 @@
   .gg-palette__hierarchy { color: var(--fg-muted); font-size: var(--text-xs); flex: 1; }
   .gg-palette__hint { color: var(--fg-subtle); font-size: var(--text-2xs); margin-inline-start: auto; }
   .gg-palette__status { padding: var(--space-4); color: var(--fg-subtle); font-size: var(--text-sm); }
+  .gg-palette__skeleton { padding: var(--space-2); display: grid; gap: var(--space-1); }
+  .gg-palette__skeleton > div { min-height: 48px; padding: var(--space-2) var(--space-3); display: grid; grid-template-columns: 1.75rem 1fr 4.5rem; align-items: center; gap: var(--space-3); }
+  .gg-palette__skeleton > div > span { display: grid; gap: var(--space-2); }
+  .gg-palette__skeleton > div > span .gg-skeleton:first-child { width: min(12rem, 72%); }
+  .gg-palette__skeleton > div > span .gg-skeleton:last-child { width: min(18rem, 90%); min-height: .65rem; }
+  .gg-palette__skeleton-icon { width: 1.75rem; min-height: 1.75rem; }
+  .gg-palette__skeleton-badge { min-height: 1.5rem; }
   .gg-palette__zero { padding: var(--space-5); text-align: center; }
   .gg-palette__zero-title { color: var(--fg); font-weight: 600; margin-block-end: var(--space-3); }
   .gg-palette__zero-actions { display: flex; gap: var(--space-2); justify-content: center; flex-wrap: wrap; }
@@ -318,7 +326,7 @@
     display: grid; gap: var(--space-1); padding: var(--space-4);
     text-align: start; cursor: pointer;
     background: var(--surface);
-    border: var(--mat-border-width) solid var(--mat-border-color);
+    border: 0;
     border-radius: var(--mat-radius);
     box-shadow: var(--mat-shadow-raised);
     color: var(--fg);
@@ -338,10 +346,10 @@
     display: inline-flex; align-items: center; gap: var(--space-2);
     min-height: 38px; padding-inline: var(--space-3);
     background: var(--surface); color: var(--fg);
-    border: 1px solid var(--border); border-radius: 999px;
+    border: 0; border-radius: 999px; box-shadow: var(--mat-shadow-raised);
     font-size: var(--text-xs); font-weight: 600; cursor: pointer;
   }
-  .gg-picker__chip.is-selected { background: var(--accent); border-color: var(--brand); color: var(--fg); }
+  .gg-picker__chip.is-selected { background: var(--accent); color: var(--fg); box-shadow: var(--mat-shadow-inset); }
   .gg-picker__dot { width: 12px; height: 12px; border-radius: 999px; }
 
   .gg-picker__hue {
@@ -352,7 +360,7 @@
   }
   .gg-picker__hue::-webkit-slider-thumb {
     appearance: none; width: 20px; height: 20px; border-radius: 999px;
-    background: var(--surface-raised); border: 2px solid var(--fg); cursor: grab;
+    background: var(--surface-raised); border: 0; box-shadow: var(--mat-shadow-raised); cursor: grab;
   }
   .gg-picker__note {
     display: inline-flex; align-items: center; gap: var(--space-2);
@@ -409,7 +417,7 @@
   .gg-sponsors__item {
     display: inline-flex; align-items: center; gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
-    background: var(--surface); border: 1px solid var(--border);
+    background: var(--surface); border: 0; box-shadow: var(--mat-shadow-raised);
     border-radius: 999px; font-size: var(--text-xs);
   }
   .gg-sponsors__item a { color: var(--fg); text-decoration: none; font-weight: 600; }
@@ -458,8 +466,7 @@
     .gg-page { padding: var(--space-6) var(--space-4); }
   }
 
-  /* Marketing hero. Fraunces is a display serif, so it needs to come down
-     hard on small screens or a two-word line becomes four. */
+  /* Marketing hero display treatment. */
   .gg-hero__title {
     font-family: var(--font-display);
     font-size: clamp(2rem, 7vw, 3.25rem);
@@ -548,7 +555,7 @@
   .gg-picker__hue {
     appearance: none; -webkit-appearance: none;
     width: 100%; height: 14px; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--border);
+    border: 0; box-shadow: var(--mat-shadow-inset);
     background: linear-gradient(to right,
       oklch(0.6 0.13 0), oklch(0.6 0.13 60), oklch(0.6 0.13 120),
       oklch(0.6 0.13 180), oklch(0.6 0.13 240), oklch(0.6 0.13 300), oklch(0.6 0.13 360));
@@ -557,16 +564,14 @@
     -webkit-appearance: none; appearance: none;
     width: 22px; height: 22px; border-radius: 999px;
     background: var(--surface-raised);
-    border: 2px solid var(--fg);
-    box-shadow: var(--mat-shadow-raised);
+    border: 0; box-shadow: var(--mat-shadow-raised);
     cursor: grab;
   }
   .gg-picker__hue::-webkit-slider-thumb:active { cursor: grabbing; }
   .gg-picker__hue::-moz-range-thumb {
     width: 22px; height: 22px; border-radius: 999px;
     background: var(--surface-raised);
-    border: 2px solid var(--fg);
-    box-shadow: var(--mat-shadow-raised);
+    border: 0; box-shadow: var(--mat-shadow-raised);
     cursor: grab;
   }
   .gg-picker__hue::-moz-range-track { background: transparent; }

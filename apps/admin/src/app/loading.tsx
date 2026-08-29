@@ -1,18 +1,18 @@
+import { Card, Skeleton } from "@ghanageo/ui";
+
 export default function Loading() {
   return (
-    <section className="admin-splash" aria-label="Loading admin workspace" aria-live="polite">
-      <div className="admin-splash__scene" aria-hidden>
-        <span className="admin-splash__map">
-          <i className="admin-splash__road admin-splash__road--one" />
-          <i className="admin-splash__road admin-splash__road--two" />
-          <i className="admin-splash__place admin-splash__place--one" />
-          <i className="admin-splash__place admin-splash__place--two" />
-          <i className="admin-splash__place admin-splash__place--three" />
-        </span>
-        <span className="admin-splash__marker">GG</span>
+    <section className="admin-page-skeleton" aria-label="Loading admin workspace" aria-live="polite">
+      <div className="admin-page-skeleton__title">
+        <Skeleton /><Skeleton />
       </div>
-      <p>Finding your place…</p>
-      <span>Loading the steward workspace</span>
+      <div className="admin-page-skeleton__stats">
+        {[0, 1, 2, 3].map((item) => <Card key={item}><Skeleton /><Skeleton /><Skeleton /></Card>)}
+      </div>
+      <Card className="admin-page-skeleton__table">
+        <Skeleton />
+        {[0, 1, 2, 3, 4, 5].map((row) => <div key={row}><Skeleton /><Skeleton /><Skeleton /></div>)}
+      </Card>
     </section>
   );
 }

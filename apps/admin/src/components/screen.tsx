@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Badge, Card } from "@ghanageo/ui";
-import { CircleDashed, Compass } from "lucide-react";
+import { Badge } from "@ghanageo/ui";
+import { ArrowUpRight, CheckCircle2, Compass, Layers3 } from "lucide-react";
 
 /** Standard page heading, so every admin screen opens the same way. */
 export function PageHeader({
@@ -30,18 +30,7 @@ export function PageHeader({
   );
 }
 
-/**
- * The screen for a route that exists in the navigation but has no
- * implementation yet.
- *
- * Every rail entry must LAND somewhere. A link that silently does nothing (the
- * bug this replaces) or 404s teaches people the admin is broken; a page that
- * says exactly what it will do, which story builds it, and where to go
- * meanwhile is honest and still useful. It deliberately does NOT render fake
- * charts or placeholder rows — mock data in an admin console is
- * indistinguishable from real data at a glance, which is how it ends up quoted
- * in a meeting.
- */
+/** An honest operator brief for modules whose live service contract is pending. */
 export function PlannedScreen({
   title, story, purpose, capabilities, dependsOn,
 }: {
@@ -52,48 +41,69 @@ export function PlannedScreen({
   dependsOn?: string | undefined;
 }) {
   return (
-    <>
+    <div className="admin-module">
       <PageHeader
         title={title}
         lede={purpose}
-        actions={story ? <Badge tone="needsRecon">! planned · {story}</Badge> : null}
+        eyebrow="Module brief"
+        actions={story ? <Badge>{story}</Badge> : null}
       />
 
-      <Card style={{ marginBottom: "var(--space-5)" }}>
-        <div className="gg-stack-row" style={{ alignItems: "flex-start" }}>
-          <CircleDashed size={20} style={{ color: "var(--fg-subtle)", flexShrink: 0 }} aria-hidden />
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <p style={{ margin: 0, fontWeight: 650 }}>Not built yet</p>
-            <p style={{ margin: "var(--space-1) 0 0", color: "var(--fg-muted)",
-                        fontSize: "var(--text-sm)", lineHeight: 1.6 }}>
-              This screen is specified but not implemented. Nothing here is mocked, because a
-              placeholder chart in an admin console is indistinguishable from a real one.
-              {dependsOn ? ` Blocked on ${dependsOn}.` : ""}
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-3)" }}>What it will do</h2>
-      <Card data-intensity="restrained" style={{ marginBottom: "var(--space-5)" }}>
-        <ul style={{ margin: 0, paddingInlineStart: "var(--space-5)", display: "grid",
-                     gap: "var(--space-2)", lineHeight: 1.55 }}>
-          {capabilities.map((c) => (
-            <li key={c} style={{ color: "var(--fg-muted)" }}>{c}</li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card data-intensity="restrained">
-        <div className="gg-stack-row" style={{ alignItems: "flex-start" }}>
-          <Compass size={18} style={{ color: "var(--brand)", flexShrink: 0 }} aria-hidden />
-          <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--fg-muted)", flex: 1, minWidth: 200 }}>
-            Working screens today: <a href="/geography/regions">Regions</a>,{" "}
-            <a href="/geography/districts">Districts</a>, <a href="/geography/places">Places</a> and the{" "}
-            <a href="/explorer">Location Explorer</a> — all reading the live API.
+      <section className="admin-module__status" aria-labelledby="module-status-title">
+        <div className="admin-module__status-icon"><Layers3 size={22} aria-hidden /></div>
+        <div>
+          <p className="admin-module__kicker">Operator workspace</p>
+          <h2 id="module-status-title">Scope defined. Live data connection pending.</h2>
+          <p>
+            This destination is ready as an operator brief. Controls and records stay hidden
+            until they can be backed by a real service contract and auditable data.
           </p>
         </div>
-      </Card>
-    </>
+        <span className="admin-module__signal"><i /> No synthetic data</span>
+      </section>
+
+      <div className="admin-module__body">
+        <section className="admin-module__capabilities" aria-labelledby="module-capabilities-title">
+          <div className="admin-module__section-heading">
+            <span>01</span>
+            <div>
+              <p>Approved scope</p>
+              <h2 id="module-capabilities-title">What this workspace supports</h2>
+            </div>
+          </div>
+          <ol>
+            {capabilities.map((capability, index) => (
+              <li key={capability}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <p>{capability}</p>
+                <CheckCircle2 size={16} aria-hidden />
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <aside className="admin-module__next" aria-labelledby="module-next-title">
+          <div className="admin-module__section-heading">
+            <span>02</span>
+            <div><p>Readiness</p><h2 id="module-next-title">Operator next steps</h2></div>
+          </div>
+          <dl>
+            <div><dt>Data policy</dt><dd>Real records only</dd></div>
+            <div><dt>Service dependency</dt><dd>{dependsOn ?? "API contract and audit trail"}</dd></div>
+            <div><dt>Tracking</dt><dd>{story ?? "Defined in the admin roadmap"}</dd></div>
+          </dl>
+          <div className="admin-module__live">
+            <Compass size={18} aria-hidden />
+            <div><strong>Use a live workspace</strong><p>These destinations already read the API.</p></div>
+          </div>
+          <nav aria-label="Available live admin workspaces">
+            <a href="/geography/regions">Regions <ArrowUpRight size={14} aria-hidden /></a>
+            <a href="/geography/districts">Districts <ArrowUpRight size={14} aria-hidden /></a>
+            <a href="/geography/places">Places <ArrowUpRight size={14} aria-hidden /></a>
+            <a href="/explorer">Location Explorer <ArrowUpRight size={14} aria-hidden /></a>
+          </nav>
+        </aside>
+      </div>
+    </div>
   );
 }

@@ -369,8 +369,10 @@ The surface is **the same colour as its parent**, and shape comes entirely from 
   --surface:        var(--bg);
   --surface-raised: oklch(0.295 0.018 256);
   --surface-sunken: oklch(0.215 0.020 258);
-  --mat-light: oklch(0.40 0.020 256 / 0.55);   /* NOT white — a lifted neutral */
-  --mat-dark:  oklch(0.10 0.020 260 / 0.72);
+  --mat-light: oklch(0.36 0.022 var(--brand-h) / 0.30); /* tinted reflection, never white */
+  --mat-dark:  oklch(0.11 0.018 260 / 0.58);
+  /* Dark mode also tightens the raised/lifted offsets and blur radii so
+     borderless panels retain depth without developing a bright halo. */
 }
 ```
 

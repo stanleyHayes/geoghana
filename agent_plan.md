@@ -101,18 +101,28 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-8.1–8.5 | EP-08 REST | ✅ **Done** | Claude | Nine endpoints, error envelope, cursor pagination, CORS allow-list. |
 | GEO-14.1 | EP-14 Design | ✅ **Done** | Claude | Three-axis token system; 14 material tokens; verified in six combinations. |
 | GEO-14.2 | EP-14 Design | ✅ **Done** | Claude | ThemeProvider, FOUC script, contrast clamp (360 hues × 2 modes pass). |
-| GEO-14.3 | EP-14 Design | 🟡 Partial | Claude | Card, Button, Input, Badge, Skeleton, EmptyState, SkipLink. Table, Dialog, Tabs, Combobox remain. |
+| GEO-14.3 | EP-14 Design | ✅ **Done** | Codex (L7) | Full required primitive inventory now exported, including Radix-backed overlays/menus, tabs, toast, table, pagination, breadcrumb, avatar, progress, alert and combobox. UI + all four consumer typechecks and web build pass. |
+| GEO-14.7 | EP-14 Design | 🟡 **Partial** | Codex (L7) | Playwright + axe 3 material × 3 theme × 5 viewport harness implemented and executed. It correctly blocks on existing contrast, unnamed-link and duplicate-key defects; root required-CI wiring remains an L0 task. Evidence in `design-qa.md`. |
 | GEO-14.5 | EP-14 Design | ✅ **Done** | Claude | AppShell: sidebar, navbar, command palette. |
 | GEO-14.6 | EP-14 Design | ✅ **Done** | Claude | Theme picker with live preview; needs mounting in portal and marketing. |
 | GEO-2.1–2.5 | EP-02 Contracts | ✅ **Done** | Claude | OpenAPI 3.1 (redocly clean), protobuf (buf lint clean), GraphQL SDL, error catalog with a generator and drift tests. |
 | GEO-12.1–12.4 | EP-12 Search | ✅ **Done** | Claude | Typesense SearchPort; search, autocomplete, geocode, reverse. Domain relevance scoring replaced the engine's unusable score. |
-| GEO-29.1–29.4 | EP-16b Support | 🟡 Partial | Claude | SupportPanel and SponsorWall built and rendering; the public support page and transparency report need `apps/web`. |
+| GEO-29.1–29.4 | EP-16b Support | ✅ **Done** | Codex (L8) | Reconciled against source: public support route, shell support control, sponsor recognition and transparent reporting ledger all exist; donor-neutral quota language remains explicit. Web typecheck/build pass. |
 | GEO-12.5–12.6 | EP-12 Search | ⬜ Next | unassigned | Nearby via the search path, and the p95 load gate. Blocked on coordinates (GEO-4.6/4.7). |
 | GEO-18.NAV | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | App-local floating navbar, mobile navigation and editorial footer deployed across all five public routes. Web typecheck + production build passed; rendered desktop check found no horizontal overflow. |
 | GEO-18.REDESIGN | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | Map-led public-site redesign across all five routes with live search, editorial content rhythm and developer pathways. Typecheck/build/link checks pass; browser sweep found zero horizontal overflow. |
+| GEO-18.ABOUT | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | Editorial, evidence-led `/about` redesign with manifesto hero, numbered commitments, source ledger, audience pathways and disclosure section. All source facts/caveats preserved; web typecheck + production build + link check + diff check pass; browser QA confirms zero overflow at 1480px and 390px. |
+| GEO-18.TRANSPARENCY | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | Public-ledger redesign with reporting status, cadence, honest pre-launch state, named income/cost tables, funding firewall and correction policy. Recorded values and null semantics preserved; web typecheck/build/link/diff checks pass; browser QA confirms zero page overflow at 1480px and 390px with contained mobile table scrolling. |
 | GEO-15.UX | EP-15 Sandbox | ✅ **Done** | Codex (L9) | REST workbench now has protocol chrome, sample library, run history, response metrics/states, and generated cURL/JavaScript/Go snippets. Sandbox typecheck + production build passed; live request returned HTTP 200 in browser. |
 | GEO-16.REDESIGN | EP-16 Developer Portal | ✅ **Done** | Codex (L10) | Developer workspace redesign with API quick start, dataset/service status, tools, example activity and honest account states. Typecheck/build/link checks pass; rendered browser verification found zero horizontal overflow. |
 | GEO-17.ROUTES | EP-17 Admin | ✅ **Done** | Codex (L11) | All 66 configured admin destinations now build as real routes: implemented screens stay live and unfinished areas explain their scope without fake data. Added branded in-shell 404 and map-pin loading splash. Admin typecheck/build passed; browser verified `/ops/health` and an unknown URL with no horizontal overflow. |
+| GEO-17.READINESS | EP-17 Admin | ✅ **Done** | Codex (L11) | Replaced the shared “not built yet” treatment across 59 planned routes with honest operator briefs: approved scope, service readiness, dependency/tracking metadata and live workspace shortcuts. Admin typecheck/build pass; rendered desktop/mobile QA has zero overflow. |
+| GEO-14.OUTFIT | EP-14 Design | ✅ **Done** | Codex (L7) | Outfit is now the shared sans and display family across web, sandbox, portal, admin and UI tokens; redundant Fraunces loading/references removed while JetBrains Mono remains for code/data. Five typechecks, four production builds and computed-font browser checks pass. |
+| GEO-14.BORDERLESS | EP-14 Design | ✅ **Done** | Codex (L7) | Cards, buttons, inputs, selects, icon controls, overlays and key app surfaces now use borderless neu/glass/clay depth treatments. Computed browser checks confirm 0px borders with distinct material shadows; five typechecks, four production builds and all route-link checks pass. |
+| GEO-14.DARK-DEPTH | EP-14 Design | ✅ **Done** | Codex (L7) | Dark neumorphism now uses tighter shadows and a low-opacity brand-tinted reflection instead of a broad white halo. Shared UI and portal typechecks, portal production build and diff check pass. |
+| GEO-14.LOADING | EP-14 Design | 🟡 **In progress** | Codex (L7/L8/L9/L11) | Replace visible loading text/spinners with layout-matched skeleton states across the shared palette, marketing search, sandbox and admin. |
+| GEO-17.PAGINATION | EP-17 Admin | 🟡 **In progress** | Codex (L11) | Paginate long geography and explorer result sets so large datasets are never rendered as one continuous list. |
+| GEO-16.SPACING | EP-16 Developer Portal | 🟡 **In progress** | Codex (L10) | Rebalance portal card, dashboard and responsive padding after the material-depth pass. |
 | GEO-13.8 | EP-13b Public CLI | ✅ **Done** | Claude | 9 commands, table/JSON/CSV, 7 platform binaries, npm wrapper. No API key required. |
 | GEO-13.9 | EP-13b Public CLI | ⬜ Next | unassigned | Release automation: tag → cross-compile → npm + Homebrew + checksums. |
 | GEO-9.1–9.6 | EP-09 Identity | ✅ **Done** | Claude | Keys (argon2id, secret shown once), browser-key safety rules, anonymous-as-identity, Redis token bucket, cost classes, limit headers, immediate revocation. Verified live: 429 under concurrent load, 401 on revoke, no prefix enumeration. |
@@ -125,6 +135,16 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Next | unassigned | GSS boundaries and OSM. Needed for **district assignment** on imported places, boundary polygons, and the remaining golden cases. |
 
 **Legend:** ✅ Done & verified · 🟡 In progress · ⬜ Not started · 🔴 Blocked
+
+### 2026-08-29 unresolved-work reconciliation
+
+- **Active; do not collide:** GEO-11.1–11.5 gRPC transport work is currently materializing under `services/api/internal/transport/grpc/`, generated API code and `buf.gen.yaml`. Its owner must reconcile and claim it before another transport edit.
+- **Ready next:** GEO-13.9 CLI distribution/release automation is contractually unblocked and isolated to L6/L12.
+- **Ready, security-critical:** GEO-9.7 immutable audit logging and GEO-9.8 security-event alerting are unblocked by the existing identity/key foundation; take these before expanding privileged admin mutations.
+- **Large dependency track:** GEO-9.2 developer account authentication remains the blocker for the real portal organization/application/key and security-settings stories. It needs a dedicated L4 goal, not a UI placeholder pass.
+- **Data/external dependency:** GEO-4.6 GSS boundaries still requires an official, licence-recorded source artefact. GEO-4.7 OSM ingestion is separately implementable, but district assignment and remaining polygon golden cases stay incomplete until authoritative boundary coverage is reconciled.
+- **Stale combined item:** `/nearby` already works nationwide; GEO-12.5–12.6 should be split so the implemented nearby path can close independently while the p95 load gate remains measurable work.
+- **Quality gate:** GEO-14.7 harness exists, but `design-qa.md` records remaining contrast defects, one unnamed sandbox link, one duplicate admin React key, and L0 required-CI wiring. Do not mark it Done until the 180-point matrix passes.
 
 ---
 

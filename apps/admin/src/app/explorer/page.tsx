@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Card } from "@ghanageo/ui";
+import { Badge, Card, Pagination } from "@ghanageo/ui";
 import { MapPin, Search } from "lucide-react";
 import { PageHeader } from "@/components/screen";
 import { AsyncState, Provenance, VerificationBadge, useApi } from "@/components/data";
 import { searchPlaces, type Page, type Place } from "@/lib/api";
 
 export default function ExplorerScreen() {
+  const PAGE_SIZE = 8;
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Place | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
   const query = q.trim();
 
   /* The API rejects a query under 2 characters with QUERY_TOO_SHORT, so don't
@@ -32,7 +34,7 @@ export default function ExplorerScreen() {
         <Search size={17} aria-hidden />
         <input
           value={q}
-          onChange={(e) => { setQ(e.target.value); setSelected(null); }}
+          onChange={(e) => { setQ(e.target.value); setSelected(null); setPageNumber(1); }}
           placeholder="Try “kumsai”, “tema comm”, or “osu”"
           aria-label="Search places"
           style={{ flex: 1, border: 0, background: "transparent", outline: "none",
@@ -50,9 +52,13 @@ export default function ExplorerScreen() {
         <div className="gg-split">
           <div>
             <AsyncState state={state} empty={`No match for “${query}”.`}>
-              {(page) => (
+              {(page) => {
+                const results = page?.data ?? [];
+                const pageCount = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+                const visibleResults = results.slice((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE);
+                return (
                 <div style={{ display: "grid", gap: "var(--space-2)" }}>
-                  {(page?.data ?? []).map((p) => (
+                  {visibleResults.map((p) => (
                     <Card
                       key={p.id}
                       interactive
@@ -73,8 +79,10 @@ export default function ExplorerScreen() {
                       </div>
                     </Card>
                   ))}
+                  {pageCount > 1 ? <Pagination page={pageNumber} pageCount={pageCount} onPageChange={setPageNumber} label="Search result pages" /> : null}
                 </div>
-              )}
+                );
+              }}
             </AsyncState>
           </div>
 
