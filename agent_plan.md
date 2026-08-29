@@ -76,7 +76,9 @@ This section tracks work currently in-flight and recently completed. The active 
 
 **2026-08-29 — Planning lane.** Authored `agent_plan.md` and `DESIGN_SYSTEM.md` from Build Specification v2, the two governing manuals, and a grounded audit of the RentOS, Xtiitch and AuraEDU admin shells.
 
-**2026-08-29 — Build lane.** Sprint 0 complete and the data core, REST v1 and design system are running and verified against live services, not mocks. MongoDB 8.0 replica set, Redis 7 and Typesense 29 are healthy in Compose. The seed imports 16 regions / 261 districts / 16 places and is proven idempotent (a second run created nothing). JSON Schema validators reject malformed documents at the database. REST v1 serves nine endpoints with the Spec §19 error envelope; verified 404, 400 with details, 410-with-`mergedInto` for a merged id, and an empty-not-error result for coordinates outside Ghana. The tri-morphic design system renders in all six material × mode combinations with zero console errors, and the contrast clamp is proven across all 360 hues in both modes. The admin shell ships 11 groups, 66 role-gated routes, a 14-action navbar and a working command palette searching live MongoDB.
+**2026-08-29 — Build lane.** Sprint 0 complete; the data core, REST v1, all three contracts, search and the design system run and are verified against live services, not mocks. MongoDB 8.0 replica set, Redis 7 and Typesense 29 healthy in Compose. Seed imports 16 regions / 261 districts / 16 places, proven idempotent. REST v1 serves 13 endpoints with the Spec §19 error envelope. Search indexes 293 documents and is typo-tolerant with domain-computed confidence. The tri-morphic design system renders in all six material × mode combinations with zero console errors.
+
+**2026-08-29 — Product decision: free forever.** GhanaGeo has no paid tier and will not get one. Funded by donations and institutional sponsorship. Six rules in §24 exist so drifting back toward paid access requires a visible decision. This supersedes the pricing and billing items in Spec §14, §16 and §28.
 
 **Port block.** This machine already runs other projects on 8080, 3003, 6379 and 27017, so GhanaGeo claims: Mongo `27117`, Redis `6679`, Typesense `8108`, API `8180`, gRPC `9190`, admin `3103`.
 
@@ -102,9 +104,13 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-14.3 | EP-14 Design | 🟡 Partial | Claude | Card, Button, Input, Badge, Skeleton, EmptyState, SkipLink. Table, Dialog, Tabs, Combobox remain. |
 | GEO-14.5 | EP-14 Design | ✅ **Done** | Claude | AppShell: sidebar, navbar, command palette. |
 | GEO-14.6 | EP-14 Design | ✅ **Done** | Claude | Theme picker with live preview; needs mounting in portal and marketing. |
-| GEO-2.1–2.5 | EP-02 Contracts | ⬜ Next | unassigned | OpenAPI, GraphQL SDL and protobuf are the critical path for L3/L6/L9/L10. |
-| GEO-9.x | EP-09 Identity | ⬜ Not started | unassigned | Auth, keys, scopes, quotas, audit. |
-| GEO-12.x | EP-12 Search | ⬜ Not started | unassigned | Typesense `SearchPort` implementation and the p95 gate. |
+| GEO-2.1–2.5 | EP-02 Contracts | ✅ **Done** | Claude | OpenAPI 3.1 (redocly clean), protobuf (buf lint clean), GraphQL SDL, error catalog with a generator and drift tests. |
+| GEO-12.1–12.4 | EP-12 Search | ✅ **Done** | Claude | Typesense SearchPort; search, autocomplete, geocode, reverse. Domain relevance scoring replaced the engine's unusable score. |
+| GEO-29.1–29.4 | EP-16b Support | 🟡 Partial | Claude | SupportPanel and SponsorWall built and rendering; the public support page and transparency report need `apps/web`. |
+| GEO-12.5–12.6 | EP-12 Search | ⬜ Next | unassigned | Nearby via the search path, and the p95 load gate. Blocked on coordinates (GEO-4.6/4.7). |
+| GEO-9.x | EP-09 Identity | ⬜ Next | unassigned | Auth, keys, scopes, fair-use limits, audit. Gates public launch. |
+| GEO-10.x / 11.x | EP-10/11 GraphQL + gRPC | ⬜ Not started | unassigned | Contracts published, so these can start immediately. |
+| GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Not started | unassigned | GSS boundaries and OSM. **Reverse geocode stays empty until these land coordinates.** |
 
 **Legend:** ✅ Done & verified · 🟡 In progress · ⬜ Not started · 🔴 Blocked
 
