@@ -211,9 +211,14 @@ func (c *Client) doRaw(ctx context.Context, method, path, body string) ([]byte, 
 type tsHit struct {
 	Document  indexDoc `json:"document"`
 	TextMatch int64    `json:"text_match"`
-	Highlight map[string]struct {
-		MatchedTokens []string `json:"matched_tokens"`
-	} `json:"highlight"`
+	// Typesense's `highlight` is deliberately NOT parsed. Its shape varies by
+	// field type — an object for a string field, an ARRAY for a string[] field
+	// like aliases — so decoding it into one struct crashed on any multi-token
+	// query that matched an alias, which included the "tema comm 25" case.
+	//
+	// Nothing is lost: the match explanation callers receive is computed in
+	// internal/domain/relevance, so both SearchPort implementations produce
+	// identical reasons. Parsing this only created a way to fail.
 }
 
 type tsResponse struct {
@@ -297,32 +302,12 @@ func (c *Client) runSearch(ctx context.Context, params url.Values) ([]ports.Sear
 				Kind:         h.Document.Kind,
 				Weight:       h.Document.Weight,
 			},
-			Score:       round2(score),
-			MatchReason: matchReason(h),
+			Score: round2(score),
+			// Overwritten by the domain scorer in app/search.rescore.
+			MatchReason: "",
 		})
 	}
 	return out, nil
-}
-
-// matchReason explains WHY a result matched, which the spec requires and which
-// makes an ambiguous result set actionable instead of mysterious.
-func matchReason(h tsHit) string {
-	for _, field := range []string{"name", "aliases", "normalized"} {
-		hl, ok := h.Highlight[field]
-		if !ok || len(hl.MatchedTokens) == 0 {
-			continue
-		}
-		tokens := strings.Join(hl.MatchedTokens, ", ")
-		switch field {
-		case "name":
-			return "name match: " + tokens
-		case "aliases":
-			return "alias match: " + tokens
-		case "normalized":
-			return "normalized match: " + tokens
-		}
-	}
-	return "fuzzy match"
 }
 
 func clampLimit(n int) int {

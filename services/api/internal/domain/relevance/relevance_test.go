@@ -135,3 +135,46 @@ func TestFuzzyNeverOutranksTokenMatch(t *testing.T) {
 			fuzzy.Score, token.Score)
 	}
 }
+
+// A hard clamp made every decent fuzzy match land on the same ceiling, so a
+// query like "tema comm 25" returned four places all scoring exactly 0.64 and
+// the ordering carried no information.
+//
+// Note what this does NOT assert: that every candidate has a distinct score.
+// Two names that share the same number of query tokens are genuinely equally
+// relevant, and forcing them apart would be inventing precision. What matters
+// is that the ranking separates better candidates from worse ones.
+func TestFuzzyScoresDoNotBunchOnACeiling(t *testing.T) {
+	query := "tema community 25"
+	best := Score(query, "tema community 12", nil).Score // two tokens shared
+	worse := Score(query, "tema new town", nil).Score    // one token shared
+	worst := Score(query, "kumasi metropolitan", nil).Score
+
+	if !(best > worse && worse > worst) {
+		t.Fatalf("expected a monotonic ranking, got %.3f / %.3f / %.3f", best, worse, worst)
+	}
+	distinct := map[float64]bool{best: true, worse: true, worst: true}
+	if len(distinct) < 3 {
+		t.Errorf("scores collapsed onto a ceiling: %.4f, %.4f, %.4f", best, worse, worst)
+	}
+}
+
+// Partial token overlap is signal. Discarding it let "tema new town" (one
+// shared token) outrank "tema community 12" (two shared tokens) for the query
+// "tema community 25", because the common "tema" dominated the fuzzy score.
+func TestMoreMatchingTokensRanksHigher(t *testing.T) {
+	q := "tema community 25"
+	two := Score(q, "tema community 12", nil).Score // tema + community
+	one := Score(q, "tema new town", nil).Score     // tema only
+	if two <= one {
+		t.Fatalf("two matching tokens scored %.3f but one scored %.3f", two, one)
+	}
+}
+
+func TestPartialMatchStaysBelowFullMatch(t *testing.T) {
+	full := Score("tema community", "tema community", nil).Score
+	partial := Score("tema community 25", "tema community 12", nil).Score
+	if partial >= full {
+		t.Errorf("a partial match (%.3f) must stay below a full match (%.3f)", partial, full)
+	}
+}

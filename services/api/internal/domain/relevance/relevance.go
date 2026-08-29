@@ -120,6 +120,20 @@ func scoreOne(query, candidate string) Result {
 		return Result{Score: 0.65 + 0.20*coverage, Kind: TokenMatch}
 	}
 
+	// PARTIAL token overlap. How many query tokens matched is real signal, and
+	// an earlier version threw it away by falling straight through to
+	// whole-string fuzzy. The consequence was visible: for "tema community 25",
+	// "tema new town" (one token in common) outranked "tema community 12" (two),
+	// because the shared "tema" dominated the fuzzy score and the shorter name
+	// then won on coverage.
+	if matched > 0 && len(qTokens) > 1 {
+		share := float64(matched) / float64(len(qTokens))
+		// Reward covering more of the CANDIDATE too, so a two-token hit on a
+		// two-token name beats the same hit buried in a long name.
+		coverage := float64(matched) / float64(len(cTokens))
+		return Result{Score: 0.30 + 0.30*share + 0.04*coverage, Kind: TokenMatch}
+	}
+
 	// Fuzzy: edit distance over the whole string, then over the best token
 	// pair, whichever is kinder. Similarity below 0.5 is not a match at all.
 	sim := similarity(query, candidate)
@@ -136,19 +150,24 @@ func scoreOne(query, candidate string) Result {
 		return Result{Score: 0, Kind: NoMatch}
 	}
 
-	// Map similarity 0.5..1.0 onto 0.25..0.85.
-	base := 0.25 + 0.60*((sim-0.5)/0.5)
-
-	// Then weight by COVERAGE: how much of the candidate the matched portion
-	// accounts for. This is what separates "accra" from "greater accra" for
-	// the query "acra" — both contain an equally-good fuzzy token, but in one
-	// the query is the whole name and in the other it is half of it. Without
-	// this the two tie, which is the defect that motivated this package.
+	// Quality combines closeness with COVERAGE: how much of the candidate the
+	// matched portion accounts for. Coverage is what separates "accra" from
+	// "greater accra" for the query "acra" — both contain an equally good
+	// fuzzy token, but in one the query is the whole name and in the other it
+	// is half of it.
 	coverage := float64(matchedLen) / float64(len(candidate))
-	score := base * (0.7 + 0.3*coverage)
+	quality := ((sim - 0.5) / 0.5) * (0.7 + 0.3*coverage) // 0..1
 
-	// A fuzzy hit must never reach the token-match floor of 0.65.
-	return Result{Score: math.Min(score, 0.64), Kind: FuzzyMatch}
+	// Map the band into [0.22, 0.63] by SCALING, not clipping. An earlier
+	// version clamped with math.Min, which pushed every decent fuzzy match
+	// onto the ceiling: "tema comm 25" returned four places all scoring
+	// exactly 0.64, so the ordering carried no information.
+	//
+	// The exponent below curves the response so near-misses rise quickly.
+	// Edit distance is unkind to short words — one wrong letter in "accra" is
+	// 20% of it — and a linear map made a single typo read as a weak match.
+	// Fuzzy still stays strictly under the token-match floor of 0.65.
+	return Result{Score: 0.22 + 0.41*math.Pow(quality, 0.6), Kind: FuzzyMatch}
 }
 
 // similarity is 1 - normalized Levenshtein distance.

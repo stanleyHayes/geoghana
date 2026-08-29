@@ -114,7 +114,8 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-9.7–9.8 | EP-09 Identity | ⬜ Next | unassigned | Immutable audit log and security-event alerting. |
 | GEO-9.2 | EP-09 Identity | ⬜ Next | unassigned | Developer account auth: email verification, passkeys/WebAuthn, MFA for admins. |
 | GEO-10.x / 11.x | EP-10/11 GraphQL + gRPC | ⬜ Not started | unassigned | Contracts published, so these can start immediately. |
-| GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Not started | unassigned | GSS boundaries and OSM. **Reverse geocode stays empty until these land coordinates.** |
+| GEO-4.4, 4.8 | EP-04 Ingestion | ✅ **Done** | Claude | Adapter port + GeoNames (CC BY). 15,925 places with coordinates, zero rejections. `/reverse` and `/nearby` now work nationwide. |
+| GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Next | unassigned | GSS boundaries and OSM. Needed for **district assignment** on imported places, boundary polygons, and the remaining golden cases. |
 
 **Legend:** ✅ Done & verified · 🟡 In progress · ⬜ Not started · 🔴 Blocked
 

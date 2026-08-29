@@ -183,8 +183,21 @@ type errorBody struct {
 }
 
 // writeErr renders the Spec 19 error envelope for every failure path.
+//
+// The public body carries only the stable code and a safe message. The CAUSE
+// is logged against the request id, because Spec §20 requires an INTERNAL
+// error to be traceable — without this a 500 is unactionable.
 func writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	e := apierr.From(err)
+	if e.Code == apierr.Internal {
+		slog.Error("request failed",
+			"request_id", middleware.GetReqID(r.Context()),
+			"operation", r.Method+" "+r.URL.Path,
+			"code", string(e.Code),
+			// The unwrapped cause, never returned to the caller.
+			"cause", err.Error(),
+		)
+	}
 	var body errorBody
 	body.Error.Code = string(e.Code)
 	body.Error.Message = e.Message
