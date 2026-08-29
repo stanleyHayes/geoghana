@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@import "@ghanageo/ui/styles/tokens.css";
+@import "@ghanageo/ui/styles/components.css";
+@import "@ghanageo/ui/styles/shell.css";
+
+/* Tailwind v4 reads the CSS custom properties directly — no config file. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-brand: var(--brand);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--font-display); margin: 0; }

@@ -1,0 +1,350 @@
+/* ==========================================================================
+   GhanaGeo design tokens — the three-axis theming system.
+
+     AXIS 1  material : neu | glass | clay   -> [data-material]
+     AXIS 2  mode     : light | dark         -> [data-mode]
+     AXIS 3  brand    : hue + chroma         -> --brand-h / --brand-c
+
+   Exactly 14 --mat-* tokens differ between materials. Components read only
+   the semantic layer, so one Card and one Button serve all three.
+   See DESIGN_SYSTEM.md sections 3-5.
+   ========================================================================== */
+
+@layer tokens {
+  :root {
+    /* ---- Type ---- */
+    --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: Outfit, ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --text-2xs: 0.6875rem;
+    --text-xs: 0.75rem;
+    --text-sm: 0.8125rem;
+    --text-base: 0.9375rem;
+    --text-lg: 1.0625rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-3xl: 2rem;
+    --text-4xl: 2.75rem;
+    --text-5xl: 3.75rem;
+
+    /* ---- Space ---- */
+    --space-1: 0.25rem;  --space-2: 0.5rem;   --space-3: 0.75rem;
+    --space-4: 1rem;     --space-5: 1.25rem;  --space-6: 1.5rem;
+    --space-8: 2rem;     --space-10: 2.5rem;  --space-12: 3rem;  --space-16: 4rem;
+
+    /* ---- Neutral ramp: cool, mineral, map-friendly ---- */
+    --ink-50:  oklch(0.985 0.003 250);  --ink-100: oklch(0.965 0.005 250);
+    --ink-200: oklch(0.925 0.008 250);  --ink-300: oklch(0.865 0.012 250);
+    --ink-400: oklch(0.715 0.016 250);  --ink-500: oklch(0.585 0.018 250);
+    --ink-600: oklch(0.475 0.020 250);  --ink-700: oklch(0.385 0.022 252);
+    --ink-800: oklch(0.285 0.024 254);  --ink-900: oklch(0.205 0.026 256);
+    --ink-950: oklch(0.145 0.024 258);
+
+    /* ---- Brand (axis 3). Default "meridian": hue 168, deliberately 3deg
+           outside the reserved success arc so brand never reads as approved. */
+    --brand-h: 168;
+    --brand-c: 0.115;
+
+    /* ---- Status. FIXED primitives — never derived from --brand-h, or a
+           green brand would make published/approved/added indistinguishable.
+           Reserved arcs: 130-165 success, 10-45 danger. See section 6.6. ---- */
+    --success: oklch(0.560 0.130 152);
+    --warning: oklch(0.700 0.150 75);
+    --danger:  oklch(0.560 0.195 27);
+    --info:    oklch(0.580 0.130 248);
+
+    /* ---- Verification status (GhanaGeo-specific) ---- */
+    --vs-canonical: var(--success);
+    --vs-reviewed: var(--info);
+    --vs-reference: var(--ink-500);
+    --vs-needs-recon: var(--warning);
+    --vs-deprecated: var(--ink-400);
+
+    /* ---- Chart series: fixed and colourblind-safe. Independent of --brand-h
+           so two series can never merge when a user picks a nearby hue. ---- */
+    --series-1: oklch(0.60 0.13 250);  --series-2: oklch(0.65 0.15 45);
+    --series-3: oklch(0.55 0.12 295);  --series-4: oklch(0.70 0.13 195);
+    --series-5: oklch(0.62 0.14 340);  --series-6: oklch(0.68 0.10 110);
+
+    /* ---- Motion ---- */
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --dur-instant: 90ms;  --dur-fast: 150ms;  --dur-base: 220ms;
+    --dur-slow: 360ms;    --dur-slower: 520ms;
+
+    /* ---- Shell geometry ---- */
+    --shell-sidebar-w: 288px;
+    --shell-sidebar-collapsed-w: 80px;
+    --shell-navbar-h: 64px;
+    --shell-content-max: 1480px;
+
+    /* ---- Intensity dial (section 3.3): scales material down on dense
+           surfaces so all three stay available without breaking WCAG. ---- */
+    --mat-shadow-scale: 1;
+    --mat-blur-scale: 1;
+
+    /* ---- Brand derivation. Fixing L per mode and varying only H and C is
+           what guarantees any user hue lands at a usable lightness. ---- */
+    --brand:        oklch(0.545 var(--brand-c) var(--brand-h));
+    --brand-hover:  oklch(0.485 var(--brand-c) var(--brand-h));
+    --brand-active: oklch(0.425 var(--brand-c) var(--brand-h));
+    --brand-tint:   oklch(0.960 calc(var(--brand-c) * 0.22) var(--brand-h));
+    --brand-fg:     oklch(0.985 0 0);
+
+    --primary: var(--brand);
+    --primary-fg: var(--brand-fg);
+    --accent: var(--brand-tint);
+    --ring: var(--brand);
+    --overlay: oklch(0.145 0.024 258 / 0.45);
+  }
+
+  [data-mode="dark"] {
+    /* Lift lightness and drop chroma: a hue that reads on paper goes muddy on ink. */
+    --brand:       oklch(0.680 calc(var(--brand-c) * 0.88) var(--brand-h));
+    --brand-hover: oklch(0.735 calc(var(--brand-c) * 0.88) var(--brand-h));
+    --brand-tint:  oklch(0.280 calc(var(--brand-c) * 0.55) var(--brand-h));
+    --brand-fg:    oklch(0.145 0 0);
+    --overlay:     oklch(0.10 0.02 260 / 0.62);
+  }
+
+  /* ======================================================================
+     MATERIAL 1 — NEUMORPHISM: extruded from the page.
+     The surface is the SAME colour as its parent; shape comes entirely from
+     a paired light/dark shadow. That is why it needs a mid-tone ground.
+     ====================================================================== */
+  [data-material="neu"] {
+    --mat-surface-alpha: 1;
+    --mat-radius: 1rem;
+    --mat-radius-sm: 0.75rem;
+    --mat-blur: 0px;
+    --mat-backdrop: none;
+    --mat-border-width: 0px;
+    --mat-border-color: transparent;
+    --mat-press-transform: none;
+
+    --bg: oklch(0.935 0.006 250);       /* mid-tone ground, NOT white */
+    --bg-subtle: oklch(0.915 0.008 250);
+    --surface: var(--bg);                /* identical to ground — the rule */
+    --surface-raised: oklch(0.955 0.006 250);
+    --surface-sunken: oklch(0.905 0.008 250);
+    --fg: oklch(0.255 0.020 256);
+    --fg-muted: oklch(0.475 0.020 250);
+    --fg-subtle: oklch(0.615 0.018 250);
+    --border: oklch(0.855 0.012 250);
+    --border-strong: oklch(0.715 0.016 250);
+
+    --mat-light: oklch(1 0 0 / 0.90);
+    --mat-dark: oklch(0.72 0.020 250 / 0.42);
+
+    --mat-shadow-flat: none;
+    --mat-shadow-raised:
+      calc(6px * var(--mat-shadow-scale)) calc(6px * var(--mat-shadow-scale))
+      calc(14px * var(--mat-shadow-scale)) var(--mat-dark),
+      calc(-6px * var(--mat-shadow-scale)) calc(-6px * var(--mat-shadow-scale))
+      calc(14px * var(--mat-shadow-scale)) var(--mat-light);
+    --mat-shadow-lifted:
+      calc(10px * var(--mat-shadow-scale)) calc(10px * var(--mat-shadow-scale))
+      calc(24px * var(--mat-shadow-scale)) var(--mat-dark),
+      calc(-10px * var(--mat-shadow-scale)) calc(-10px * var(--mat-shadow-scale))
+      calc(24px * var(--mat-shadow-scale)) var(--mat-light);
+    --mat-shadow-inset:
+      inset 3px 3px 7px var(--mat-dark),
+      inset -3px -3px 7px var(--mat-light);
+  }
+
+  [data-material="neu"][data-mode="dark"],
+  [data-mode="dark"] [data-material="neu"] {
+    --bg: oklch(0.255 0.018 256);
+    --bg-subtle: oklch(0.235 0.018 256);
+    --surface: var(--bg);
+    --surface-raised: oklch(0.295 0.018 256);
+    --surface-sunken: oklch(0.215 0.020 258);
+    --fg: oklch(0.955 0.005 250);
+    --fg-muted: oklch(0.755 0.012 250);
+    --fg-subtle: oklch(0.615 0.016 250);
+    --border: oklch(0.345 0.020 256);
+    --border-strong: oklch(0.475 0.020 250);
+    /* NOT white — a lifted neutral, or the highlight blows out. */
+    --mat-light: oklch(0.40 0.020 256 / 0.55);
+    --mat-dark: oklch(0.10 0.020 260 / 0.72);
+  }
+
+  /* ======================================================================
+     MATERIAL 2 — GLASSMORPHISM: frosted panes over depth.
+     ====================================================================== */
+  [data-material="glass"] {
+    --mat-surface-alpha: 0.62;
+    --mat-radius: 1.125rem;
+    --mat-radius-sm: 0.75rem;
+    --mat-blur: calc(16px * var(--mat-blur-scale));
+    --mat-backdrop: blur(var(--mat-blur)) saturate(150%);
+    --mat-border-width: 1px;
+    --mat-border-color: oklch(1 0 0 / 0.28);
+    --mat-press-transform: none;
+
+    --bg: oklch(0.955 0.010 250);
+    --bg-subtle: oklch(0.925 0.012 250);
+    --surface: oklch(1 0 0 / var(--mat-surface-alpha));
+    --surface-raised: oklch(1 0 0 / 0.80);
+    --surface-sunken: oklch(0.94 0.010 250 / 0.70);
+    --fg: oklch(0.205 0.026 256);
+    --fg-muted: oklch(0.475 0.020 250);
+    --fg-subtle: oklch(0.615 0.018 250);
+    --border: oklch(0.865 0.012 250);
+    --border-strong: oklch(0.715 0.016 250);
+
+    --mat-shadow-flat: none;
+    --mat-shadow-raised:
+      0 calc(4px * var(--mat-shadow-scale)) calc(14px * var(--mat-shadow-scale))
+        oklch(0.30 0.02 255 / 0.10),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.45);
+    --mat-shadow-lifted:
+      0 calc(12px * var(--mat-shadow-scale)) calc(34px * var(--mat-shadow-scale))
+        oklch(0.30 0.02 255 / 0.16),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55);
+    --mat-shadow-inset: inset 0 1px 3px oklch(0.30 0.02 255 / 0.14);
+  }
+
+  [data-material="glass"][data-mode="dark"],
+  [data-mode="dark"] [data-material="glass"] {
+    --bg: oklch(0.185 0.022 258);
+    --bg-subtle: oklch(0.165 0.022 258);
+    --surface: oklch(0.42 0.020 256 / 0.34);
+    --surface-raised: oklch(0.46 0.020 256 / 0.55);
+    --surface-sunken: oklch(0.24 0.020 258 / 0.60);
+    --fg: oklch(0.965 0.005 250);
+    --fg-muted: oklch(0.775 0.012 250);
+    --fg-subtle: oklch(0.625 0.016 250);
+    --border: oklch(0.345 0.020 256);
+    --border-strong: oklch(0.495 0.020 250);
+    --mat-border-color: oklch(1 0 0 / 0.12);
+  }
+
+  /* ======================================================================
+     MATERIAL 3 — CLAYMORPHISM: inflated, soft, floating.
+     Clay floats on a CONTRASTING ground; neumorphism extrudes from an
+     identical one. That single difference drives every value here.
+     ====================================================================== */
+  [data-material="clay"] {
+    --mat-surface-alpha: 1;
+    --mat-radius: 1.75rem;
+    --mat-radius-sm: 1.125rem;
+    --mat-blur: 0px;
+    --mat-backdrop: none;
+    --mat-border-width: 0px;
+    --mat-border-color: transparent;
+    --mat-press-transform: scale(0.97);
+
+    --bg: oklch(0.960 0.014 var(--brand-h));       /* tinted, never white */
+    --bg-subtle: oklch(0.935 0.018 var(--brand-h));
+    --surface: oklch(0.995 0.006 var(--brand-h));  /* CONTRASTS with --bg */
+    --surface-raised: oklch(1 0 0);
+    --surface-sunken: oklch(0.945 0.016 var(--brand-h));
+    --fg: oklch(0.245 0.028 var(--brand-h));
+    --fg-muted: oklch(0.475 0.024 var(--brand-h));
+    --fg-subtle: oklch(0.625 0.020 var(--brand-h));
+    --border: oklch(0.885 0.018 var(--brand-h));
+    --border-strong: oklch(0.715 0.024 var(--brand-h));
+
+    --mat-shadow-flat: none;
+    --mat-shadow-raised:
+      calc(8px * var(--mat-shadow-scale)) calc(12px * var(--mat-shadow-scale))
+      calc(24px * var(--mat-shadow-scale)) oklch(0.55 0.06 var(--brand-h) / 0.20),
+      inset -4px -6px 12px oklch(0.62 0.07 var(--brand-h) / 0.16),
+      inset 4px 5px 12px oklch(1 0 0 / 0.92);
+    --mat-shadow-lifted:
+      calc(12px * var(--mat-shadow-scale)) calc(20px * var(--mat-shadow-scale))
+      calc(38px * var(--mat-shadow-scale)) oklch(0.55 0.06 var(--brand-h) / 0.26),
+      inset -4px -6px 12px oklch(0.62 0.07 var(--brand-h) / 0.16),
+      inset 4px 5px 12px oklch(1 0 0 / 0.92);
+    --mat-shadow-inset:
+      inset 5px 6px 12px oklch(0.55 0.06 var(--brand-h) / 0.22),
+      inset -3px -4px 10px oklch(1 0 0 / 0.75);
+  }
+
+  [data-material="clay"][data-mode="dark"],
+  [data-mode="dark"] [data-material="clay"] {
+    --bg: oklch(0.225 0.030 var(--brand-h));
+    --bg-subtle: oklch(0.195 0.030 var(--brand-h));
+    --surface: oklch(0.310 0.032 var(--brand-h));
+    --surface-raised: oklch(0.355 0.032 var(--brand-h));
+    --surface-sunken: oklch(0.265 0.030 var(--brand-h));
+    --fg: oklch(0.965 0.008 var(--brand-h));
+    --fg-muted: oklch(0.785 0.016 var(--brand-h));
+    --fg-subtle: oklch(0.635 0.018 var(--brand-h));
+    --border: oklch(0.395 0.028 var(--brand-h));
+    --border-strong: oklch(0.525 0.028 var(--brand-h));
+    --mat-shadow-raised:
+      calc(8px * var(--mat-shadow-scale)) calc(12px * var(--mat-shadow-scale))
+      calc(24px * var(--mat-shadow-scale)) oklch(0.08 0.02 260 / 0.55),
+      inset -4px -6px 12px oklch(0.16 0.02 260 / 0.55),
+      inset 4px 5px 12px oklch(0.50 0.04 var(--brand-h) / 0.35);
+  }
+
+  /* ---- Intensity tiers (section 3.3) ---- */
+  [data-intensity="balanced"]  { --mat-shadow-scale: 0.6; --mat-blur-scale: 0.7; }
+  [data-intensity="restrained"] {
+    --mat-shadow-scale: 0;
+    --mat-blur-scale: 0;
+    --mat-backdrop: none;
+    --mat-border-width: 1px;
+    --mat-border-color: var(--border-strong);
+    --mat-press-transform: none;   /* bounce on a data table reads as sloppy */
+  }
+
+  /* ---- User preference media queries (section 6.7) ---- */
+  @media (prefers-reduced-transparency: reduce) {
+    [data-material="glass"] {
+      --mat-surface-alpha: 1;
+      --mat-blur: 0px;
+      --mat-backdrop: none;
+      --surface: oklch(1 0 0);
+    }
+    [data-material="glass"][data-mode="dark"] { --surface: oklch(0.26 0.020 258); }
+  }
+  @media (prefers-contrast: more) {
+    :root {
+      --mat-border-width: 1px;
+      --mat-border-color: var(--fg);
+      --mat-shadow-scale: 0.4;
+    }
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    [data-material="glass"] { --mat-surface-alpha: 0.96; --mat-backdrop: none; }
+  }
+  @media (forced-colors: active) {
+    :root {
+      --mat-shadow-raised: none; --mat-shadow-lifted: none; --mat-shadow-inset: none;
+      --mat-blur: 0px; --mat-backdrop: none; --mat-border-width: 1px;
+    }
+  }
+
+  /* ---- Keyframes: nothing else in the system may declare one ---- */
+  @keyframes fade-in    { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes slide-up   { from { opacity: 0; transform: translateY(0.5rem) }  to { opacity: 1; transform: none } }
+  @keyframes slide-down { from { opacity: 0; transform: translateY(-0.5rem) } to { opacity: 1; transform: none } }
+  @keyframes scale-in   { from { opacity: 0; transform: scale(0.96) }         to { opacity: 1; transform: none } }
+  @keyframes page-enter { from { opacity: 0; transform: translateY(0.75rem) } to { opacity: 1; transform: none } }
+  @keyframes shimmer    { from { background-position: -200% 0 } to { background-position: 200% 0 } }
+  @keyframes pulse-dot  { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }
+  @keyframes blur-in    { from { opacity: 0; filter: blur(6px); transform: translateY(0.4rem) }
+                          to   { opacity: 1; filter: blur(0);   transform: none } }
+
+  /* ---- Layer 1 of four reduced-motion defences (section 9.4) ---- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* ---- Theme reveal: neutralise the default crossfade so the clip shows ---- */
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+  ::view-transition-old(root) { z-index: 1; }
+  ::view-transition-new(root) { z-index: 9999; }
+}

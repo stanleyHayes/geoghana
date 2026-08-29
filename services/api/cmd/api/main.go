@@ -64,7 +64,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
-		Handler:           rest.New(geo, log).Routes(),
+		Handler:           rest.New(geo, log, cfg.AllowedOrigins).Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

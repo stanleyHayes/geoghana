@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -16,11 +17,18 @@ import (
 )
 
 type Handler struct {
-	geo *app.Service
-	log *slog.Logger
+	geo            *app.Service
+	log            *slog.Logger
+	allowedOrigins map[string]bool
 }
 
-func New(geo *app.Service, log *slog.Logger) *Handler { return &Handler{geo: geo, log: log} }
+func New(geo *app.Service, log *slog.Logger, allowedOrigins []string) *Handler {
+	set := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		set[strings.TrimSpace(o)] = true
+	}
+	return &Handler{geo: geo, log: log, allowedOrigins: set}
+}
 
 // Routes returns the /v1 router. Paths match contracts/openapi/v1.yaml exactly.
 func (h *Handler) Routes() http.Handler {
@@ -30,6 +38,7 @@ func (h *Handler) Routes() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(h.accessLog)
 	r.Use(requestIDHeader)
+	r.Use(h.cors)
 
 	r.Get("/health", h.health)
 
@@ -59,6 +68,27 @@ func (h *Handler) Routes() http.Handler {
 func requestIDHeader(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Request-Id", middleware.GetReqID(r.Context()))
+		next.ServeHTTP(w, r)
+	})
+}
+
+// cors applies an origin ALLOW-LIST, never a wildcard (Spec 12.4). An
+// unlisted origin simply gets no CORS headers, so the browser blocks it.
+func (h *Handler) cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" && h.allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "600")
+			// Responses vary by origin, so caches must not share them.
+			w.Header().Add("Vary", "Origin")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

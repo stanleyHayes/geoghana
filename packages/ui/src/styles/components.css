@@ -1,0 +1,164 @@
+/* ==========================================================================
+   Component styles. Every rule reads semantic or --mat-* tokens only.
+   Search this file for "neu", "glass" or "clay": there are no hits. That is
+   the point — the material swap is a token swap.
+   ========================================================================== */
+
+@layer components {
+  /* ---------------------------------------------------------------- Card */
+  .gg-card {
+    background: var(--surface);
+    backdrop-filter: var(--mat-backdrop);
+    -webkit-backdrop-filter: var(--mat-backdrop);
+    border: var(--mat-border-width) solid var(--mat-border-color);
+    border-radius: var(--mat-radius);
+    box-shadow: var(--mat-shadow-raised);
+    padding: var(--space-5);
+    color: var(--fg);
+    transition:
+      box-shadow var(--dur-base) var(--ease-out-quart),
+      transform var(--dur-fast) var(--ease-out-quart);
+  }
+  .gg-card[data-interactive]:hover {
+    box-shadow: var(--mat-shadow-lifted);
+    transform: translateY(-2px);
+  }
+
+  /* -------------------------------------------------------------- Button */
+  .gg-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    border: var(--mat-border-width) solid var(--mat-border-color);
+    border-radius: var(--mat-radius-sm);
+    box-shadow: var(--mat-shadow-raised);
+    transition:
+      box-shadow var(--dur-fast) var(--ease-out-quart),
+      transform var(--dur-fast) var(--ease-out-quart),
+      background-color var(--dur-fast) var(--ease-out-quart);
+  }
+  .gg-button:hover:not(:disabled) { box-shadow: var(--mat-shadow-lifted); }
+  .gg-button:active:not(:disabled) {
+    box-shadow: var(--mat-shadow-inset);
+    transform: var(--mat-press-transform);
+  }
+  .gg-button:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+
+  .gg-button--sm   { min-height: 36px; padding: 0 var(--space-3); font-size: var(--text-xs); }
+  .gg-button--md   { min-height: 44px; padding: 0 var(--space-4); font-size: var(--text-sm); }
+  .gg-button--lg   { min-height: 52px; padding: 0 var(--space-6); font-size: var(--text-base); }
+  .gg-button--icon { min-height: 44px; min-width: 44px; padding: 0; }
+
+  .gg-button--primary   { background: var(--brand); color: var(--brand-fg); }
+  .gg-button--primary:hover:not(:disabled) { background: var(--brand-hover); }
+  .gg-button--secondary { background: var(--surface); color: var(--fg); backdrop-filter: var(--mat-backdrop); }
+  .gg-button--ghost     { background: transparent; color: var(--fg-muted); box-shadow: none; border-color: transparent; }
+  .gg-button--ghost:hover:not(:disabled) { background: var(--accent); color: var(--fg); box-shadow: none; }
+  .gg-button--danger    { background: var(--danger); color: oklch(0.985 0 0); }
+
+  /* --------------------------------------------------------------- Input
+     A neumorphic input has no edge — only an inset shadow — so it fails 3:1
+     non-text contrast by construction. Every material therefore carries a
+     real border here. This is the one place the material does not get to be
+     borderless. (DESIGN_SYSTEM.md 5.6) */
+  .gg-input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    color: var(--fg);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--mat-radius-sm);
+    box-shadow: var(--mat-shadow-inset);
+    transition:
+      border-color var(--dur-fast) var(--ease-out-quart),
+      box-shadow var(--dur-fast) var(--ease-out-quart);
+  }
+  .gg-input::placeholder { color: var(--fg-subtle); }
+  .gg-input:focus-visible { border-color: var(--brand); }
+  .gg-input[aria-invalid="true"] { border-color: var(--danger); }
+  .gg-input:disabled { opacity: 0.55; box-shadow: none; cursor: not-allowed; }
+
+  /* --------------------------------------------------------------- Badge */
+  .gg-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0.125rem var(--space-2);
+    border-radius: 999px;
+    font-size: var(--text-2xs);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .gg-badge--neutral     { background: var(--bg-subtle); color: var(--fg-muted); border-color: var(--border); }
+  .gg-badge--canonical   { background: color-mix(in oklch, var(--vs-canonical) 14%, transparent);   color: var(--vs-canonical);   border-color: color-mix(in oklch, var(--vs-canonical) 34%, transparent); }
+  .gg-badge--reviewed    { background: color-mix(in oklch, var(--vs-reviewed) 14%, transparent);    color: var(--vs-reviewed);    border-color: color-mix(in oklch, var(--vs-reviewed) 34%, transparent); }
+  .gg-badge--reference   { background: color-mix(in oklch, var(--vs-reference) 14%, transparent);   color: var(--vs-reference);   border-color: color-mix(in oklch, var(--vs-reference) 34%, transparent); }
+  .gg-badge--needs-recon { background: color-mix(in oklch, var(--vs-needs-recon) 16%, transparent); color: color-mix(in oklch, var(--vs-needs-recon) 78%, var(--fg)); border-color: color-mix(in oklch, var(--vs-needs-recon) 38%, transparent); }
+  .gg-badge--deprecated  { background: color-mix(in oklch, var(--vs-deprecated) 14%, transparent);  color: var(--vs-deprecated);  border-color: color-mix(in oklch, var(--vs-deprecated) 34%, transparent); }
+  .gg-badge--danger      { background: color-mix(in oklch, var(--danger) 14%, transparent);         color: var(--danger);         border-color: color-mix(in oklch, var(--danger) 34%, transparent); }
+
+  /* ------------------------------------------------------------ Skeleton */
+  .gg-skeleton {
+    border-radius: var(--mat-radius-sm);
+    background: var(--surface-sunken);
+    box-shadow: var(--mat-shadow-inset);
+    min-height: 1rem;
+    animation: pulse-dot 1400ms var(--ease-in-out) infinite;
+  }
+  /* Glass keeps the sweep (with blur off); neu and clay pulse an inset well. */
+  [data-material="glass"] .gg-skeleton {
+    background-image: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.22), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1400ms var(--ease-in-out) infinite;
+    backdrop-filter: none;
+  }
+
+  /* ---------------------------------------------------------- EmptyState */
+  .gg-empty { display: grid; place-items: center; gap: var(--space-2); padding: var(--space-12) var(--space-6); text-align: center; }
+  .gg-empty__icon  { color: var(--fg-subtle); }
+  .gg-empty__title { font-weight: 650; color: var(--fg); }
+  .gg-empty__desc  { font-size: var(--text-sm); color: var(--fg-muted); max-width: 46ch; }
+  .gg-empty__action { margin-top: var(--space-2); }
+
+  /* ----------------------------------------------------------- Skip link */
+  .gg-skip-link {
+    position: absolute;
+    left: var(--space-2);
+    top: var(--space-2);
+    z-index: 100;
+    padding: var(--space-2) var(--space-4);
+    background: var(--surface-raised);
+    color: var(--fg);
+    border-radius: var(--mat-radius-sm);
+    box-shadow: var(--mat-shadow-lifted);
+    transform: translateY(-200%);
+    transition: transform var(--dur-fast) var(--ease-out-quart);
+  }
+  .gg-skip-link:focus { transform: translateY(0); }
+
+  /* ------------------------------------------------------- Focus ring
+     Focus is NEVER a shadow: a neumorphic glow disappears into the extrusion,
+     a clay one into the inset, a glass one into the blur. It is always a real
+     outline, with a second ring in the page ground so it reads on any
+     surface. (DESIGN_SYSTEM.md 6.2) */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--bg);
+  }
+  @media (forced-colors: active) {
+    :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+      outline: 2px solid Highlight;
+    }
+  }
+}
