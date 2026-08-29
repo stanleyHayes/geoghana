@@ -114,6 +114,7 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-18.REDESIGN | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | Map-led public-site redesign across all five routes with live search, editorial content rhythm and developer pathways. Typecheck/build/link checks pass; browser sweep found zero horizontal overflow. |
 | GEO-18.ABOUT | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | Editorial, evidence-led `/about` redesign with manifesto hero, numbered commitments, source ledger, audience pathways and disclosure section. All source facts/caveats preserved; web typecheck + production build + link check + diff check pass; browser QA confirms zero overflow at 1480px and 390px. |
 | GEO-18.TRANSPARENCY | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | Public-ledger redesign with reporting status, cadence, honest pre-launch state, named income/cost tables, funding firewall and correction policy. Recorded values and null semantics preserved; web typecheck/build/link/diff checks pass; browser QA confirms zero page overflow at 1480px and 390px with contained mobile table scrolling. |
+| GEO-18.MVP-PAGES | EP-18 Marketing & Docs | ✅ **Done** | Codex (L8) | Products, Developers, Coverage, Changelog, Status and Contact are implemented and linked; sitemap, robots, Organization/WebSite/SoftwareApplication JSON-LD and generated Open Graph artwork ship with the static build. Typecheck/build/link checks pass; Playwright + axe finds zero violations or overflow across all six routes at 390px in light and dark modes. Public deployment and Core Web Vitals evidence remain launch gates, so the V1 public-site checklist is intentionally open. |
 | GEO-15.UX | EP-15 Sandbox | ✅ **Done** | Codex (L9) | REST workbench now has protocol chrome, sample library, run history, response metrics/states, and generated cURL/JavaScript/Go snippets. Sandbox typecheck + production build passed; live request returned HTTP 200 in browser. |
 | GEO-16.REDESIGN | EP-16 Developer Portal | ✅ **Done** | Codex (L10) | Developer workspace redesign with API quick start, dataset/service status, tools, example activity and honest account states. Typecheck/build/link checks pass; rendered browser verification found zero horizontal overflow. |
 | GEO-17.ROUTES | EP-17 Admin | ✅ **Done** | Codex (L11) | All 66 configured admin destinations now build as real routes: implemented screens stay live and unfinished areas explain their scope without fake data. Added branded in-shell 404 and map-pin loading splash. Admin typecheck/build passed; browser verified `/ops/health` and an unknown URL with no horizontal overflow. |
@@ -134,12 +135,18 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-13.9 | EP-13b Public CLI | ✅ **Done** | Codex (L6/L12; coordinated L0 workflow edit) | Tag-driven workflow builds seven static targets, embeds the API target, verifies checksums/npm contents, publishes npm, creates GitHub release assets and updates Homebrew. `go test ./...`, launcher tests, `verify-cli-release.sh 0.1.0-test.1 v1`, checksum verification, Ruby syntax and `actionlint` pass. |
 | GEO-9.1–9.6 | EP-09 Identity | ✅ **Done** | Claude | Keys (argon2id, secret shown once), browser-key safety rules, anonymous-as-identity, Redis token bucket, cost classes, limit headers, immediate revocation. Verified live: 429 under concurrent load, 401 on revoke, no prefix enumeration. |
 | GEO-9.7 | EP-09 Identity | ✅ **Done** | Claude | Append-only audit log with a tamper-evident hash chain. Actor/action/target/before/after/request-id/outcome; failed attempts recorded, not just successes; secrets redacted on the way in. `audit verify` detects edits, deletions and insertions — proven live against direct `mongosh` tampering. Wired into key create/revoke, dataset publish, reindex and district assignment. |
-| GEO-9.8 | EP-09 Identity | ⬜ Next | unassigned | Security-event alerting on top of the audit log. |
-| GEO-9.2 | EP-09 Identity | ⬜ Next | unassigned | Developer account auth: email verification, passkeys/WebAuthn, MFA for admins. |
+| GEO-9.8 | EP-09 Identity | ✅ **Done** | Codex (L4) | Signed webhook plus structured-log alerts cover rejected browser origins/IP allow-lists, shared-transport quota exhaustion and failed privileged authentication. Webhook delivery is time-bounded and fails open while its failures remain observable. Exact IPv4/IPv6 and CIDR key restrictions are now enforced. Focused delivery/signal tests, full API tests, vet, env-generator smoke, diff and GhanaPost exclusion checks pass. |
+| GEO-9.2 | EP-09 Identity | 🟡 **Partial** | Claude | Email/password with verified email, TOTP MFA with single-use recovery codes, short-lived sessions with per-request rotation and global revocation, MFA mandatory for every non-developer role. Session fixation prevented by construction; a replayed token revokes every session. Verified live end to end. **Passkeys/WebAuthn remain**: the domain carries the Passkey type and the seam, but registration/assertion needs the library and browser-side work. |
 | GEO-21.7 | EP-20 Security | ✅ **Done** | Codex (L12; coordinated L0 workflow edit) | CI scans canonical data, seeds, exports, fixtures and migrations for GhanaPostGPS provider payloads and digital-address patterns. Clean corpus, positive regression fixtures, workflow lint and diff check pass. |
+| GEO-21.5 | EP-20 Security | ✅ **Done** | Codex (L12/L0) | Scheduled and PR CI runs CodeQL for Go/JS, `govulncheck` on API/CLI and production `pnpm audit`; patch SLAs are documented. Go was raised from vulnerable 1.26.5 to 1.26.6. Local scans report zero reachable Go and zero npm vulnerabilities; vet/actionlint pass. |
+| GEO-21.REVIEW | EP-20 Security | 🟡 **Partial** | Codex (L12) | Local reachable-code and dependency review is clean after the Go patch upgrade. Hosted CodeQL results and the remaining abuse/CSRF/session/RBAC suite must be captured before the V1 security-review checklist can close. |
+| GEO-22.1 | EP-21 Backups & DR | 🟡 **Partial** | Codex (L12) | Reproducible Mongo archive/restore tooling exists and is locally proven. Atlas continuous backup/PITR configuration requires the production Atlas project and remains external-state work. |
+| GEO-22.2 | EP-21 Backups & DR | 🟡 **Partial** | Codex (L12) | Local drill restored 33,082,144 bytes into an isolated scratch DB; all 7 collection counts and validators matched and cleanup was confirmed. Production Atlas scratch restore and measured RPO/RTO remain. Evidence: `docs/runbooks/evidence/restore-drill-2026-08-29.md`. |
+| GEO-22.4 | EP-21 Backups & DR | ✅ **Done** | Codex (L12) | Operator runbooks cover incident response, key compromise, bad dataset rollback, ETL failure, quota/abuse response and quarterly backup restoration. |
 | GEO-10.1–10.5 | EP-10 GraphQL | ✅ **Done** | Claude | gqlgen generated FROM the published contract. Resolvers over shared use cases, per-request loaders, depth and complexity budgets, error codes matching REST. |
 | GEO-5.2 | EP-05 Dedupe | ✅ **Done** | Claude | Cross-source duplicate detection. All 16 seed capitals merged with their GeoNames twins; merged ids resolve 410 with `mergedInto`. |
 | GEO-11.x | EP-11 gRPC | ✅ **Done** | Claude | 12 unary RPCs on :9190 over the same use cases as REST and GraphQL, with health and reflection. Error codes map from the shared catalog. `StreamDatasetChanges` returns UNIMPLEMENTED naming GEO-8.3 rather than an empty stream. Verified live with grpcurl. |
+| GEO-11.SECURITY | EP-11 gRPC / EP-20 Security | ✅ **Done** | Codex (L3/L4; coordinated L0 wiring) | gRPC now uses the shared key resolver and Redis fair-use limiter, weighted RPC costs, `grpc:access` enforcement for keyed callers, 15s unary/5m stream deadlines, 1 MiB send/receive limits and structured request logs. Health/reflection bypass consumer quota. Full API tests plus live headers, 401, 429 and health checks pass. REST/GraphQL route scopes are enforced while anonymous public reads remain valid. |
 | GEO-8.3 | EP-08 REST | ✅ **Done** | Claude | `/datasets` and `/datasets/{version}/downloads` plus artifact streaming. `data export` generates real GeoJSON/CSV; every checksum and size is computed from bytes actually written. Fixed a silent persistence bug: geometry was written but never read back, so 16 region and 248 district boundaries were invisible to the domain. |
 | GEO-4.4, 4.8 | EP-04 Ingestion | ✅ **Done** | Claude | Adapter port + GeoNames (CC BY). 15,925 places with coordinates, zero rejections. `/reverse` and `/nearby` now work nationwide. |
 | GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Next | unassigned | GSS boundaries and OSM. Needed for **district assignment** on imported places, boundary polygons, and the remaining golden cases. |
@@ -148,9 +155,9 @@ This section tracks work currently in-flight and recently completed. The active 
 
 ### 2026-08-29 unresolved-work reconciliation
 
-- **Active; do not collide:** GEO-11.1–11.5 gRPC transport work is currently materializing under `services/api/internal/transport/grpc/`, generated API code and `buf.gen.yaml`. Its owner must reconcile and claim it before another transport edit.
+- **Completed and hardened:** GEO-11.1–11.5 unary gRPC transport is live; shared authentication/rate limiting, scopes, deadlines, message limits, logs, health and reflection are verified. `StreamDatasetChanges` remains separately tied to a real change feed rather than a fabricated empty stream.
 - **Completed:** GEO-13.9 CLI distribution/release automation now has a locally verified tag workflow, seven-platform npm bundle, checksums, Homebrew formula generation and explicit API-target reporting.
-- **Ready, security-critical:** GEO-9.7 immutable audit logging and GEO-9.8 security-event alerting are unblocked by the existing identity/key foundation; take these before expanding privileged admin mutations.
+- **Completed, security-critical:** GEO-9.7 immutable audit logging and GEO-9.8 signed security-event alerting now cover privileged actions, unusual key use, quota exhaustion and failed administrator authentication.
 - **Large dependency track:** GEO-9.2 developer account authentication remains the blocker for the real portal organization/application/key and security-settings stories. It needs a dedicated L4 goal, not a UI placeholder pass.
 - **Data/external dependency:** GEO-4.6 GSS boundaries still requires an official, licence-recorded source artefact. GEO-4.7 OSM ingestion is separately implementable, but district assignment and remaining polygon golden cases stay incomplete until authoritative boundary coverage is reconciled.
 - **Stale combined item:** `/nearby` already works nationwide; GEO-12.5–12.6 should be split so the implemented nearby path can close independently while the p95 load gate remains measurable work.
@@ -1169,8 +1176,8 @@ Spec §16 defines ten pages; each is a story. All build to the **expressive** in
 ### V1 Definition of Done (Spec §27) — launch checklist
 
 - [ ] Canonical dataset published with documented sources, licences, version and checksums
-- [ ] REST, GraphQL and gRPC live behind the same authentication and rate-limit layer
-- [ ] Anonymous sandbox demonstrates all three protocols safely
+- [x] REST, GraphQL and gRPC live behind the same authentication and rate-limit layer — shared resolver/Redis limiter and live 401/429/header evidence recorded in GEO-11.SECURITY
+- [x] Anonymous sandbox demonstrates all three protocols safely — REST/GraphQL live calls plus an allow-listed, capped and independently throttled gRPC bridge
 - [ ] A developer can register, verify email, create an organization and application, create a test and live key, rotate and revoke it, and inspect usage
 - [ ] npm package published with TypeScript types and an explicit dataset version
 - [ ] Search, autocomplete, geocode, reverse and nearby meet functional **and** performance acceptance tests
@@ -1179,16 +1186,16 @@ Spec §16 defines ten pages; each is a story. All build to the **expressive** in
 - [ ] The free-forever commitment is stated publicly, and a working donate action exists (§24)
 - [ ] Monitoring, alerting, backups and a completed restoration drill
 - [ ] Security review with no unresolved critical or high findings
-- [ ] **No unlicensed GhanaPostGPS digital-address data exists in the canonical dataset**
+- [x] **No unlicensed GhanaPostGPS digital-address data exists in the canonical dataset** — current corpus scan and positive CI regression fixtures pass (GEO-21.7)
 
 ### Success definition (Spec §1.2)
 
 - [ ] A developer discovers GhanaGeo, creates an account, generates a test key and makes a successful request **in under five minutes** — measured end-to-end, not estimated
-- [ ] All three protocols return semantically consistent results because they share use cases and repositories
+- [x] All three protocols return semantically consistent results because they share use cases and repositories — transport constructors use the same geography/search services; contract mappings and live equivalent-query checks pass
 - [ ] Every record has a stable identifier, source provenance and dataset-version metadata
 - [ ] Every public request is authenticated or deliberately anonymous, rate-limited, observable and abuse-resistant
 - [ ] Data improves continuously without silently breaking applications
-- [ ] The platform operates fully without GhanaPostGPS and can later enable digital addresses via a licensed adapter
+- [x] The platform operates fully without GhanaPostGPS and can later enable digital addresses via a licensed adapter — exclusion CI passes and the licensing register keeps the adapter blocked
 
 ---
 
