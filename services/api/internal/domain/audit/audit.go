@@ -45,6 +45,8 @@ const (
 	ActorOperator ActorKind = "operator"
 	// ActorAdmin is an authenticated admin console user.
 	ActorAdmin ActorKind = "admin"
+	// ActorDeveloper is a signed-in developer managing their own resources.
+	ActorDeveloper ActorKind = "developer"
 	// ActorAPIKey is an authenticated API caller.
 	ActorAPIKey ActorKind = "api_key"
 	// ActorSystem is a scheduled or automated process with no human behind it.
@@ -68,19 +70,22 @@ type Actor struct {
 type Action string
 
 const (
-	ActionDatasetPublished Action = "dataset.published"
-	ActionDatasetExported  Action = "dataset.exported"
-	ActionDatasetRolledBk  Action = "dataset.rolled_back"
-	ActionKeyCreated       Action = "key.created"
-	ActionKeyRevoked       Action = "key.revoked"
-	ActionSeedImported     Action = "data.seed_imported"
-	ActionSourceImported   Action = "data.source_imported"
-	ActionBoundariesLoaded Action = "data.boundaries_loaded"
-	ActionPlacesDeduped    Action = "data.deduped"
-	ActionDistrictsAssign  Action = "data.districts_assigned"
-	ActionReindexed        Action = "search.reindexed"
-	ActionRecordUpdated    Action = "record.updated"
-	ActionRecordDeprecated Action = "record.deprecated"
+	ActionDatasetPublished    Action = "dataset.published"
+	ActionDatasetExported     Action = "dataset.exported"
+	ActionDatasetRolledBk     Action = "dataset.rolled_back"
+	ActionKeyCreated          Action = "key.created"
+	ActionKeyRotated          Action = "key.rotated"
+	ActionKeyRevoked          Action = "key.revoked"
+	ActionOrganizationCreated Action = "organization.created"
+	ActionApplicationCreated  Action = "application.created"
+	ActionSeedImported        Action = "data.seed_imported"
+	ActionSourceImported      Action = "data.source_imported"
+	ActionBoundariesLoaded    Action = "data.boundaries_loaded"
+	ActionPlacesDeduped       Action = "data.deduped"
+	ActionDistrictsAssign     Action = "data.districts_assigned"
+	ActionReindexed           Action = "search.reindexed"
+	ActionRecordUpdated       Action = "record.updated"
+	ActionRecordDeprecated    Action = "record.deprecated"
 )
 
 // Target is what the action was performed on.

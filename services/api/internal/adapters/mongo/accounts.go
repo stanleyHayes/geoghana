@@ -32,20 +32,24 @@ type accountDoc struct {
 }
 
 type passkeyDoc struct {
-	ID        string    `bson:"id"`
-	Name      string    `bson:"name"`
-	PublicKey []byte    `bson:"publicKey"`
-	SignCount uint32    `bson:"signCount"`
-	AddedAt   time.Time `bson:"addedAt"`
-	LastUsed  time.Time `bson:"lastUsed,omitempty"`
+	ID   string `bson:"id"`
+	Name string `bson:"name"`
+	// The library's full credential record. Storing the whole thing means a
+	// library upgrade that starts checking another attribute still has it.
+	Credential []byte    `bson:"credential"`
+	SignCount  uint32    `bson:"signCount"`
+	BackedUp   bool      `bson:"backedUp,omitempty"`
+	AddedAt    time.Time `bson:"addedAt"`
+	LastUsed   time.Time `bson:"lastUsed,omitempty"`
 }
 
 func (d accountDoc) toDomain() account.Account {
 	keys := make([]account.Passkey, 0, len(d.Passkeys))
 	for _, p := range d.Passkeys {
 		keys = append(keys, account.Passkey{
-			ID: p.ID, Name: p.Name, PublicKey: p.PublicKey,
-			SignCount: p.SignCount, AddedAt: p.AddedAt, LastUsed: p.LastUsed,
+			ID: p.ID, Name: p.Name, Credential: p.Credential,
+			SignCount: p.SignCount, BackedUp: p.BackedUp,
+			AddedAt: p.AddedAt, LastUsed: p.LastUsed,
 		})
 	}
 	return account.Account{

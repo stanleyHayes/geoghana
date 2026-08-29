@@ -10,17 +10,24 @@ package identity
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 )
 
 var (
-	ErrEmptyName        = errors.New("name must not be empty")
-	ErrUnknownScope     = errors.New("unknown scope")
-	ErrUnsafeBrowserKey = errors.New("unsafe scope combination for a browser key")
-	ErrOriginRequired   = errors.New("a browser key requires at least one allowed origin")
-	ErrKeyRevoked       = errors.New("key is revoked")
-	ErrKeyExpired       = errors.New("key has expired")
+	ErrEmptyName            = errors.New("name must not be empty")
+	ErrOwnerRequired        = errors.New("organization owner is required")
+	ErrOrganizationRequired = errors.New("organization is required")
+	ErrApplicationRequired  = errors.New("application is required")
+	ErrInvalidClass         = errors.New("invalid key class")
+	ErrInvalidEnvironment   = errors.New("invalid key environment")
+	ErrNotFound             = errors.New("identity resource not found")
+	ErrUnknownScope         = errors.New("unknown scope")
+	ErrUnsafeBrowserKey     = errors.New("unsafe scope combination for a browser key")
+	ErrOriginRequired       = errors.New("a browser key requires at least one allowed origin")
+	ErrKeyRevoked           = errors.New("key is revoked")
+	ErrKeyExpired           = errors.New("key has expired")
 )
 
 // Scope is a capability an API key may hold (Spec §12.3).
@@ -100,6 +107,9 @@ func (o Organization) Validate() error {
 	if strings.TrimSpace(o.Name) == "" {
 		return ErrEmptyName
 	}
+	if strings.TrimSpace(o.OwnerID) == "" {
+		return ErrOwnerRequired
+	}
 	return nil
 }
 
@@ -115,6 +125,9 @@ type Application struct {
 func (a Application) Validate() error {
 	if strings.TrimSpace(a.Name) == "" {
 		return ErrEmptyName
+	}
+	if strings.TrimSpace(a.OrganizationID) == "" {
+		return ErrOrganizationRequired
 	}
 	return nil
 }
@@ -154,6 +167,25 @@ type APIKey struct {
 func (k APIKey) Validate() error {
 	if strings.TrimSpace(k.Name) == "" {
 		return ErrEmptyName
+	}
+	if strings.TrimSpace(k.ApplicationID) == "" {
+		return ErrApplicationRequired
+	}
+	if strings.TrimSpace(k.OrganizationID) == "" {
+		return ErrOrganizationRequired
+	}
+	switch k.Class {
+	case ClassBrowser, ClassServer, ClassTest:
+	default:
+		return ErrInvalidClass
+	}
+	switch k.Environment {
+	case EnvLive, EnvTest:
+	default:
+		return ErrInvalidEnvironment
+	}
+	if k.Class == ClassTest && k.Environment != EnvTest {
+		return ErrInvalidEnvironment
 	}
 	for _, s := range k.Scopes {
 		if _, ok := allScopes[s]; !ok {
@@ -202,6 +234,28 @@ func (k APIKey) OriginAllowed(origin string) bool {
 	}
 	for _, o := range k.AllowedOrigins {
 		if strings.EqualFold(strings.TrimRight(o, "/"), strings.TrimRight(origin, "/")) {
+			return true
+		}
+	}
+	return false
+}
+
+// IPAllowed enforces an optional exact-IP or CIDR allow-list. An empty list
+// means unrestricted; an invalid stored rule fails closed.
+func (k APIKey) IPAllowed(ip string) bool {
+	if len(k.AllowedIPs) == 0 {
+		return true
+	}
+	addr, err := netip.ParseAddr(strings.TrimSpace(ip))
+	if err != nil {
+		return false
+	}
+	for _, rule := range k.AllowedIPs {
+		rule = strings.TrimSpace(rule)
+		if prefix, err := netip.ParsePrefix(rule); err == nil && prefix.Contains(addr) {
+			return true
+		}
+		if allowed, err := netip.ParseAddr(rule); err == nil && allowed == addr {
 			return true
 		}
 	}

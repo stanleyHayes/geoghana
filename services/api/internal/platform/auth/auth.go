@@ -13,6 +13,7 @@ import (
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
 )
 
 type ctxKey int
@@ -43,10 +44,16 @@ type Authenticator struct {
 	limiter Limiter
 	sandbox bool
 	now     func() time.Time
+	alerts  securityalert.Reporter
 }
 
 func New(keys KeyLookup, limiter Limiter, sandbox bool) *Authenticator {
 	return &Authenticator{keys: keys, limiter: limiter, sandbox: sandbox, now: time.Now}
+}
+
+func (a *Authenticator) WithSecurityAlerts(reporter securityalert.Reporter) *Authenticator {
+	a.alerts = reporter
+	return a
 }
 
 // FromContext returns the resolved caller. It always succeeds after the
@@ -93,9 +100,21 @@ func (a *Authenticator) Resolve(ctx context.Context, header, ip, origin string) 
 			"This API key is no longer valid.")
 	}
 	if origin != "" && !key.OriginAllowed(origin) {
+		securityalert.ReportBestEffort(ctx, a.alerts, nil, securityalert.Event{
+			Kind: securityalert.UnusualKeyUsage, ActorID: key.Prefix, SourceIP: ip,
+			Details: map[string]any{"reason": "origin_not_allowed", "origin": origin, "keyClass": key.Class},
+		})
 		return identity.Identity{}, apierr.
 			New(apierr.OriginNotAllowed, "This origin is not on the key's allow-list.").
 			WithDetail("origin", origin)
+	}
+	if !key.IPAllowed(ip) {
+		securityalert.ReportBestEffort(ctx, a.alerts, nil, securityalert.Event{
+			Kind: securityalert.UnusualKeyUsage, ActorID: key.Prefix, SourceIP: ip,
+			Details: map[string]any{"reason": "ip_not_allowed", "keyClass": key.Class},
+		})
+		return identity.Identity{}, apierr.New(apierr.PermissionDenied,
+			"This source IP is not on the key's allow-list.")
 	}
 
 	// Best-effort: a failure to record last-used must never fail the request.
@@ -121,6 +140,17 @@ func (a *Authenticator) Authorize(
 		return ctx, Decision{}, apierr.Wrap(apierr.Internal, "Could not apply fair-use limits.", err)
 	}
 	if !decision.Allowed {
+		actorID := id.RateKey
+		if id.Key != nil {
+			actorID = id.Key.Prefix
+		}
+		securityalert.ReportBestEffort(ctx, a.alerts, nil, securityalert.Event{
+			Kind: securityalert.QuotaSpike, ActorID: actorID, SourceIP: ip,
+			Details: map[string]any{
+				"limit": decision.Limit, "remaining": decision.Remaining,
+				"retryAfterSeconds": decision.RetryAfter, "costUnits": cost.Units(),
+			},
+		})
 		return ctx, decision, apierr.
 			New(apierr.RateLimitExceeded, "Request rate exceeded.").
 			WithDetail("retryAfterSeconds", max(1, decision.RetryAfter)).

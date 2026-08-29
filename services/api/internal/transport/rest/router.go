@@ -17,6 +17,7 @@ import (
 
 	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
 	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
+	appdeveloper "github.com/ghanageo/ghanageo/services/api/internal/app/developer"
 	app "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
@@ -33,7 +34,10 @@ type Handler struct {
 	graphql        http.Handler
 	datasets       *appdataset.Service
 	accounts       *appaccount.Service
+	developer      *appdeveloper.Service
 }
+
+func (h *Handler) WithDeveloper(a *appdeveloper.Service) *Handler { h.developer = a; return h }
 
 // WithAccounts attaches account authentication. Absent in unit tests, where
 // the endpoints report that they are not configured rather than panicking.
@@ -142,7 +146,28 @@ func (h *Handler) Routes() http.Handler {
 			r.Post("/logout-all", h.authLogoutAll)
 			r.Get("/session", h.authSession)
 			r.Get("/sessions", h.authSessions)
+
+			// WebAuthn. Login begin/finish are unauthenticated by design —
+			// they ARE the authentication.
+			r.Post("/passkeys/register/begin", h.passkeyRegisterBegin)
+			r.Post("/passkeys/register/finish", h.passkeyRegisterFinish)
+			r.Post("/passkeys/login/begin", h.passkeyLoginBegin)
+			r.Post("/passkeys/login/finish", h.passkeyLoginFinish)
+			r.Get("/passkeys", h.passkeyList)
+			r.Delete("/passkeys/{id}", h.passkeyDelete)
 		})
+		if h.developer != nil {
+			r.Route("/developer", func(r chi.Router) {
+				r.Get("/organizations", h.developerOrganizations)
+				r.Post("/organizations", h.developerCreateOrganization)
+				r.Get("/organizations/{orgId}/applications", h.developerApplications)
+				r.Post("/organizations/{orgId}/applications", h.developerCreateApplication)
+				r.Get("/organizations/{orgId}/applications/{appId}/keys", h.developerKeys)
+				r.Post("/organizations/{orgId}/applications/{appId}/keys", h.developerCreateKey)
+				r.Post("/organizations/{orgId}/applications/{appId}/keys/{keyId}/rotate", h.developerRotateKey)
+				r.Post("/organizations/{orgId}/applications/{appId}/keys/{keyId}/revoke", h.developerRevokeKey)
+			})
+		}
 
 		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/regions", h.listRegions)
 		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/regions/{id}", h.getRegion)
@@ -209,8 +234,9 @@ func (h *Handler) cors(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		if origin != "" && h.allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "600")
 			// Responses vary by origin, so caches must not share them.
 			w.Header().Add("Vary", "Origin")

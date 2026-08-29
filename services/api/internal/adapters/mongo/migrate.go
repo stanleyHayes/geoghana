@@ -65,6 +65,20 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			indexes:   []mongo.IndexModel{{Keys: bson.D{{Key: "newId", Value: 1}}}},
 		},
 		{
+			name:      ColOrganizations,
+			validator: organizationSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "ownerId", Value: 1}, {Key: "createdAt", Value: 1}}},
+			},
+		},
+		{
+			name:      ColApplications,
+			validator: applicationSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "organizationId", Value: 1}, {Key: "createdAt", Value: 1}}},
+			},
+		},
+		{
 			name:      ColAPIKeys,
 			validator: apiKeySchema(),
 			indexes: []mongo.IndexModel{
@@ -112,6 +126,20 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 					Keys:    bson.D{{Key: "expiresAt", Value: 1}},
 					Options: options.Index().SetExpireAfterSeconds(int32((48 * time.Hour).Seconds())),
 				},
+			},
+		},
+		{
+			name:      ColWebAuthnChal,
+			validator: webauthnChallengeSchema(),
+			indexes: []mongo.IndexModel{
+				// Challenges are swept by Mongo. A stale challenge that
+				// outlived its ceremony is a replay opportunity, so the TTL is
+				// short and the sweep is not something we have to remember.
+				{
+					Keys:    bson.D{{Key: "expiresAt", Value: 1}},
+					Options: options.Index().SetExpireAfterSeconds(0),
+				},
+				{Keys: bson.D{{Key: "accountId", Value: 1}}},
 			},
 		},
 		{
@@ -334,6 +362,43 @@ func apiKeySchema() bson.M {
 	}}
 }
 
+func organizationSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "name", "ownerId", "createdAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "string"}, "name": bson.M{"bsonType": "string"},
+			"ownerId": bson.M{"bsonType": "string"}, "createdAt": bson.M{"bsonType": "date"},
+		},
+	}}
+}
+
+func applicationSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "organizationId", "name", "createdAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "string"}, "organizationId": bson.M{"bsonType": "string"},
+			"name": bson.M{"bsonType": "string"}, "description": bson.M{"bsonType": []string{"string", "null"}},
+			"createdAt": bson.M{"bsonType": "date"},
+		},
+	}}
+}
+
+func webauthnChallengeSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "purpose", "session", "expiresAt"},
+		"properties": bson.M{
+			"_id":       bson.M{"bsonType": "string"},
+			"accountId": bson.M{"bsonType": []string{"string", "null"}},
+			"purpose":   bson.M{"enum": []string{"registration", "login"}},
+			"session":   bson.M{"bsonType": "binData"},
+			"expiresAt": bson.M{"bsonType": "date"},
+		},
+	}}
+}
+
 func accountSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
@@ -394,7 +459,7 @@ func auditSchema() bson.M {
 		"properties": bson.M{
 			"_id":        bson.M{"bsonType": "string"},
 			"at":         bson.M{"bsonType": "date"},
-			"actorKind":  bson.M{"enum": []string{"operator", "admin", "api_key", "system"}},
+			"actorKind":  bson.M{"enum": []string{"operator", "admin", "developer", "api_key", "system"}},
 			"actorId":    bson.M{"bsonType": "string"},
 			"actorLabel": bson.M{"bsonType": []string{"string", "null"}},
 			"actorIp":    bson.M{"bsonType": []string{"string", "null"}},

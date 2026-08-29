@@ -15,6 +15,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/account"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/passkey"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
 )
 
@@ -35,6 +36,9 @@ type Service struct {
 	log      *slog.Logger
 	issuer   string
 	alerts   securityalert.Reporter
+
+	passkeys   *passkey.RP
+	challenges *mongoadapter.ChallengeRepo
 }
 
 func (s *Service) WithSecurityAlerts(reporter securityalert.Reporter) *Service {

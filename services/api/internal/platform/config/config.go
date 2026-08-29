@@ -20,7 +20,15 @@ type Config struct {
 	// ExportDir is where dataset download artifacts are written and served
 	// from. Relative to the process working directory.
 	ExportDir string
-	LogLevel  string
+	// PasskeyRPID is the domain WebAuthn credentials are bound to. A
+	// credential registered for one RPID cannot be used on another, which is
+	// what makes passkeys phishing-resistant, so it must be the real
+	// registrable domain and never a wildcard.
+	PasskeyRPID                string
+	PasskeyOrigins             []string
+	LogLevel                   string
+	SecurityAlertWebhookURL    string
+	SecurityAlertWebhookSecret string
 	// AllowedOrigins is a CORS allow-list, never a wildcard (Spec 12.4).
 	AllowedOrigins []string
 }
@@ -36,7 +44,12 @@ func Load() Config {
 		HTTPPort:     env("API_HTTP_PORT", "8180"),
 		GRPCPort:     env("API_GRPC_PORT", "9190"),
 		ExportDir:    env("API_EXPORT_DIR", "../../data/exports"),
-		LogLevel:     env("API_LOG_LEVEL", "info"),
+		PasskeyRPID:  env("API_PASSKEY_RPID", "localhost"),
+		PasskeyOrigins: strings.Split(env("API_PASSKEY_ORIGINS",
+			"http://localhost:3100,http://localhost:3102,http://localhost:3103,http://localhost:8180"), ","),
+		LogLevel:                   env("API_LOG_LEVEL", "info"),
+		SecurityAlertWebhookURL:    os.Getenv("SECURITY_ALERT_WEBHOOK_URL"),
+		SecurityAlertWebhookSecret: os.Getenv("SECURITY_ALERT_WEBHOOK_SECRET"),
 		AllowedOrigins: strings.Split(env("API_ALLOWED_ORIGINS",
 			"http://localhost:3103,http://localhost:3102,http://localhost:3101,http://localhost:3100"), ","),
 	}

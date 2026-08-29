@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+func TestAPIKeyIPAllowListSupportsExactAddressesAndCIDRs(t *testing.T) {
+	key := APIKey{AllowedIPs: []string{"203.0.113.8", "2001:db8:abcd::/48"}}
+	for _, ip := range []string{"203.0.113.8", "2001:db8:abcd::42"} {
+		if !key.IPAllowed(ip) {
+			t.Errorf("expected %s to be allowed", ip)
+		}
+	}
+	for _, ip := range []string{"203.0.113.9", "2001:db8:ffff::1", "not-an-ip"} {
+		if key.IPAllowed(ip) {
+			t.Errorf("expected %s to be denied", ip)
+		}
+	}
+	if !(APIKey{}).IPAllowed("203.0.113.9") {
+		t.Error("empty allow-list should be unrestricted")
+	}
+}
+
 func TestGeneratedKeyShape(t *testing.T) {
 	for _, env := range []Environment{EnvLive, EnvTest} {
 		k, err := Generate(env)
@@ -106,7 +123,11 @@ func TestRedactNeverLeaksTheSecret(t *testing.T) {
 // Granting it a server-only scope, or leaving it unrestricted by origin, would
 // hand anyone who views source a working server credential (Spec §32.5).
 func TestBrowserKeySafetyRules(t *testing.T) {
-	base := APIKey{Name: "web", Class: ClassBrowser, AllowedOrigins: []string{"https://example.gh"}}
+	base := APIKey{
+		Name: "web", Class: ClassBrowser, Environment: EnvLive,
+		OrganizationID: "org_1", ApplicationID: "app_1",
+		AllowedOrigins: []string{"https://example.gh"},
+	}
 
 	ok := base
 	ok.Scopes = []Scope{ScopeLocationsRead, ScopeSearchRead}
@@ -128,7 +149,10 @@ func TestBrowserKeySafetyRules(t *testing.T) {
 	}
 
 	// The same scopes are fine on a server key.
-	server := APIKey{Name: "backend", Class: ClassServer, Scopes: []Scope{ScopeGRPCAccess}}
+	server := APIKey{
+		Name: "backend", Class: ClassServer, Environment: EnvLive,
+		OrganizationID: "org_1", ApplicationID: "app_1", Scopes: []Scope{ScopeGRPCAccess},
+	}
 	if err := server.Validate(); err != nil {
 		t.Errorf("a server key may hold grpc:access: %v", err)
 	}

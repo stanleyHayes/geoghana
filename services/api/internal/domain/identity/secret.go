@@ -79,6 +79,16 @@ func Generate(env Environment) (GeneratedKey, error) {
 	}, nil
 }
 
+// NewID creates a non-secret, collision-resistant identifier for identity
+// resources. The prefix keeps logs and support conversations readable.
+func NewID(prefix string) (string, error) {
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate id: %w", err)
+	}
+	return prefix + "_" + hex.EncodeToString(raw), nil
+}
+
 // HashSecret produces a self-describing argon2id digest, so the parameters can
 // change later without invalidating existing keys.
 func HashSecret(secret string) (string, error) {

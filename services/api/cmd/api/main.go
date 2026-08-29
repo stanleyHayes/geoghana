@@ -16,11 +16,13 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
 	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
 	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
+	appdeveloper "github.com/ghanageo/ghanageo/services/api/internal/app/developer"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
+	passkeyrp "github.com/ghanageo/ghanageo/services/api/internal/platform/passkey"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
 	gqlserver "github.com/ghanageo/ghanageo/services/api/internal/transport/graphql"
 	grpcserver "github.com/ghanageo/ghanageo/services/api/internal/transport/grpc"
@@ -114,6 +116,24 @@ func run(cfg config.Config, log *slog.Logger) error {
 		log,
 		"GhanaGeo",
 	).WithSecurityAlerts(securityAlerts)
+	developerSvc := appdeveloper.NewService(
+		mongoadapter.NewOrganizationRepo(store), mongoadapter.NewApplicationRepo(store),
+		mongoadapter.NewKeyRepo(store), mongoadapter.NewAuditRepo(store),
+	)
+
+	// WebAuthn. A misconfigured RPID silently breaks every ceremony, so a
+	// failure here is logged loudly and passkeys are simply unavailable
+	// rather than half-working.
+	if rp, perr := passkeyrp.New(passkeyrp.Config{
+		RPID:        cfg.PasskeyRPID,
+		DisplayName: "GhanaGeo",
+		Origins:     cfg.PasskeyOrigins,
+	}); perr != nil {
+		log.Error("passkeys disabled: invalid WebAuthn configuration", "err", perr)
+	} else {
+		accountSvc = accountSvc.WithPasskeys(rp, mongoadapter.NewChallengeRepo(store))
+		log.Info("passkeys enabled", "rpId", cfg.PasskeyRPID, "origins", cfg.PasskeyOrigins)
+	}
 
 	// One mux so REST and GraphQL share a port, the same authenticator and the
 	// same fair-use accounting. A separate GraphQL server would be a second
@@ -124,6 +144,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		WithGraphQL(gqlserver.NewHandler(geo, searchSvc)).
 		WithDatasets(datasetSvc).
 		WithAccounts(accountSvc).
+		WithDeveloper(developerSvc).
 		Routes()
 
 	srv := &http.Server{

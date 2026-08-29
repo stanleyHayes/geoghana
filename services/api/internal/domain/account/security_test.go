@@ -440,3 +440,45 @@ func TestVerifyPreMFAStillEnforcesEverythingElse(t *testing.T) {
 		}
 	})
 }
+
+// A passkey's sign counter must never go backwards. A lower value than we
+// last recorded means the credential has been copied off its authenticator,
+// which is the one thing WebAuthn's counter exists to reveal.
+func TestPasskeyCloneDetection(t *testing.T) {
+	cases := []struct {
+		name         string
+		seen, stored uint32
+		wantErr      bool
+	}{
+		{"advances", 5, 4, false},
+		{"jumps forward", 100, 4, false},
+		{"repeats", 4, 4, true},
+		{"goes backwards", 3, 4, true},
+		// Many platform authenticators do not implement the counter at all
+		// and always send zero. There is nothing to compare, so it passes.
+		{"authenticator does not count", 0, 4, false},
+		{"first use", 1, 0, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := CheckSignCount(c.seen, c.stored)
+			if c.wantErr && !errors.Is(err, ErrPasskeyCloned) {
+				t.Errorf("seen=%d stored=%d: got %v, want ErrPasskeyCloned", c.seen, c.stored, err)
+			}
+			if !c.wantErr && err != nil {
+				t.Errorf("seen=%d stored=%d: unexpected %v", c.seen, c.stored, err)
+			}
+		})
+	}
+}
+
+func TestFindPasskey(t *testing.T) {
+	a := devAccount()
+	a.Passkeys = []Passkey{{ID: "pk_a", Name: "Phone"}, {ID: "pk_b", Name: "Laptop"}}
+	if got, ok := a.FindPasskey("pk_b"); !ok || got.Name != "Laptop" {
+		t.Errorf("FindPasskey(pk_b) = %+v, %v", got, ok)
+	}
+	if _, ok := a.FindPasskey("pk_missing"); ok {
+		t.Error("found a passkey that does not exist")
+	}
+}

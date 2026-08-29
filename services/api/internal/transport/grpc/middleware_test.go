@@ -111,3 +111,18 @@ func TestGRPCCostClasses(t *testing.T) {
 		}
 	}
 }
+
+func TestHealthAndReflectionBypassConsumerQuota(t *testing.T) {
+	limiter := &testLimiter{decision: platformauth.Decision{Allowed: false, Limit: 1}}
+	a := platformauth.New(testKeys{}, limiter, false)
+	called := false
+	_, err := unaryMiddleware(a, discardLogger())(context.Background(), nil, &grpc.UnaryServerInfo{
+		FullMethod: "/grpc.health.v1.Health/Check",
+	}, func(context.Context, any) (any, error) {
+		called = true
+		return "serving", nil
+	})
+	if err != nil || !called {
+		t.Fatalf("health probe was subject to consumer quota: called=%v err=%v", called, err)
+	}
+}

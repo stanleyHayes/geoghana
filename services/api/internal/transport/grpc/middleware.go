@@ -42,6 +42,11 @@ func grpcCost(method string) identity.CostClass {
 	}
 }
 
+func systemMethod(method string) bool {
+	return strings.HasPrefix(method, "/grpc.health.v1.Health/") ||
+		strings.Contains(method, "ServerReflection/")
+}
+
 func requestMetadata(ctx context.Context) (credential, origin, ip string) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		credential = first(md.Get("authorization"))
@@ -112,7 +117,11 @@ func unaryMiddleware(a *auth.Authenticator, log *slog.Logger) grpc.UnaryServerIn
 		defer cancel()
 
 		var response any
-		resolved, _, err := authenticate(ctx, a, info.FullMethod)
+		resolved := ctx
+		var err error
+		if !systemMethod(info.FullMethod) {
+			resolved, _, err = authenticate(ctx, a, info.FullMethod)
+		}
 		if err == nil {
 			ctx = resolved
 			response, err = handler(ctx, req)
@@ -136,7 +145,11 @@ func streamMiddleware(a *auth.Authenticator, log *slog.Logger) grpc.StreamServer
 		started := time.Now()
 		ctx, cancel := context.WithTimeout(stream.Context(), streamTimeout)
 		defer cancel()
-		resolved, _, err := authenticate(ctx, a, info.FullMethod)
+		resolved := ctx
+		var err error
+		if !systemMethod(info.FullMethod) {
+			resolved, _, err = authenticate(ctx, a, info.FullMethod)
+		}
 		if err == nil {
 			err = handler(srv, &contextStream{ServerStream: stream, ctx: resolved})
 		}

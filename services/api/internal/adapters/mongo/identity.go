@@ -18,6 +18,105 @@ const (
 	ColAPIKeys       = "api_keys"
 )
 
+type organizationDoc struct {
+	ID        string    `bson:"_id"`
+	Name      string    `bson:"name"`
+	OwnerID   string    `bson:"ownerId"`
+	CreatedAt time.Time `bson:"createdAt"`
+}
+
+type applicationDoc struct {
+	ID             string    `bson:"_id"`
+	OrganizationID string    `bson:"organizationId"`
+	Name           string    `bson:"name"`
+	Description    string    `bson:"description,omitempty"`
+	CreatedAt      time.Time `bson:"createdAt"`
+}
+
+type OrganizationRepo struct{ col *mongo.Collection }
+
+func NewOrganizationRepo(s *Store) *OrganizationRepo {
+	return &OrganizationRepo{col: s.db.Collection(ColOrganizations)}
+}
+
+func (r *OrganizationRepo) Create(ctx context.Context, org identity.Organization) error {
+	if err := org.Validate(); err != nil {
+		return err
+	}
+	_, err := r.col.InsertOne(ctx, organizationDoc{ID: org.ID, Name: org.Name, OwnerID: org.OwnerID, CreatedAt: org.CreatedAt})
+	return err
+}
+
+func (r *OrganizationRepo) ByIDForOwner(ctx context.Context, id, ownerID string) (*identity.Organization, error) {
+	var d organizationDoc
+	if err := r.col.FindOne(ctx, bson.M{"_id": id, "ownerId": ownerID}).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, identity.ErrNotFound
+		}
+		return nil, err
+	}
+	return &identity.Organization{ID: d.ID, Name: d.Name, OwnerID: d.OwnerID, CreatedAt: d.CreatedAt}, nil
+}
+
+func (r *OrganizationRepo) ListByOwner(ctx context.Context, ownerID string) ([]identity.Organization, error) {
+	cur, err := r.col.Find(ctx, bson.M{"ownerId": ownerID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var docs []organizationDoc
+	if err := cur.All(ctx, &docs); err != nil {
+		return nil, err
+	}
+	out := make([]identity.Organization, 0, len(docs))
+	for _, d := range docs {
+		out = append(out, identity.Organization{ID: d.ID, Name: d.Name, OwnerID: d.OwnerID, CreatedAt: d.CreatedAt})
+	}
+	return out, nil
+}
+
+type ApplicationRepo struct{ col *mongo.Collection }
+
+func NewApplicationRepo(s *Store) *ApplicationRepo {
+	return &ApplicationRepo{col: s.db.Collection(ColApplications)}
+}
+
+func (r *ApplicationRepo) Create(ctx context.Context, app identity.Application) error {
+	if err := app.Validate(); err != nil {
+		return err
+	}
+	_, err := r.col.InsertOne(ctx, applicationDoc{ID: app.ID, OrganizationID: app.OrganizationID, Name: app.Name, Description: app.Description, CreatedAt: app.CreatedAt})
+	return err
+}
+
+func (r *ApplicationRepo) ByID(ctx context.Context, id, orgID string) (*identity.Application, error) {
+	var d applicationDoc
+	if err := r.col.FindOne(ctx, bson.M{"_id": id, "organizationId": orgID}).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, identity.ErrNotFound
+		}
+		return nil, err
+	}
+	return &identity.Application{ID: d.ID, OrganizationID: d.OrganizationID, Name: d.Name, Description: d.Description, CreatedAt: d.CreatedAt}, nil
+}
+
+func (r *ApplicationRepo) ListByOrganization(ctx context.Context, orgID string) ([]identity.Application, error) {
+	cur, err := r.col.Find(ctx, bson.M{"organizationId": orgID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var docs []applicationDoc
+	if err := cur.All(ctx, &docs); err != nil {
+		return nil, err
+	}
+	out := make([]identity.Application, 0, len(docs))
+	for _, d := range docs {
+		out = append(out, identity.Application{ID: d.ID, OrganizationID: d.OrganizationID, Name: d.Name, Description: d.Description, CreatedAt: d.CreatedAt})
+	}
+	return out, nil
+}
+
 // The stored key never contains the secret — only the public prefix and an
 // argon2id digest (Spec §12.2).
 type apiKeyDoc struct {
@@ -111,7 +210,7 @@ func (r *KeyRepo) Revoke(ctx context.Context, prefix string, at time.Time) error
 		return err
 	}
 	if res.MatchedCount == 0 {
-		return ErrNotFound
+		return identity.ErrNotFound
 	}
 	return nil
 }
@@ -119,6 +218,35 @@ func (r *KeyRepo) Revoke(ctx context.Context, prefix string, at time.Time) error
 func (r *KeyRepo) ListByOrganization(ctx context.Context, orgID string) ([]identity.APIKey, error) {
 	cur, err := r.col.Find(ctx, bson.M{"organizationId": orgID},
 		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var docs []apiKeyDoc
+	if err := cur.All(ctx, &docs); err != nil {
+		return nil, err
+	}
+	out := make([]identity.APIKey, 0, len(docs))
+	for _, d := range docs {
+		out = append(out, fromKeyDoc(d))
+	}
+	return out, nil
+}
+
+func (r *KeyRepo) ByIDForApplication(ctx context.Context, id, appID string) (*identity.APIKey, error) {
+	var d apiKeyDoc
+	if err := r.col.FindOne(ctx, bson.M{"_id": id, "applicationId": appID}).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, identity.ErrNotFound
+		}
+		return nil, err
+	}
+	k := fromKeyDoc(d)
+	return &k, nil
+}
+
+func (r *KeyRepo) ListByApplication(ctx context.Context, appID string) ([]identity.APIKey, error) {
+	cur, err := r.col.Find(ctx, bson.M{"applicationId": appID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
 	if err != nil {
 		return nil, err
 	}

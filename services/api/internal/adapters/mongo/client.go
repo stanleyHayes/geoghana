@@ -49,4 +49,5 @@ const (
 	ColAccounts       = "accounts"
 	ColSessions       = "sessions"
 	ColOneTimeTokens  = "one_time_tokens"
+	ColWebAuthnChal   = "webauthn_challenges"
 )

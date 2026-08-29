@@ -89,13 +89,54 @@ type Account struct {
 
 // Passkey is a registered WebAuthn credential.
 type Passkey struct {
-	ID        string
-	Name      string
-	PublicKey []byte
-	// SignCount detects a cloned authenticator: it must never go backwards.
+	// ID is the base64url credential id the authenticator returns.
+	ID   string
+	Name string
+	// Credential is the library's full credential record, stored as JSON.
+	//
+	// Keeping the whole record rather than picking fields out of it means a
+	// library upgrade that starts checking an additional attribute does not
+	// silently lose the data it needs. The public key alone is not enough to
+	// verify an assertion.
+	Credential []byte
+	// SignCount is the authenticator's counter. It must never go backwards:
+	// a lower value than we last saw means the credential has been cloned.
 	SignCount uint32
-	AddedAt   time.Time
-	LastUsed  time.Time
+	// BackedUp reports whether the credential is synced to a cloud keychain.
+	// A synced passkey survives losing the device; a device-bound one does
+	// not, which changes what recovery advice is honest.
+	BackedUp bool
+	AddedAt  time.Time
+	LastUsed time.Time
+}
+
+// ErrPasskeyCloned is returned when an authenticator presents a sign count at
+// or below the one already recorded.
+var ErrPasskeyCloned = errors.New("authenticator sign count went backwards — the credential may be cloned")
+
+// CheckSignCount enforces the monotonic counter.
+//
+// A zero count from the authenticator means it does not implement the counter
+// at all, which is permitted by the spec and common in platform
+// authenticators; there is nothing to compare, so it is accepted.
+func CheckSignCount(seen, stored uint32) error {
+	if seen == 0 {
+		return nil
+	}
+	if seen <= stored {
+		return ErrPasskeyCloned
+	}
+	return nil
+}
+
+// FindPasskey returns the credential with this id.
+func (a Account) FindPasskey(id string) (Passkey, bool) {
+	for _, p := range a.Passkeys {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return Passkey{}, false
 }
 
 // NormalizeEmail lowercases and trims. Storing the normalized form is what
