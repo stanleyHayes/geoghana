@@ -110,7 +110,9 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-12.5–12.6 | EP-12 Search | ⬜ Next | unassigned | Nearby via the search path, and the p95 load gate. Blocked on coordinates (GEO-4.6/4.7). |
 | GEO-13.8 | EP-13b Public CLI | ✅ **Done** | Claude | 9 commands, table/JSON/CSV, 7 platform binaries, npm wrapper. No API key required. |
 | GEO-13.9 | EP-13b Public CLI | ⬜ Next | unassigned | Release automation: tag → cross-compile → npm + Homebrew + checksums. |
-| GEO-9.x | EP-09 Identity | ⬜ Next | unassigned | Auth, keys, scopes, fair-use limits, audit. Gates public launch. |
+| GEO-9.1–9.6 | EP-09 Identity | ✅ **Done** | Claude | Keys (argon2id, secret shown once), browser-key safety rules, anonymous-as-identity, Redis token bucket, cost classes, limit headers, immediate revocation. Verified live: 429 under concurrent load, 401 on revoke, no prefix enumeration. |
+| GEO-9.7–9.8 | EP-09 Identity | ⬜ Next | unassigned | Immutable audit log and security-event alerting. |
+| GEO-9.2 | EP-09 Identity | ⬜ Next | unassigned | Developer account auth: email verification, passkeys/WebAuthn, MFA for admins. |
 | GEO-10.x / 11.x | EP-10/11 GraphQL + gRPC | ⬜ Not started | unassigned | Contracts published, so these can start immediately. |
 | GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Not started | unassigned | GSS boundaries and OSM. **Reverse geocode stays empty until these land coordinates.** |
 
@@ -1465,6 +1467,7 @@ Spec §31. Source files are already in the repository and move to `data/seed-dat
 | Component | Local port | Owner lane | Deploy target |
 |---|---|---|---|
 | `services/api` — REST + GraphQL | 8180 | L2/L3/L4 | Render |
+| Redis — fair-use buckets | 6679 | L4 | Render |
 | `services/api` — gRPC | 9190 | L3 | Render |
 | `services/api` — ConnectRPC (browser) | 8081 | L3 | Render |
 | `services/worker` | — | L1/L12 | Render |

@@ -8,10 +8,14 @@ import (
 	"os"
 	"time"
 
+	"strings"
+
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
+
 	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/seed"
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 )
 
@@ -59,6 +63,17 @@ func run(args []string) error {
 			return cmdReconcile(ctx, args[2:])
 		case "reindex":
 			return cmdReindex(ctx)
+		}
+	case "keys":
+		if len(args) < 2 {
+			usage()
+			return fmt.Errorf("keys: no subcommand")
+		}
+		switch args[1] {
+		case "create":
+			return cmdKeyCreate(ctx, args[2:])
+		case "revoke":
+			return cmdKeyRevoke(ctx, args[2:])
 		}
 	}
 	usage()
@@ -210,6 +225,104 @@ func cmdReindex(ctx context.Context) error {
 		return err
 	}
 	fmt.Printf("✓ indexed %d documents (regions, districts and places)\n", n)
+	return nil
+}
+
+// cmdKeyCreate issues an API key. The secret is printed ONCE and is then
+// unrecoverable — only its argon2id digest is stored (Spec §12.2).
+func cmdKeyCreate(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("keys create", flag.ContinueOnError)
+	org := fs.String("org", "", "organization id")
+	app := fs.String("app", "", "application id")
+	name := fs.String("name", "", "human label for this key")
+	class := fs.String("class", "SERVER", "SERVER, BROWSER or TEST")
+	env := fs.String("env", "live", "live or test")
+	origins := fs.String("origins", "", "comma-separated allowed origins (required for BROWSER)")
+	scopes := fs.String("scopes", "locations:read,search:read,geocode:read,datasets:read", "comma-separated scopes")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" {
+		return fmt.Errorf("--name is required")
+	}
+
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+	if err := mongo.Migrate(ctx, store.DB()); err != nil {
+		return err
+	}
+
+	var parsed []identity.Scope
+	for _, raw := range strings.Split(*scopes, ",") {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		sc, serr := identity.ParseScope(raw)
+		if serr != nil {
+			return serr
+		}
+		parsed = append(parsed, sc)
+	}
+
+	var allowed []string
+	for _, o := range strings.Split(*origins, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			allowed = append(allowed, o)
+		}
+	}
+
+	gen, err := identity.Generate(identity.Environment(*env))
+	if err != nil {
+		return err
+	}
+	key := identity.APIKey{
+		ID:             "key_" + gen.Prefix,
+		ApplicationID:  *app,
+		OrganizationID: *org,
+		Name:           *name,
+		Class:          identity.KeyClass(strings.ToUpper(*class)),
+		Environment:    identity.Environment(*env),
+		Prefix:         gen.Prefix,
+		SecretHash:     gen.SecretHash,
+		Scopes:         parsed,
+		AllowedOrigins: allowed,
+		CreatedAt:      time.Now(),
+	}
+	if err := mongo.NewKeyRepo(store).Create(ctx, key); err != nil {
+		return err
+	}
+
+	fmt.Printf("✓ created %s (%s, %s)\n\n", key.Name, key.Class, key.Environment)
+	fmt.Printf("  %s\n\n", gen.Full)
+	fmt.Println("  This is the only time the secret is shown. Store it now.")
+	fmt.Printf("  Prefix (safe to log and share): %s\n", gen.Prefix)
+	return nil
+}
+
+func cmdKeyRevoke(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("keys revoke", flag.ContinueOnError)
+	prefix := fs.String("prefix", "", "the key prefix to revoke")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *prefix == "" {
+		return fmt.Errorf("--prefix is required")
+	}
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	// Revocation takes effect on the very next request (Spec §13).
+	if err := mongo.NewKeyRepo(store).Revoke(ctx, *prefix, time.Now()); err != nil {
+		return err
+	}
+	fmt.Printf("✓ revoked %s — effective immediately\n", *prefix)
 	return nil
 }
 
