@@ -1478,7 +1478,38 @@ Spec §31. Source files are already in the repository and move to `data/seed-dat
 | Prism mock (OpenAPI) | 4010 | L0 | local/CI only |
 | `cli/` — public CLI binary | — | L6 | npm · Homebrew · `go install` |
 
-**Public surfaces:** `https://ghanageo.dev` (marketing/docs) · `https://api.ghanageo.dev/v1` (REST) · `https://api.ghanageo.dev/graphql` · `grpc.ghanageo.dev:443` · `https://sandbox.ghanageo.dev` · `https://console.ghanageo.dev` (portal) · `https://admin.ghanageo.dev`.
+### Domain architecture — `digitalghana.dev`
+
+GhanaGeo is the **first** product on a Ghanaian digital-public-infrastructure
+platform, not the whole of it. The naming reflects that from day one, because
+retrofitting a namespace after launch means breaking every published URL,
+every SDK default and every developer's stored configuration.
+
+```
+digitalghana.dev                        the platform — what exists, who runs it
+└── geo.digitalghana.dev                GhanaGeo: marketing, docs, changelog, status
+    ├── api.geo.digitalghana.dev        REST /v1 and GraphQL
+    ├── grpc.geo.digitalghana.dev:443   gRPC and ConnectRPC
+    ├── sandbox.geo.digitalghana.dev    public playground, capped dataset
+    ├── console.geo.digitalghana.dev    developer portal
+    └── admin.geo.digitalghana.dev      admin and data stewardship
+```
+
+A second product takes `<product>.digitalghana.dev` and the same internal
+shape, so the platform's URL grammar is learnable after seeing it once.
+
+**Operational note.** A single `*.digitalghana.dev` wildcard certificate covers
+`geo.` but **not** `api.geo.` — wildcards match one label only. Two options:
+issue per-host certificates automatically (Vercel and Cloudflare both do this,
+and it is the default assumption here), or buy `*.geo.digitalghana.dev` as
+well. Decide before the first public DNS record, because moving a published
+API host later is a breaking change for every consumer.
+
+**Shared across products:** one identity system, one design system
+(`packages/ui`), one status page, one support and funding surface (§24). A
+developer should need one account for the whole platform, not one per product.
+
+**Public surfaces:** `https://geo.digitalghana.dev` (marketing/docs) · `https://api.geo.digitalghana.dev/v1` (REST) · `https://api.geo.digitalghana.dev/graphql` · `grpc.geo.digitalghana.dev:443` · `https://sandbox.geo.digitalghana.dev` · `https://console.geo.digitalghana.dev` (portal) · `https://admin.geo.digitalghana.dev`.
 
 ---
 

@@ -64,6 +64,16 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			indexes:   []mongo.IndexModel{{Keys: bson.D{{Key: "newId", Value: 1}}}},
 		},
 		{
+			name:      ColAPIKeys,
+			validator: apiKeySchema(),
+			indexes: []mongo.IndexModel{
+				// The lookup path on every authenticated request.
+				{Keys: bson.D{{Key: "prefix", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "organizationId", Value: 1}, {Key: "createdAt", Value: -1}}},
+				{Keys: bson.D{{Key: "applicationId", Value: 1}}},
+			},
+		},
+		{
 			name:      ColDatasetVersion,
 			validator: datasetVersionSchema(),
 			indexes: []mongo.IndexModel{
@@ -242,6 +252,33 @@ func redirectSchema() bson.M {
 			"newId":    bson.M{"bsonType": "string"},
 			"reason":   bson.M{"bsonType": []string{"string", "null"}},
 			"mergedAt": bson.M{"bsonType": []string{"string", "null"}},
+		},
+	}}
+}
+
+func apiKeySchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "prefix", "secretHash", "class", "environment", "scopes"},
+		"properties": bson.M{
+			"_id":            bson.M{"bsonType": "string"},
+			"applicationId":  bson.M{"bsonType": []string{"string", "null"}},
+			"organizationId": bson.M{"bsonType": []string{"string", "null"}},
+			"name":           bson.M{"bsonType": []string{"string", "null"}},
+			"class":          bson.M{"enum": []string{"BROWSER", "SERVER", "TEST"}},
+			"environment":    bson.M{"enum": []string{"live", "test"}},
+			"prefix":         bson.M{"bsonType": "string"},
+			// The database schema itself records that only a digest is stored.
+			"secretHash":     bson.M{"bsonType": "string"},
+			"scopes":         bson.M{"bsonType": "array", "items": bson.M{"bsonType": "string"}},
+			"allowedOrigins": bson.M{"bsonType": []string{"array", "null"}},
+			"allowedIps":     bson.M{"bsonType": []string{"array", "null"}},
+			"createdAt":      bson.M{"bsonType": []string{"date", "null"}},
+			"expiresAt":      bson.M{"bsonType": []string{"date", "null"}},
+			"lastUsedAt":     bson.M{"bsonType": []string{"date", "null"}},
+			"revokedAt":      bson.M{"bsonType": []string{"date", "null"}},
+			"elevated":       bson.M{"bsonType": []string{"bool", "null"}},
+			"elevatedReason": bson.M{"bsonType": []string{"string", "null"}},
 		},
 	}}
 }

@@ -11,6 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
+
 	app "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
@@ -22,6 +25,39 @@ type Handler struct {
 	search         *appsearch.Service
 	log            *slog.Logger
 	allowedOrigins map[string]bool
+	auth           *auth.Authenticator
+}
+
+// WithAuth attaches the authenticator. When absent — in unit tests — the
+// router serves without identity resolution or fair-use limiting.
+func (h *Handler) WithAuth(a *auth.Authenticator) *Handler {
+	h.auth = a
+	return h
+}
+
+// costOf maps a request to its fair-use cost class (Appendix D). Spatial and
+// geometry work costs more because it costs more to serve, not because it is
+// worth more money — GhanaGeo is free.
+func costOf(r *http.Request) identity.CostClass {
+	p := r.URL.Path
+	switch {
+	case strings.HasPrefix(p, "/v1/boundaries"):
+		return identity.CostGeometry
+	case strings.HasPrefix(p, "/v1/reverse"), strings.HasPrefix(p, "/v1/nearby"):
+		return identity.CostSpatial
+	case strings.HasPrefix(p, "/v1/search"),
+		strings.HasPrefix(p, "/v1/autocomplete"),
+		strings.HasPrefix(p, "/v1/geocode"):
+		return identity.CostNormal
+	default:
+		return identity.CostCheap
+	}
+}
+
+func init() {
+	// Give the auth middleware the same error envelope every handler uses, so
+	// a 401 or 429 is shaped exactly like a 404 (Spec §19).
+	auth.SetErrorWriter(writeErr)
 }
 
 func New(geo *app.Service, search *appsearch.Service, log *slog.Logger, allowedOrigins []string) *Handler {
@@ -45,6 +81,11 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/health", h.health)
 
 	r.Route("/v1", func(r chi.Router) {
+		if h.auth != nil {
+			// One middleware resolves the caller and charges the bucket for
+			// every endpoint below, so no handler can forget to.
+			r.Use(h.auth.Middleware(costOf))
+		}
 		r.Get("/regions", h.listRegions)
 		r.Get("/regions/{id}", h.getRegion)
 		r.Get("/regions/{id}/districts", h.listRegionDistricts)
@@ -117,6 +158,8 @@ func (h *Handler) accessLog(next http.Handler) http.Handler {
 			"operation", r.Method+" "+r.URL.Path,
 			"status", ww.Status(),
 			"latency_ms", time.Since(start).Milliseconds(),
+			// The rate key is a public prefix or an IP — never a secret.
+			"caller", auth.FromContext(r.Context()).RateKey,
 		)
 	})
 }

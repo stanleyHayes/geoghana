@@ -80,6 +80,6 @@ matched, so an ambiguous query gives you candidates rather than a guess.
 ## Supporting GhanaGeo
 
 GhanaGeo is free public infrastructure and intends to stay that way. If it is
-useful to you, consider supporting it: <https://ghanageo.dev/support>
+useful to you, consider supporting it: <https://geo.digitalghana.dev/support>
 
 Donating does not change your rate limits. Everyone gets the same allowance.

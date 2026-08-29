@@ -22,7 +22,7 @@ export class GhanaGeoClient {
   private readonly fetcher: typeof fetch;
 
   constructor(options: GhanaGeoClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? "https://api.ghanageo.dev/v1").replace(/\/$/, "");
+    this.baseUrl = (options.baseUrl ?? "https://api.geo.digitalghana.dev/v1").replace(/\/$/, "");
     this.apiKey = options.apiKey;
     this.fetcher = options.fetcher ?? fetch;
   }

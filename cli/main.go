@@ -66,7 +66,7 @@ EXAMPLES
   ghanageo reverse 6.688 -1.624
 
 GhanaGeo is free public infrastructure. If it is useful to you, consider
-supporting it: https://ghanageo.dev/support
+supporting it: https://geo.digitalghana.dev/support
 `
 
 type options struct {
@@ -88,7 +88,7 @@ func main() {
 			render.Warn("error: %s", apiErr.Message)
 			render.Warn("  code: %s", apiErr.Code)
 			if apiErr.Docs != "" {
-				render.Warn("  docs: https://ghanageo.dev%s", apiErr.Docs)
+				render.Warn("  docs: https://geo.digitalghana.dev%s", apiErr.Docs)
 			}
 			if apiErr.RequestID != "" {
 				render.Warn("  request: %s", apiErr.RequestID)

@@ -12,9 +12,12 @@ import (
 	"time"
 
 	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
+	redisadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/redis"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/rest"
 )
@@ -74,9 +77,26 @@ func run(cfg config.Config, log *slog.Logger) error {
 		datasetVersion,
 	)
 
+	// Fair-use limiting. Read APIs fail OPEN: a limiter outage must not take
+	// down a free public service (agent_plan.md §24).
+	limiter, err := redisadapter.NewLimiter(cfg.RedisURL, true)
+	if err != nil {
+		return err
+	}
+	defer limiter.Close()
+	if err := limiter.Ping(ctx); err != nil {
+		log.Warn("redis unreachable at startup; fair-use limiting will run degraded", "err", err)
+	}
+
+	authenticator := auth.New(
+		mongoadapter.NewKeyRepo(store),
+		limiterAdapter{limiter},
+		cfg.Env == "sandbox",
+	)
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
-		Handler:           rest.New(geo, searchSvc, log, cfg.AllowedOrigins).Routes(),
+		Handler:           rest.New(geo, searchSvc, log, cfg.AllowedOrigins).WithAuth(authenticator).Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -101,4 +121,21 @@ func run(cfg config.Config, log *slog.Logger) error {
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// limiterAdapter bridges the Redis limiter's Decision to the auth package's,
+// so neither package needs to import the other.
+type limiterAdapter struct{ l *redisadapter.Limiter }
+
+func (a limiterAdapter) Allow(
+	ctx context.Context, id identity.Identity, al identity.Allowance, cost identity.CostClass,
+) (auth.Decision, error) {
+	d, err := a.l.Allow(ctx, id, al, cost)
+	if err != nil {
+		return auth.Decision{}, err
+	}
+	return auth.Decision{
+		Allowed: d.Allowed, Remaining: d.Remaining, Limit: d.Limit,
+		RetryAfter: d.RetryAfter, Degraded: d.Degraded,
+	}, nil
 }
