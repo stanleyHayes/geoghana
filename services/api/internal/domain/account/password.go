@@ -27,6 +27,18 @@ const (
 	pwSaltLen = 16
 )
 
+// Ceilings for parameters read back from a stored digest. Deliberately well
+// above what HashPassword writes, so raising the cost later still verifies
+// existing hashes, but low enough that no single verification can exhaust
+// memory or CPU.
+const (
+	maxPwMemory  = 1 << 20 // 1 GiB, against the 19 MiB we write
+	maxPwTime    = 16
+	maxPwThreads = 16
+	maxPwKeyLen  = 1024
+	maxPwSaltLen = 1024
+)
+
 // MinPasswordLength follows NIST SP 800-63B: length is what matters, and
 // composition rules ("one capital, one symbol") push people toward
 // "Password1!" — predictable and no stronger.
@@ -104,6 +116,21 @@ func VerifyPassword(pw, encoded string) error {
 	if err != nil {
 		return ErrPasswordMismatch
 	}
+	// Bound the parameters read from the stored digest.
+	//
+	// They are attacker-influenced in the sense that matters: a corrupted or
+	// tampered row carrying m=4294967295 would ask argon2 for a four-terabyte
+	// allocation, and a single sign-in attempt would take the process down.
+	// The ceilings are generous relative to what HashPassword writes, so a
+	// future cost increase still verifies, but nothing absurd gets through.
+	if memory <= 0 || memory > maxPwMemory ||
+		time32 <= 0 || time32 > maxPwTime ||
+		threads <= 0 || threads > maxPwThreads ||
+		len(want) == 0 || len(want) > maxPwKeyLen ||
+		len(salt) == 0 || len(salt) > maxPwSaltLen {
+		return ErrPasswordMismatch
+	}
+
 	got := argon2.IDKey([]byte(pw), salt, uint32(time32), uint32(memory), uint8(threads), uint32(len(want)))
 	if subtle.ConstantTimeCompare(got, want) != 1 {
 		return ErrPasswordMismatch

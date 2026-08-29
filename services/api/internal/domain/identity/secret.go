@@ -45,6 +45,16 @@ const (
 	saltLen      = 16
 )
 
+// Ceilings for parameters read back from a stored digest, generous relative
+// to what HashSecret writes so a later cost increase still verifies.
+const (
+	maxKeyMemory  = 1 << 20 // 1 GiB, against the 16 MiB we write
+	maxKeyTime    = 16
+	maxKeyThreads = 16
+	maxKeyLen     = 1024
+	maxKeySaltLen = 1024
+)
+
 // GeneratedKey is returned once at creation. Secret is never persisted.
 type GeneratedKey struct {
 	// Full is the complete key. Show it once, then discard it.
@@ -143,6 +153,18 @@ func VerifySecret(secret, stored string) error {
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
+		return ErrMalformedKey
+	}
+
+	// Same bound as password verification: the parameters come back from a
+	// stored digest, and one carrying m=4294967295 would ask argon2 for a
+	// four-terabyte allocation on a single authenticated request. Key
+	// verification runs on EVERY call, so an unbounded value here is worse
+	// than on the sign-in path.
+	if m == 0 || m > maxKeyMemory || t == 0 || t > maxKeyTime ||
+		p == 0 || p > maxKeyThreads ||
+		len(want) == 0 || len(want) > maxKeyLen ||
+		len(salt) == 0 || len(salt) > maxKeySaltLen {
 		return ErrMalformedKey
 	}
 

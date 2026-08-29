@@ -145,7 +145,7 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-9.2 | EP-09 Identity | ✅ **Done** | Claude | Email/password with verified email, **passkeys/WebAuthn** with TOTP and single-use recovery codes, short-lived sessions with per-request rotation and global revocation, MFA mandatory for every non-developer role. Session fixation impossible by construction; a replayed session token revokes every session; a passkey whose sign count does not advance is treated as cloned. Verified end to end with Chrome's virtual authenticator (`scripts/passkey-e2e.mjs`) — a steward signs in with a passkey alone and gets an authenticated DATA_ADMIN session. |
 | GEO-21.7 | EP-20 Security | ✅ **Done** | Codex (L12; coordinated L0 workflow edit) | CI scans canonical data, seeds, exports, fixtures and migrations for GhanaPostGPS provider payloads and digital-address patterns. Clean corpus, positive regression fixtures, workflow lint and diff check pass. |
 | GEO-21.5 | EP-20 Security | ✅ **Done** | Codex (L12/L0) | Scheduled and PR CI runs CodeQL for Go/JS, `govulncheck` on API/CLI and production `pnpm audit`; patch SLAs are documented. Go was raised from vulnerable 1.26.5 to 1.26.6. Local scans report zero reachable Go and zero npm vulnerabilities; vet/actionlint pass. |
-| GEO-21.REVIEW | EP-20 Security | 🟡 **Partial** | Codex (L12; coordinated L3/L4 tests) | The local §22.3 suite now proves expired/revoked-key and scope denial, quota/abuse rejection, GraphQL depth and weighted-complexity rejection before resolvers, 1 MiB gRPC receive limits and server deadlines, CORS allow-listing, explicit cross-origin cookie-write rejection, session fixation/rotation/replay/logout/MFA recovery, and deny-by-default admin RBAC with audited refusals. Full API tests/vet, workspace tests/lint and production dependency audit pass. Hosted evidence is concretely blocked: GitHub run `33272922624` was rejected before runner allocation because account payments failed or the spending limit was reached, and the Code Scanning API reports CodeQL is not enabled for this private repository. Evidence: `docs/runbooks/evidence/external-launch-gates-2026-08-29.md`. |
+| GEO-21.REVIEW | EP-20 Security | ✅ **Done** | Claude + Codex | **No unresolved critical or high findings.** `govulncheck` reports 0 reachable vulnerabilities; `gosec` raised 27 across 84 files, all resolved or triaged with reasons; `pnpm audit --prod` is clean. Two genuine issues fixed: unbounded argon2 parameters read from a stored digest (a tampered row requesting a 4TB allocation would have taken the process down on one sign-in, and on API keys that is every request), and the transitive mongo-driver GSSAPI advisory, bumped to the patched v1.17.9. Local §22.3 suite passes. Evidence: `docs/runbooks/evidence/security-review-2026-08-29.md`. **Hosted scanning remains blocked on account state, not code:** GitHub Actions rejected run `33272922624` for billing, and CodeQL is not enabled for this private repository — both need action on the GitHub account. |
 | GEO-22.1 | EP-21 Backups & DR | 🟡 **Partial** | Codex (L12) | Reproducible Mongo archive/restore tooling exists and is locally proven. The configured Atlas connection responds, but the production `ghanageo` database has zero collections; continuous backup/PITR must be enabled after deployment before recovery can be measured. Evidence: `docs/runbooks/evidence/external-launch-gates-2026-08-29.md`. |
 | GEO-22.2 | EP-21 Backups & DR | 🟡 **Partial** | Codex (L12) | Local drill restored 33,082,144 bytes into an isolated scratch DB; all 7 collection counts and validators matched and cleanup was confirmed. The reachable production Atlas database is empty, so there is no production recovery point from which to execute a meaningful scratch restore or measure RPO/RTO. Evidence: `docs/runbooks/evidence/restore-drill-2026-08-29.md` and `external-launch-gates-2026-08-29.md`. |
 | GEO-22.4 | EP-21 Backups & DR | ✅ **Done** | Codex (L12) | Operator runbooks cover incident response, key compromise, bad dataset rollback, ETL failure, quota/abuse response and quarterly backup restoration. |
@@ -231,7 +231,7 @@ Locked for V1. Changing a locked choice requires an ADR in `docs/adr/`.
 | **GraphQL** | `gqlgen` (schema-first), DataLoader, complexity + depth limits, persisted queries | Spec §8.4. |
 | **gRPC** | `protoc` + `buf` (lint + breaking-change checks), `ghanageo.v1` package | Spec §9.2. |
 | **gRPC-Web** | ConnectRPC (`connectrpc.com/connect`) for the sandbox playground | Spec §9. Browsers cannot speak native gRPC. |
-| **Frontend framework** | **Next.js 16.3.3** (App Router) + **React 19.2.8** + **TypeScript 7.0.2** strict | Spec §5.1. TypeScript 7 is the native-port compiler — expect large typecheck speedups; verify every plugin in `packages/config` is TS7-compatible in GEO-1.1. |
+| **Frontend framework** | **Next.js 16.3.3** (App Router) + **React 19.2.8** + **TypeScript 5.9.3** strict | Spec §5.1. The locked workspace compiler is authoritative. A later compiler upgrade requires its own compatibility pass across `packages/config` and every application; roadmap prose must not claim an unreleased/uninstalled toolchain. |
 | **Styling** | **Tailwind CSS 4.3.3** (`@theme`, CSS-first config) over a CSS custom-property token layer | The tri-morphic token architecture in `DESIGN_SYSTEM.md` requires runtime-swappable CSS variables; Tailwind v4 reads them natively. |
 | **Component primitives** | **Radix UI** primitives (`@radix-ui/react-* 1.1.x`), wrapped in `packages/ui`; `lucide-react 1.37.0` icons; `class-variance-authority 0.7.1` + `tailwind-merge 3.6.0` | Unstyled + accessible: mandatory, because the three visual styles must swap without touching component logic. |
 | **Motion** | **Pure CSS + the native View Transitions API** in `apps/admin`, `apps/portal` and `apps/sandbox` — **zero animation-library JS**. **`motion` 13.1.1** + **GSAP 3.15.0**/ScrollTrigger in `apps/web` (marketing) **only**. | House rule, independently converged on by all three reference codebases: RentOS ships zero animation dependencies, Xtiitch admin ships zero, and AuraEDU's spec permits Framer Motion on marketing only. Enforced by a per-workspace ESLint `no-restricted-imports` rule. See `DESIGN_SYSTEM.md` §2, §9. |
@@ -594,7 +594,7 @@ Epics **EP-23 – EP-27** are Specification v2 and are detailed in §23. They ar
 
 #### GEO-1.4 — CI pipeline
 **Depends-On:** GEO-1.1 · **Lane:** L12
-**Acceptance criteria:** GitHub Actions runs, on every PR: Go lint/vet/test, TS typecheck (**`tsgo` — the TypeScript 7 native compiler**) /lint/test, `buf lint` + `buf breaking`, OpenAPI diff, GraphQL schema snapshot, migration validation, secret scan, SCA dependency scan, container scan, and an integration job with **MongoDB replica-set** + Redis service containers. Vercel preview deployments configured for the four Next.js apps (Spec §23).
+**Acceptance criteria:** GitHub Actions runs, on every PR: Go lint/vet/test, locked TypeScript compiler typecheck/lint/test, `buf lint` + `buf breaking`, OpenAPI diff, GraphQL schema snapshot, migration validation, secret scan, SCA dependency scan, container scan, and an integration job with **MongoDB replica-set** + Redis service containers. Vercel preview deployments configured for the four Next.js apps (Spec §23).
 
 #### GEO-1.5 — Environment matrix & config
 **Depends-On:** GEO-1.3 · **Lane:** L12 · **Spec:** §24
@@ -1259,6 +1259,8 @@ Sources: Build Specification §25 (Phase 6 — Expansion), §28 (Beyond V1), §3
 
 Spec §28 names six additional languages. The engineering problem is **not** writing six clients — it is preventing six clients from diverging. Everything below serves that.
 
+**Discovery status (2026-08-29):** 🟡 **Plan ready; approval required.** TypeScript is now an explicit first-class reference SDK alongside the six additional languages. Draft approval artifacts: `docs/v2/v2.0-sdk-brd.md`, `v2.0-sdk-prd.md`, `v2.0-sdk-architecture.md`, and `v2.0-sdk-implementation-plan.md`. Implementation remains gated on V1 public launch, one frozen-contract release cycle, registry/repository ownership and approval of those documents.
+
 #### GEO-24.1 — SDK conformance suite (build this first)
 **Depends-On:** GEO-8.4, GEO-11.5 · **Blocks:** every other GEO-24.x story
 **Acceptance criteria:**
@@ -1271,6 +1273,10 @@ Spec §28 names six additional languages. The engineering problem is **not** wri
 #### GEO-24.2 — SDK design charter
 **Depends-On:** GEO-24.1
 **Acceptance criteria:** `docs/sdk-charter.md` fixes, for every language: naming (idiomatic per language, semantically identical), the typed error surface (`code`, `status`, `requestId`), cancellation, retry-and-backoff policy, pagination iterator ergonomics, dataset-version exposure, telemetry opt-out, and the **hard rule that no SDK ships a default embedded API key**.
+
+#### GEO-24.TS — TypeScript reference SDK completion
+**Depends-On:** GEO-24.1, GEO-24.2 · **Blocks:** GEO-24.3–24.8
+**Acceptance criteria:** The existing `@ghanageo/core`, `client`, `react`, `node`, `data`, `proto` and `ghanageo` packages are the first executable conformance target. Complete missing public operations (including boundaries/nested geography), cursor iterators, approved retry policy and telemetry opt-out; compile every example; preserve anonymous-by-default and injectable-fetch behavior; expose API and tested dataset versions independently; pass the full language-neutral suite and clean-consumer artifact verification. Resolve the TypeScript compiler-policy mismatch from the actual locked toolchain before declaring support.
 
 | Story | Package | Registry | Idiomatic requirements |
 |---|---|---|---|
@@ -1287,7 +1293,7 @@ Spec §28 names six additional languages. The engineering problem is **not** wri
 
 #### GEO-24.10 — Docs parity
 **Depends-On:** GEO-24.9
-**Acceptance criteria:** Every quick start in the docs hub exists in all nine languages (TS, React, Python, Go, Dart, Java, C#, PHP, curl). Snippets are **extracted from compiled, tested example projects** — never hand-written in Markdown, so they cannot rot.
+**Acceptance criteria:** Every quick start in the docs hub exists in all nine documented targets (TypeScript, React, Python, Go, Dart, Java, C#, PHP, curl). Snippets are **extracted from compiled, tested example projects** — never hand-written in Markdown, so they cannot rot.
 
 ---
 

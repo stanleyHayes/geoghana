@@ -515,3 +515,52 @@ func TestRotationIsIntervalBased(t *testing.T) {
 		t.Errorf("RotationGrace %v is not shorter than RotationInterval %v", RotationGrace, RotationInterval)
 	}
 }
+
+// A digest carrying absurd argon2 parameters must be rejected, not honoured.
+//
+// The parameters are read back from storage and passed to argon2, so a
+// corrupted or tampered row with m=4294967295 would request a four-terabyte
+// allocation and a single sign-in attempt would take the process down.
+func TestVerifyPasswordBoundsStoredParameters(t *testing.T) {
+	const pw = "kwabenya to osu every morning"
+	good, err := HashPassword(pw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyPassword(pw, good); err != nil {
+		t.Fatalf("a well-formed digest was rejected: %v", err)
+	}
+
+	parts := strings.Split(good, "$")
+	hostile := []struct {
+		name   string
+		params string
+	}{
+		{"absurd memory", "m=4294967295,t=1,p=1"},
+		{"absurd time", "m=19456,t=999999,p=1"},
+		{"absurd threads", "m=19456,t=1,p=99999"},
+		{"zero memory", "m=0,t=1,p=1"},
+		{"zero time", "m=19456,t=0,p=1"},
+		{"negative memory", "m=-1,t=1,p=1"},
+	}
+	for _, h := range hostile {
+		t.Run(h.name, func(t *testing.T) {
+			bad := strings.Join([]string{parts[0], parts[1], parts[2], h.params, parts[4], parts[5]}, "$")
+			// Must fail closed, and must not hang or allocate wildly getting there.
+			if err := VerifyPassword(pw, bad); !errors.Is(err, ErrPasswordMismatch) {
+				t.Errorf("hostile parameters %q returned %v", h.params, err)
+			}
+		})
+	}
+
+	t.Run("a raised cost still verifies", func(t *testing.T) {
+		// The ceilings must not be so tight that increasing the work factor
+		// later invalidates every existing hash.
+		raised := strings.Join([]string{parts[0], parts[1], parts[2], "m=65536,t=3,p=2", parts[4], parts[5]}, "$")
+		// Wrong parameters mean the digest will not match, but the call must
+		// be ATTEMPTED rather than refused by the bounds check.
+		if err := VerifyPassword(pw, raised); !errors.Is(err, ErrPasswordMismatch) {
+			t.Errorf("expected a mismatch, got %v", err)
+		}
+	})
+}

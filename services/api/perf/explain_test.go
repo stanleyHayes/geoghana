@@ -50,11 +50,11 @@ func TestHotQueriesUseIndexes(t *testing.T) {
 	}{
 		{
 			name: "region by id", col: "regions",
-			filter: bson.M{"_id": "gh-region-ashanti"}, examineRatio: 1,
+			filter: bson.M{"_id": "01KDVDNA00JR6256MY7B23EX4J"}, examineRatio: 1,
 		},
 		{
 			name: "place by id", col: "places",
-			filter: bson.M{"_id": "gh-place-accra"}, examineRatio: 1,
+			filter: bson.M{"_id": "01KDVDNA00N6BFFK8VF5K8YXPW"}, examineRatio: 1,
 		},
 		{
 			name: "districts page (cursor sort)", col: "districts",
@@ -63,12 +63,12 @@ func TestHotQueriesUseIndexes(t *testing.T) {
 		},
 		{
 			name: "districts by region", col: "districts",
-			filter: bson.M{"regionId": "gh-region-ashanti"},
+			filter: bson.M{"regionId": "01KDVDNA00JR6256MY7B23EX4J"},
 			sort:   bson.D{{Key: "_id", Value: 1}}, limit: 51, examineRatio: 2,
 		},
 		{
 			name: "places by district", col: "places",
-			filter: bson.M{"districtId": "gh-district-ashanti-kumasi-metropolitan"},
+			filter: bson.M{"districtId": "01KDVDNA003BF7FQZ9WWE8VPWE"},
 			sort:   bson.D{{Key: "_id", Value: 1}}, limit: 51, examineRatio: 2,
 		},
 		{

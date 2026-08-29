@@ -41,8 +41,8 @@ type scenario struct {
 }
 
 var scenarios = []scenario{
-	{"id lookup (region)", "GET", "/v1/regions/gh-region-ashanti", "", 150},
-	{"id lookup (place)", "GET", "/v1/places/gh-place-accra", "", 150},
+	{"id lookup (region)", "GET", "/v1/regions/01KDVDNA00JR6256MY7B23EX4J", "", 150},
+	{"id lookup (place)", "GET", "/v1/places/01KDVDNA00N6BFFK8VF5K8YXPW", "", 150},
 	{"autocomplete", "GET", "/v1/autocomplete?q=kum", "", 200},
 	{"search", "GET", "/v1/search?q=kumsai", "", 350},
 	{"search (multi-token)", "GET", "/v1/search?q=tema%20comm", "", 350},
