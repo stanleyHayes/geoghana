@@ -104,25 +104,50 @@ func (a *Authenticator) Resolve(ctx context.Context, header, ip, origin string) 
 	return identity.FromKey(key), nil
 }
 
+// Authorize resolves a caller and charges the same fair-use bucket for every
+// transport. HTTP middleware and gRPC interceptors both call this method so
+// authentication and quota semantics cannot drift.
+func (a *Authenticator) Authorize(
+	ctx context.Context, credential, ip, origin string, cost identity.CostClass,
+) (context.Context, Decision, error) {
+	id, err := a.Resolve(ctx, credential, ip, origin)
+	if err != nil {
+		return ctx, Decision{}, err
+	}
+
+	allowance := identity.AllowanceFor(id, a.sandbox)
+	decision, err := a.limiter.Allow(ctx, id, allowance, cost)
+	if err != nil {
+		return ctx, Decision{}, apierr.Wrap(apierr.Internal, "Could not apply fair-use limits.", err)
+	}
+	if !decision.Allowed {
+		return ctx, decision, apierr.
+			New(apierr.RateLimitExceeded, "Request rate exceeded.").
+			WithDetail("retryAfterSeconds", max(1, decision.RetryAfter)).
+			WithDetail("limit", decision.Limit)
+	}
+
+	return context.WithValue(ctx, identityKey, id), decision, nil
+}
+
 // Middleware resolves the caller, charges the fair-use bucket and attaches the
 // identity to the request context.
 func (a *Authenticator) Middleware(costOf func(*http.Request) identity.CostClass) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id, err := a.Resolve(r.Context(), r.Header.Get("Authorization"), clientIP(r), r.Header.Get("Origin"))
+			ctx, d, err := a.Authorize(
+				r.Context(), r.Header.Get("Authorization"), clientIP(r), r.Header.Get("Origin"), costOf(r),
+			)
 			if err != nil {
+				if d.Limit > 0 {
+					w.Header().Set("X-RateLimit-Limit", strconv.Itoa(d.Limit))
+					w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(max(0, d.Remaining)))
+					w.Header().Set("Retry-After", strconv.Itoa(max(1, d.RetryAfter)))
+				}
 				writeAuthErr(w, r, err)
 				return
 			}
-
-			allowance := identity.AllowanceFor(id, a.sandbox)
 			cost := costOf(r)
-
-			d, lerr := a.limiter.Allow(r.Context(), id, allowance, cost)
-			if lerr != nil {
-				writeAuthErr(w, r, apierr.Wrap(apierr.Internal, "Could not apply fair-use limits.", lerr))
-				return
-			}
 
 			// Standard limit headers on every response, not only on a 429, so a
 			// well-behaved client can slow down before being refused.
@@ -130,16 +155,7 @@ func (a *Authenticator) Middleware(costOf func(*http.Request) identity.CostClass
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(max(0, d.Remaining)))
 			w.Header().Set("X-RateLimit-Cost", strconv.Itoa(cost.Units()))
 
-			if !d.Allowed {
-				w.Header().Set("Retry-After", strconv.Itoa(max(1, d.RetryAfter)))
-				writeAuthErr(w, r, apierr.
-					New(apierr.RateLimitExceeded, "Request rate exceeded.").
-					WithDetail("retryAfterSeconds", max(1, d.RetryAfter)).
-					WithDetail("limit", d.Limit))
-				return
-			}
-
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), identityKey, id)))
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

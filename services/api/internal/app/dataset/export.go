@@ -233,7 +233,11 @@ func (b *Builder) allRegions(ctx context.Context) ([]geo.Region, error) {
 	var out []geo.Region
 	cursor := ""
 	for {
-		page, err := b.regions.List(ctx, ports.ListParams{Cursor: cursor, Limit: pageSize})
+		// The exporter is the one caller that genuinely wants polygons: a
+		// boundary file without geometry is the bug this replaced.
+		page, err := b.regions.List(ctx, ports.ListParams{
+			Cursor: cursor, Limit: pageSize, IncludeGeometry: true,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("list regions: %w", err)
 		}
@@ -250,7 +254,7 @@ func (b *Builder) allDistricts(ctx context.Context) ([]geo.District, error) {
 	cursor := ""
 	for {
 		page, err := b.districts.List(ctx, ports.DistrictFilter{
-			ListParams: ports.ListParams{Cursor: cursor, Limit: pageSize},
+			ListParams: ports.ListParams{Cursor: cursor, Limit: pageSize, IncludeGeometry: true},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("list districts: %w", err)
@@ -268,7 +272,7 @@ func (b *Builder) allPlaces(ctx context.Context) ([]geo.Place, error) {
 	cursor := ""
 	for {
 		page, err := b.places.List(ctx, ports.PlaceFilter{
-			ListParams: ports.ListParams{Cursor: cursor, Limit: pageSize},
+			ListParams: ports.ListParams{Cursor: cursor, Limit: pageSize, IncludeGeometry: true},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("list places: %w", err)

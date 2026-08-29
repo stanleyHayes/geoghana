@@ -45,11 +45,18 @@ func cursorFilter(base bson.M, cursor string) (bson.M, error) {
 }
 
 // paginate runs a find with limit+1 to detect a next page without a count.
+//
+// Geometry is projected AWAY unless explicitly requested. Fetching it costs
+// far more than serialising it: the REST DTO never emitted geometry, so the
+// only visible symptom was a slow endpoint, not a large response.
 func paginate[D any, T any](
 	ctx context.Context, col *mongo.Collection, filter bson.M, limit int,
-	conv func(D) T, idOf func(D) string,
+	includeGeometry bool, conv func(D) T, idOf func(D) string,
 ) (ports.Page[T], error) {
 	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}).SetLimit(int64(limit + 1))
+	if !includeGeometry {
+		opts = opts.SetProjection(bson.M{"geometry": 0})
+	}
 	cur, err := col.Find(ctx, filter, opts)
 	if err != nil {
 		return ports.Page[T]{}, err
@@ -87,12 +94,18 @@ func (r *RegionRepo) List(ctx context.Context, p ports.ListParams) (ports.Page[g
 	if err != nil {
 		return ports.Page[geography.Region]{}, err
 	}
-	return paginate(ctx, r.col, f, p.Limit, fromRegionDoc, func(d regionDoc) string { return d.ID })
+	return paginate(ctx, r.col, f, p.Limit, p.IncludeGeometry, fromRegionDoc,
+		func(d regionDoc) string { return d.ID })
 }
 
 func (r *RegionRepo) Get(ctx context.Context, id string) (*geography.Region, error) {
 	var d regionDoc
-	if err := r.col.FindOne(ctx, bson.M{"_id": id}).Decode(&d); err != nil {
+	// Geometry is projected away for the same reason as on list: a region
+	// polygon is ~260KB, no Get consumer reads it, and fetching it put the
+	// by-id lookup over its 150ms target. /boundaries/{id} serves geometry
+	// through its own query.
+	if err := r.col.FindOne(ctx, bson.M{"_id": id},
+		options.FindOne().SetProjection(bson.M{"geometry": 0})).Decode(&d); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, ErrNotFound
 		}
@@ -139,12 +152,14 @@ func (r *DistrictRepo) List(ctx context.Context, f ports.DistrictFilter) (ports.
 	if err != nil {
 		return ports.Page[geography.District]{}, err
 	}
-	return paginate(ctx, r.col, q, f.Limit, fromDistrictDoc, func(d districtDoc) string { return d.ID })
+	return paginate(ctx, r.col, q, f.Limit, f.IncludeGeometry, fromDistrictDoc,
+		func(d districtDoc) string { return d.ID })
 }
 
 func (r *DistrictRepo) Get(ctx context.Context, id string) (*geography.District, error) {
 	var d districtDoc
-	if err := r.col.FindOne(ctx, bson.M{"_id": id}).Decode(&d); err != nil {
+	if err := r.col.FindOne(ctx, bson.M{"_id": id},
+		options.FindOne().SetProjection(bson.M{"geometry": 0})).Decode(&d); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, ErrNotFound
 		}
@@ -222,12 +237,14 @@ func (r *PlaceRepo) List(ctx context.Context, f ports.PlaceFilter) (ports.Page[g
 	if err != nil {
 		return ports.Page[geography.Place]{}, err
 	}
-	return paginate(ctx, r.col, q, f.Limit, fromPlaceDoc, func(d placeDoc) string { return d.ID })
+	return paginate(ctx, r.col, q, f.Limit, f.IncludeGeometry, fromPlaceDoc,
+		func(d placeDoc) string { return d.ID })
 }
 
 func (r *PlaceRepo) Get(ctx context.Context, id string) (*geography.Place, error) {
 	var d placeDoc
-	if err := r.col.FindOne(ctx, bson.M{"_id": id}).Decode(&d); err != nil {
+	if err := r.col.FindOne(ctx, bson.M{"_id": id},
+		options.FindOne().SetProjection(bson.M{"geometry": 0})).Decode(&d); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, ErrNotFound
 		}

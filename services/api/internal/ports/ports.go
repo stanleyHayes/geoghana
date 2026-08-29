@@ -21,6 +21,15 @@ type Page[T any] struct {
 type ListParams struct {
 	Cursor string
 	Limit  int
+	// IncludeGeometry loads boundary polygons with the list.
+	//
+	// Off by default because it is expensive and almost nobody wants it: a
+	// district carries roughly 165KB of polygon, so a 50-row page pulls ~8MB
+	// out of Mongo to decode and then discard, which took the districts list
+	// from ~100ms to a p95 over 1s. Public list endpoints return metadata;
+	// geometry comes from /boundaries/{id} or the bulk download. Only the
+	// dataset exporter sets this.
+	IncludeGeometry bool
 }
 
 // Normalize clamps the page size to the documented maximum.

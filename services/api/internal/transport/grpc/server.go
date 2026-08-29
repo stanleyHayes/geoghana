@@ -26,6 +26,7 @@ import (
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
 )
 
@@ -333,13 +334,18 @@ func hitsToPB(hits []ports.SearchHit) []*pb.SearchResult {
 }
 
 // Serve starts the gRPC server on addr and blocks until ctx is cancelled.
-func Serve(ctx context.Context, addr string, s *Server, log *slog.Logger) error {
+func Serve(ctx context.Context, addr string, s *Server, authenticator *auth.Authenticator, log *slog.Logger) error {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("grpc listen %s: %w", addr, err)
 	}
 
-	srv := grpc.NewServer()
+	srv := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(unaryMiddleware(authenticator, log)),
+		grpc.ChainStreamInterceptor(streamMiddleware(authenticator, log)),
+		grpc.MaxRecvMsgSize(maxMessage),
+		grpc.MaxSendMsgSize(maxMessage),
+	)
 	pb.RegisterGeographyServiceServer(srv, s)
 
 	// Health and reflection: reflection is what lets grpcurl and Postman
