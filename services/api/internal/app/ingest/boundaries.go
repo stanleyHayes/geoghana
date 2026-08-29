@@ -59,6 +59,9 @@ type NameCandidate struct {
 	ID         string
 	Name       string
 	Normalized string
+	// RegionID scopes a district candidate to its region, so a name match can
+	// be gated on geography rather than trusting the name alone.
+	RegionID string
 }
 
 // MatchByName resolves a boundary's name to a canonical record.
@@ -180,13 +183,39 @@ func DistrictCandidates(ctx context.Context, repo ports.DistrictRepository) ([]N
 			return nil, err
 		}
 		for _, d := range page.Data {
-			out = append(out, NameCandidate{ID: d.ID, Name: d.Name, Normalized: canonicalKey(d.Name)})
+			out = append(out, NameCandidate{
+				ID: d.ID, Name: d.Name, Normalized: canonicalKey(d.Name), RegionID: d.RegionID,
+			})
 		}
 		if page.NextCursor == "" {
 			return out, nil
 		}
 		cursor = page.NextCursor
 	}
+}
+
+// InRegion narrows candidates to one region.
+//
+// This is the strongest available guard on a name match, and it is
+// geometric rather than textual: a boundary can only belong to a district in
+// the region its own shape sits inside. Without it the comparison is national,
+// and "Bolgatanga East" (Upper East) scores against "Ga East" (Greater Accra)
+// — two districts about 700km apart whose names differ by one word.
+//
+// It also lets a name variant resolve SAFELY that would be reckless
+// nationally: within Ashanti alone, "Akrofuom" and "Adansi Akrofuom" are
+// unambiguous.
+func InRegion(candidates []NameCandidate, regionID string) []NameCandidate {
+	if regionID == "" {
+		return candidates
+	}
+	out := make([]NameCandidate, 0, len(candidates))
+	for _, c := range candidates {
+		if c.RegionID == regionID {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // BoundaryWriter attaches a validated geometry to a canonical record.

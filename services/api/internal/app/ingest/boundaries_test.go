@@ -75,3 +75,83 @@ func TestCanonicalKeyNeverEmpties(t *testing.T) {
 		t.Error("canonicalKey reduced a name to the empty string")
 	}
 }
+
+// Region gating is the strongest guard available on a boundary name match,
+// and the reason it exists is concrete: geoBoundaries has no parent-region
+// field, so a national comparison let "Bolgatanga East" (Upper East) score
+// against "Ga East" (Greater Accra) — two districts 700km apart.
+func TestInRegionPreventsCrossRegionMatches(t *testing.T) {
+	all := []NameCandidate{
+		{ID: "d1", Name: "Ga East", Normalized: "ga east", RegionID: "gh-region-greater-accra"},
+		{ID: "d2", Name: "Bolgatanga East", Normalized: "bolgatanga east", RegionID: "gh-region-upper-east"},
+		{ID: "d3", Name: "Bolgatanga Municipal", Normalized: "bolgatanga", RegionID: "gh-region-upper-east"},
+	}
+
+	upperEast := InRegion(all, "gh-region-upper-east")
+	if len(upperEast) != 2 {
+		t.Fatalf("expected 2 Upper East candidates, got %d", len(upperEast))
+	}
+	for _, c := range upperEast {
+		if c.Name == "Ga East" {
+			t.Error("a Greater Accra district survived an Upper East filter")
+		}
+	}
+
+	// Matching nationally can reach the wrong region; matching within the
+	// region cannot, whatever the score says.
+	national := MatchByName("Bolgatanga East", all)
+	gated := MatchByName("Bolgatanga East", upperEast)
+	if gated.TargetID != "" && gated.TargetName == "Ga East" {
+		t.Error("region gating still resolved to Ga East")
+	}
+	_ = national
+
+	// An empty region id must not silently drop every candidate, or a source
+	// whose region could not be resolved would match nothing at all.
+	if got := InRegion(all, ""); len(got) != len(all) {
+		t.Errorf("InRegion with no region returned %d of %d", len(got), len(all))
+	}
+}
+
+// Region gating improves RANKING; it does not lower the bar for applying.
+//
+// "Adansi Akrofuom" is almost certainly our "Akrofuom" — geoBoundaries carries
+// the older compound name — but it scores 0.53, well under the auto-apply
+// threshold, so it is surfaced for a steward instead of written. That is rule
+// R8: a source does not overwrite canonical data merely because it arrived,
+// and a boundary attached to the wrong district is invisible until someone
+// notices their reverse geocode has been wrong for months.
+func TestRegionGatingRanksWithoutLoweringTheBar(t *testing.T) {
+	ashanti := []NameCandidate{
+		{ID: "d1", Name: "Akrofuom", Normalized: "akrofuom", RegionID: "gh-region-ashanti"},
+		{ID: "d2", Name: "Adansi South", Normalized: "adansi south", RegionID: "gh-region-ashanti"},
+	}
+	m := MatchByName("Adansi Akrofuom", ashanti)
+
+	// The right district ranks first...
+	if m.TargetName != "Akrofuom" {
+		t.Errorf("best candidate = %q, want Akrofuom", m.TargetName)
+	}
+	// ...and is still NOT applied automatically.
+	if m.TargetID != "" {
+		t.Errorf("a 0.53 match was auto-applied: %+v", m)
+	}
+	if m.Reason == "" {
+		t.Error("an unapplied match must explain itself to the steward")
+	}
+}
+
+// The directional trap CLAUDE.md records: "Atwima Nwabiagya" exists in the
+// source as North and South, and our record is the un-split Municipal. Two
+// plausible candidates must never be resolved automatically (Spec §4.2).
+func TestSplitDistrictIsNeverAutoResolved(t *testing.T) {
+	ashanti := []NameCandidate{
+		{ID: "n", Name: "Atwima Nwabiagya North", Normalized: "atwima nwabiagya north", RegionID: "gh-region-ashanti"},
+		{ID: "s", Name: "Atwima Nwabiagya South", Normalized: "atwima nwabiagya south", RegionID: "gh-region-ashanti"},
+	}
+	m := MatchByName("Atwima Nwabiagya Municipal", ashanti)
+	if m.TargetID != "" {
+		t.Errorf("a split district was auto-resolved to %q — the other half would "+
+			"have been silently wrong: %+v", m.TargetName, m)
+	}
+}
