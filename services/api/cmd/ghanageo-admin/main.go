@@ -16,16 +16,18 @@ import (
 
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/geoboundaries"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/geonames"
+	osmadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/osm"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/ingest"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/seed"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 )
 
-const datasetVersion = "2026.08.1-seed"
+const datasetVersion = "2026.08.3-ulid"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -47,6 +49,7 @@ Usage:
   ghanageo-admin data assign-districts
   ghanageo-admin data dedupe [--apply]
   ghanageo-admin data export [--version <v>] [--dir <path>]
+  ghanageo-admin data osm --file <ghana-latest.osm.pbf> [--apply]
   ghanageo-admin audit list [--actor <id>] [--action <a>] [--target <id>] [--limit N]
   ghanageo-admin audit verify
   ghanageo-admin dataset history
@@ -91,6 +94,8 @@ func run(args []string) error {
 			return cmdDedupe(ctx, args[2:])
 		case "export":
 			return cmdExport(ctx, args[2:])
+		case "osm":
+			return cmdOSM(ctx, args[2:])
 		}
 	case "dataset":
 		if len(args) < 2 {
@@ -209,6 +214,19 @@ func verifyCounts(ctx context.Context, store *mongo.Store) error {
 	}
 	fmt.Printf("→ counts: %d regions · %d districts · %d places\n", regions, districts, places)
 
+	problems := seedCountProblems(regions, districts, places)
+	if len(problems) > 0 {
+		for _, p := range problems {
+			fmt.Fprintf(os.Stderr, "  ✗ %s\n", p)
+		}
+		return fmt.Errorf("seed invariants failed")
+	}
+	fmt.Printf("✓ seed invariants hold (%d regions / %d districts / at least %d bootstrap places)\n",
+		seed.ExpectedRegions, seed.ExpectedDistricts, seed.ExpectedPlaces)
+	return nil
+}
+
+func seedCountProblems(regions, districts, places int64) []string {
 	var problems []string
 	if regions != seed.ExpectedRegions {
 		problems = append(problems, fmt.Sprintf("expected %d regions, found %d", seed.ExpectedRegions, regions))
@@ -216,17 +234,12 @@ func verifyCounts(ctx context.Context, store *mongo.Store) error {
 	if districts != seed.ExpectedDistricts {
 		problems = append(problems, fmt.Sprintf("expected %d districts, found %d", seed.ExpectedDistricts, districts))
 	}
-	if places != seed.ExpectedPlaces {
-		problems = append(problems, fmt.Sprintf("expected %d places, found %d", seed.ExpectedPlaces, places))
+	// The bootstrap contains 16 regional capitals, but later licensed imports
+	// intentionally enrich the same collection. Reject loss, not enrichment.
+	if places < seed.ExpectedPlaces {
+		problems = append(problems, fmt.Sprintf("expected at least %d bootstrap places, found %d", seed.ExpectedPlaces, places))
 	}
-	if len(problems) > 0 {
-		for _, p := range problems {
-			fmt.Fprintf(os.Stderr, "  ✗ %s\n", p)
-		}
-		return fmt.Errorf("seed invariants failed")
-	}
-	fmt.Println("✓ seed invariants hold (16 regions / 261 districts / 16 places)")
-	return nil
+	return problems
 }
 
 func cmdValidate(ctx context.Context, args []string) error {
@@ -285,6 +298,118 @@ func cmdValidate(ctx context.Context, args []string) error {
 }
 
 // cmdReindex rebuilds the search index from canonical data.
+// cmdOSM imports roads, points of interest and settlements from an
+// OpenStreetMap extract (GEO-4.7).
+//
+// Dry run by default, like every other import here: a source that arrives is
+// not a source that gets written (R8). --apply commits.
+func cmdOSM(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("osm", flag.ContinueOnError)
+	file := fs.String("file", "", "path to a .osm.pbf extract")
+	apply := fs.Bool("apply", false, "write the records (default is a dry run)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *file == "" {
+		return fmt.Errorf("--file is required")
+	}
+
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+	if err := mongo.Migrate(ctx, store.DB()); err != nil {
+		return err
+	}
+
+	lic := osmadapter.Licence()
+	fmt.Printf("→ %s\n  %s\n", lic.Name, lic.Attribution)
+	if lic.ShareAlike {
+		fmt.Println("  share-alike: a derived database inherits ODbL.")
+	}
+
+	fmt.Printf("→ scanning %s\n", *file)
+	ex, err := osmadapter.Scan(ctx, *file, datasetVersion)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  %s\n", ex.Counts.String())
+
+	// Stable, content-derived ids so a re-import updates rather than
+	// duplicates. The OSM element reference is the external identity.
+	for i := range ex.Roads {
+		id, iderr := geography.StableID("road", "openstreetmap", ex.Roads[i].Provenance.ExternalID)
+		if iderr != nil {
+			return iderr
+		}
+		ex.Roads[i].ID = id
+	}
+	for i := range ex.POIs {
+		id, iderr := geography.StableID("poi", "openstreetmap", ex.POIs[i].Provenance.ExternalID)
+		if iderr != nil {
+			return iderr
+		}
+		ex.POIs[i].ID = id
+	}
+
+	// Validate BEFORE writing. A record missing its attribution must never
+	// reach the database, and the domain is what says so.
+	var invalid int
+	for _, r := range ex.Roads {
+		if verr := r.Validate(); verr != nil {
+			invalid++
+			if invalid <= 3 {
+				fmt.Printf("  invalid road %q: %v\n", r.Name, verr)
+			}
+		}
+	}
+	for _, p := range ex.POIs {
+		if verr := p.Validate(); verr != nil {
+			invalid++
+			if invalid <= 3 {
+				fmt.Printf("  invalid poi %q: %v\n", p.Name, verr)
+			}
+		}
+	}
+	if invalid > 0 {
+		return fmt.Errorf("%d records failed validation; nothing written", invalid)
+	}
+
+	if !*apply {
+		fmt.Printf("\ndry run — %d roads and %d POIs would be written. Re-run with --apply.\n",
+			len(ex.Roads), len(ex.POIs))
+		fmt.Printf("(%d settlements were also found; places are imported by `data import`, not here.)\n",
+			len(ex.Places))
+		return nil
+	}
+
+	roads, err := mongo.NewRoadRepo(store).UpsertMany(ctx, ex.Roads)
+	if err != nil {
+		return err
+	}
+	pois, err := mongo.NewPOIRepo(store).UpsertMany(ctx, ex.POIs)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✓ wrote %d roads and %d POIs\n", roads, pois)
+
+	assigned, err := mongo.NewPOIRepo(store).AssignRegions(ctx, store.DB())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✓ assigned %d POIs to a district by containment\n", assigned)
+
+	recordAudit(ctx, store, audit.ActionSourceImported,
+		audit.Target{Kind: "source", ID: "openstreetmap", Label: lic.Name},
+		nil,
+		map[string]any{
+			"roads": roads, "pois": pois, "districtAssigned": assigned,
+			"licence": lic.SPDX, "shareAlike": lic.ShareAlike,
+		}, nil)
+	return nil
+}
+
 // cmdExport writes the downloadable dataset artifacts and records them.
 //
 // The catalogue is only updated after every file is on disk, and each
@@ -294,6 +419,7 @@ func cmdExport(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
 	version := fs.String("version", datasetVersion, "dataset version to publish")
 	dir := fs.String("dir", "", "export directory (defaults to API_EXPORT_DIR)")
+	changelog := fs.String("changelog", "", "human-readable release notes for this dataset version")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -320,7 +446,7 @@ func cmdExport(ctx context.Context, args []string) error {
 	fmt.Printf("→ building %s into %s\n", *version, target)
 	// Stamped once so every artifact in a run shares a generation time.
 	generatedAt := time.Now().UTC().Format(time.RFC3339)
-	v, err := b.Build(ctx, *version, generatedAt)
+	v, err := b.BuildWithChangelog(ctx, *version, generatedAt, *changelog)
 	if err != nil {
 		return err
 	}

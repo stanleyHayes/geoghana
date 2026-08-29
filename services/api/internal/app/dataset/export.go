@@ -58,6 +58,9 @@ type featureCollection struct {
 	Features []feature `json:"features"`
 	// Attribution rides INSIDE the file. A download outlives the page it came
 	// from, and CC BY has to travel with the data.
+	// Attribution rides INSIDE the file. A download outlives the page it came
+	// from, and ODbL is share-alike — a notice in a website footer does not
+	// travel with a GeoJSON someone saved six months ago.
 	Attribution    string `json:"attribution"`
 	Licence        string `json:"license"`
 	DatasetVersion string `json:"datasetVersion"`
@@ -85,6 +88,13 @@ func geometryOf(g *geo.Geometry, c *geo.Coordinate) any {
 
 // Build writes every artifact for the version and records them.
 func (b *Builder) Build(ctx context.Context, version, generatedAt string) (domain.Version, error) {
+	return b.BuildWithChangelog(ctx, version, generatedAt, "")
+}
+
+// BuildWithChangelog writes every artifact and records release notes alongside
+// the immutable catalogue entry. Build remains for callers that do not need to
+// attach notes, while release tooling should use this method.
+func (b *Builder) BuildWithChangelog(ctx context.Context, version, generatedAt, changelog string) (domain.Version, error) {
 	dir := filepath.Join(b.exportDir, version)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return domain.Version{}, fmt.Errorf("create export dir: %w", err)
@@ -152,6 +162,7 @@ func (b *Builder) Build(ctx context.Context, version, generatedAt string) (domai
 		// with two live versions at once.
 		Status:      domain.StatusApproved,
 		PublishedAt: generatedAt,
+		Changelog:   changelog,
 		Counts: map[string]int64{
 			"regions": int64(len(regions)), "districts": int64(len(districts)),
 			"places": int64(len(places)),

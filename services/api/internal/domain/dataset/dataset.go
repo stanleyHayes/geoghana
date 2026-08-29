@@ -107,7 +107,11 @@ type Version struct {
 
 // Attribution travels with every dataset response, because CC BY is not
 // satisfied by a footer on a website (Spec §7.2).
-const Attribution = "Contains data from GeoNames (https://www.geonames.org) and " +
+// Every source that contributes to a download is named. OSM is share-alike,
+// so omitting it from a file that contains OSM-derived roads or POIs would be
+// a licence breach, not merely impolite.
+const Attribution = "Contains data from GeoNames (https://www.geonames.org), " +
+	"OpenStreetMap contributors (https://www.openstreetmap.org/copyright, ODbL) and " +
 	"geoBoundaries (https://www.geoboundaries.org), licensed CC BY 4.0."
 
 // Licence is the licence the dataset itself is published under.

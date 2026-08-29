@@ -51,6 +51,11 @@ type Licence struct {
 	// Redistributable records whether the raw data may be republished. A
 	// source that is reference-only must never reach a bulk download.
 	Redistributable bool
+	// ShareAlike records that a derived database inherits this licence.
+	// ODbL is share-alike and CC BY is not, and the difference changes what
+	// we may publish downstream — so it is recorded rather than inferred
+	// from the SPDX string by whoever reads it next.
+	ShareAlike bool
 }
 
 // Result summarises a run for the import-runs screen.

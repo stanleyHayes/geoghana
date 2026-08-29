@@ -158,6 +158,26 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			},
 		},
 		{
+			name:      ColRoads,
+			validator: roadSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "normalizedName", Value: 1}}},
+				{Keys: bson.D{{Key: "class", Value: 1}, {Key: "name", Value: 1}}},
+				{Keys: bson.D{{Key: "districtId", Value: 1}}},
+				{Keys: bson.D{{Key: "geometry", Value: "2dsphere"}}},
+			},
+		},
+		{
+			name:      ColPOIs,
+			validator: poiSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "normalizedName", Value: 1}}},
+				{Keys: bson.D{{Key: "class", Value: 1}, {Key: "name", Value: 1}}},
+				{Keys: bson.D{{Key: "districtId", Value: 1}}},
+				{Keys: bson.D{{Key: "centroid", Value: "2dsphere"}}},
+			},
+		},
+		{
 			name:      ColAuditLog,
 			validator: auditSchema(),
 			indexes: []mongo.IndexModel{
@@ -197,6 +217,9 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 		return err
 	}
 	if err := backfillGeographyMetadata(ctx, db, have); err != nil {
+		return err
+	}
+	if err := repairLegacyGeographyProvenance(ctx, db, have); err != nil {
 		return err
 	}
 	if err := migrateGeographyIDs(ctx, db, have); err != nil {
@@ -304,8 +327,8 @@ func backfillGeographyMetadata(ctx context.Context, db *mongo.Database, have map
 func geographyMetadataDefaults(doc bson.M, retrievedAt string) (bson.M, error) {
 	set := bson.M{}
 	id := strings.TrimSpace(fmt.Sprint(doc["_id"]))
-	provenance, _ := doc["provenance"].(bson.M)
-	if provenance == nil {
+	provenance, err := asBSONMap(doc["provenance"])
+	if err != nil {
 		provenance = bson.M{}
 	}
 	if strings.TrimSpace(fmt.Sprint(provenance["externalId"])) == "" || provenance["externalId"] == nil {
@@ -328,6 +351,40 @@ func geographyMetadataDefaults(doc bson.M, retrievedAt string) (bson.M, error) {
 		set["provenance.sourcePayloadHash"] = hex.EncodeToString(sum[:])
 	}
 	return set, nil
+}
+
+// Early metadata backfills used a legacy GhanaGeo slug as GeoNames'
+// externalId. Restore the provider's actual numeric identifier so a fresh
+// source replay derives the same deterministic ULID as the migrated row.
+func repairLegacyGeographyProvenance(ctx context.Context, db *mongo.Database, have map[string]bool) error {
+	if !have[ColPlaces] {
+		return nil
+	}
+	prefix := "gh-place-gn-"
+	cursor, err := db.Collection(ColPlaces).Find(ctx, bson.M{
+		"provenance.sourceId":   "geonames",
+		"provenance.externalId": bson.M{"$regex": "^" + prefix + "[0-9]+$"},
+	})
+	if err != nil {
+		return fmt.Errorf("find legacy GeoNames provenance: %w", err)
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var doc bson.M
+		if err := cursor.Decode(&doc); err != nil {
+			return fmt.Errorf("decode legacy GeoNames provenance: %w", err)
+		}
+		provenance, err := asBSONMap(doc["provenance"])
+		if err != nil {
+			return fmt.Errorf("decode GeoNames provenance for %v: %w", doc["_id"], err)
+		}
+		externalID := strings.TrimPrefix(fmt.Sprint(provenance["externalId"]), prefix)
+		if _, err := db.Collection(ColPlaces).UpdateOne(ctx, bson.M{"_id": doc["_id"]},
+			bson.M{"$set": bson.M{"provenance.externalId": externalID}}); err != nil {
+			return fmt.Errorf("repair GeoNames provenance for %v: %w", doc["_id"], err)
+		}
+	}
+	return cursor.Err()
 }
 
 type geographyIDMigration struct {
@@ -360,10 +417,6 @@ func migrateGeographyIDs(ctx context.Context, db *mongo.Database, have map[strin
 		}
 		for _, doc := range migration.documents {
 			oldID := fmt.Sprint(doc["_id"])
-			if geography.IsULID(oldID) {
-				migration.ids[oldID] = oldID
-				continue
-			}
 			provenance, err := asBSONMap(doc["provenance"])
 			if err != nil {
 				return fmt.Errorf("decode %s provenance for %s: %w", definition.entity, oldID, err)
@@ -379,12 +432,14 @@ func migrateGeographyIDs(ctx context.Context, db *mongo.Database, have map[strin
 				}
 			}
 			migration.ids[oldID] = newID
-			legacyCount++
+			if oldID != newID {
+				legacyCount++
+			}
 		}
 		migrations = append(migrations, migration)
 	}
 	if legacyCount == 0 {
-		return nil
+		return stampGeographyDatasetVersion(ctx, db, migrations)
 	}
 
 	regionIDs, districtIDs, placeIDs := migrations[0].ids, migrations[1].ids, migrations[2].ids
@@ -422,6 +477,7 @@ func migrateGeographyIDs(ctx context.Context, db *mongo.Database, have map[strin
 				}
 				doc := cloneBSONMap(original)
 				doc["_id"] = newID
+				doc["datasetVersion"] = ulidDatasetVersion
 				switch migration.entity {
 				case "district":
 					doc["regionId"] = mappedID(regionIDs, doc["regionId"])
@@ -486,6 +542,17 @@ func migrateGeographyIDs(ctx context.Context, db *mongo.Database, have map[strin
 	})
 	if err != nil {
 		return fmt.Errorf("migrate geography ids: %w", err)
+	}
+	return stampGeographyDatasetVersion(ctx, db, migrations)
+}
+
+func stampGeographyDatasetVersion(ctx context.Context, db *mongo.Database, migrations []geographyIDMigration) error {
+	for _, migration := range migrations {
+		if _, err := db.Collection(migration.collection).UpdateMany(ctx,
+			bson.M{"datasetVersion": bson.M{"$ne": ulidDatasetVersion}},
+			bson.M{"$set": bson.M{"datasetVersion": ulidDatasetVersion}}); err != nil {
+			return fmt.Errorf("stamp %s dataset version: %w", migration.collection, err)
+		}
 	}
 	return nil
 }
@@ -580,6 +647,7 @@ var verificationEnum = []string{
 }
 
 const ulidPattern = "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+const ulidDatasetVersion = "2026.08.3-ulid"
 
 func regionSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
@@ -753,6 +821,37 @@ func webauthnChallengeSchema() bson.M {
 			"purpose":   bson.M{"enum": []string{"registration", "login"}},
 			"session":   bson.M{"bsonType": "binData"},
 			"expiresAt": bson.M{"bsonType": "date"},
+		},
+	}}
+}
+
+// Attribution is REQUIRED on both. ODbL is share-alike, so a derived record
+// without its licence notice must not be storable — the validator is the last
+// place that can stop one reaching a bulk download.
+func roadSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "name", "class", "status", "attribution"},
+		"properties": bson.M{
+			"_id":         bson.M{"bsonType": "string"},
+			"name":        bson.M{"bsonType": "string"},
+			"class":       bson.M{"bsonType": "string"},
+			"status":      bson.M{"bsonType": "string"},
+			"attribution": bson.M{"bsonType": "string", "minLength": 1},
+		},
+	}}
+}
+
+func poiSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "name", "class", "status", "attribution"},
+		"properties": bson.M{
+			"_id":         bson.M{"bsonType": "string"},
+			"name":        bson.M{"bsonType": "string"},
+			"class":       bson.M{"bsonType": "string"},
+			"status":      bson.M{"bsonType": "string"},
+			"attribution": bson.M{"bsonType": "string", "minLength": 1},
 		},
 	}}
 }

@@ -123,6 +123,7 @@ func (h *Handler) Routes() http.Handler {
 	r.Use(h.accessLog)
 	r.Use(requestIDHeader)
 	r.Use(h.cors)
+	r.Use(h.csrf)
 
 	r.Get("/health", h.health)
 
@@ -143,8 +144,8 @@ func (h *Handler) Routes() http.Handler {
 		}
 		// Account authentication (GEO-9.2). Deliberately NOT behind
 		// RequireScope: these are humans signing in with a session cookie, not
-		// API keys presenting scopes. Every state-changing route is a POST, so
-		// SameSite=Lax on the cookie covers CSRF.
+		// API keys presenting scopes. Cookie-authenticated mutations are guarded
+		// by the router-level origin check as well as SameSite=Lax.
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", h.authRegister)
 			r.Post("/verify", h.authVerifyEmail)
@@ -198,6 +199,11 @@ func (h *Handler) Routes() http.Handler {
 		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/places/{id}", h.getPlace)
 
 		r.With(auth.RequireScope(identity.ScopeGeocodeRead)).Get("/nearby", h.nearby)
+
+		// OpenStreetMap-derived (GEO-4.7). Both responses carry the ODbL
+		// notice: it is share-alike, so attribution travels with the data.
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/roads", h.listRoads)
+		r.With(auth.RequireScope(identity.ScopeLocationsRead)).Get("/pois", h.listPOIs)
 		r.With(auth.RequireScope(identity.ScopeBoundariesRead)).Get("/boundaries/{id}", h.boundary)
 
 		// Bulk downloads (GEO-8.3). Cheaper for a consumer than paginating
@@ -279,6 +285,40 @@ func (h *Handler) cors(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// csrf prevents a browser from spending a session cookie on a cross-origin
+// mutation. CORS alone is not sufficient: it hides a response from an
+// untrusted origin but does not stop the request from reaching the handler.
+//
+// Requests without a session cookie remain usable by API clients. Older
+// non-browser clients that do send a cookie may omit Origin; modern browsers
+// also send Sec-Fetch-Site, so an explicitly cross-site request is denied even
+// when Origin has been stripped by an intermediary.
+func (h *Handler) csrf(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSafeMethod(r.Method) || sessionTokenFrom(r) == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		crossSite := strings.EqualFold(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site")), "cross-site")
+		if crossSite || (origin != "" && !h.allowedOrigins[origin]) {
+			writeErr(w, r, apierr.New(apierr.PermissionDenied, "This browser origin cannot modify the account."))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isSafeMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
+		return true
+	default:
+		return false
+	}
 }
 
 // accessLog emits one structured line per request. It never logs a secret or an
