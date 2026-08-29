@@ -120,7 +120,11 @@ func (r *RegionRepo) Upsert(ctx context.Context, in geography.Region) (bool, err
 		return false, err
 	}
 	doc := toRegionDoc(in)
-	res, err := r.col.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, options.Replace().SetUpsert(true))
+	set, err := mergeFields(doc)
+	if err != nil {
+		return false, err
+	}
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{"$set": set}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return false, err
 	}
@@ -174,7 +178,11 @@ func (r *DistrictRepo) Upsert(ctx context.Context, in geography.District) (bool,
 		return false, err
 	}
 	doc := toDistrictDoc(in)
-	res, err := r.col.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, options.Replace().SetUpsert(true))
+	set, err := mergeFields(doc)
+	if err != nil {
+		return false, err
+	}
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{"$set": set}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return false, err
 	}
@@ -259,11 +267,31 @@ func (r *PlaceRepo) Upsert(ctx context.Context, in geography.Place) (bool, error
 		return false, err
 	}
 	doc := toPlaceDoc(in)
-	res, err := r.col.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, options.Replace().SetUpsert(true))
+	set, err := mergeFields(doc)
+	if err != nil {
+		return false, err
+	}
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{"$set": set}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return false, err
 	}
 	return res.UpsertedCount > 0, nil
+}
+
+// mergeFields turns an upsert document into a $set payload. BSON `omitempty`
+// keeps absent source fields out of the update, so replaying a bootstrap seed
+// cannot erase geometry, coordinates or aliases added by later enrichment.
+func mergeFields(doc any) (bson.M, error) {
+	raw, err := bson.Marshal(doc)
+	if err != nil {
+		return nil, err
+	}
+	var fields bson.M
+	if err := bson.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	delete(fields, "_id")
+	return fields, nil
 }
 
 func (r *PlaceRepo) Count(ctx context.Context) (int64, error) {

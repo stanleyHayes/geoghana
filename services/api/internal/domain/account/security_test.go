@@ -482,3 +482,36 @@ func TestFindPasskey(t *testing.T) {
 		t.Error("found a passkey that does not exist")
 	}
 }
+
+// Rotation happens on an INTERVAL, not on every request.
+//
+// Rotating every time is stronger in theory and unusable from a browser: one
+// page load fires several authenticated requests in parallel, the first
+// rotates the cookie, and the rest — already in flight with the previous
+// token — are indistinguishable from a replayed stolen token. The console
+// signed itself out on every navigation until this changed.
+func TestRotationIsIntervalBased(t *testing.T) {
+	a := devAccount()
+	s, _ := Issue(a, StageAuthenticated, now, "ua", "ip")
+
+	if s.Session.DueForRotation(now) {
+		t.Error("a freshly issued token was already due for rotation")
+	}
+	if s.Session.DueForRotation(now.Add(RotationInterval - time.Second)) {
+		t.Error("rotation was due before the interval elapsed — parallel requests would race")
+	}
+	if !s.Session.DueForRotation(now.Add(RotationInterval)) {
+		t.Error("rotation never becomes due")
+	}
+
+	// The interval must stay well inside the idle timeout, or a session would
+	// expire before it ever rotated.
+	if RotationInterval >= IdleTimeout {
+		t.Errorf("RotationInterval %v is not shorter than IdleTimeout %v", RotationInterval, IdleTimeout)
+	}
+	// And the grace window must be shorter than the interval, or a superseded
+	// token could still be accepted after its replacement was itself replaced.
+	if RotationGrace >= RotationInterval {
+		t.Errorf("RotationGrace %v is not shorter than RotationInterval %v", RotationGrace, RotationInterval)
+	}
+}

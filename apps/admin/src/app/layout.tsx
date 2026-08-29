@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Outfit } from "next/font/google";
 import { ThemeProvider, themeInitScript } from "@ghanageo/ui";
 import { AdminShell } from "@/components/admin-shell";
+import { SessionProvider } from "@/components/session";
 import "./globals.css";
 
 // latin-ext is REQUIRED, not optional: the `latin` subset alone drops the
@@ -36,7 +37,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           {/* The shell lives in the layout so the rail, navbar and palette
               persist across navigation instead of remounting per page. */}
-          <AdminShell>{children}</AdminShell>
+          {/* Who is signed in and what they may do. The permission list
+              gates what the console RENDERS; the API enforces it again. */}
+          <SessionProvider>
+            <AdminShell>{children}</AdminShell>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

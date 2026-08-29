@@ -91,6 +91,9 @@ for (const app of APPS) {
       if (!raw.startsWith("/")) continue;            // external or anchor
       const path = raw.split(/[?#]/)[0].replace(/\/$/, "") || "/";
       if (!linked.has(path)) linked.set(path, relative(ROOT, f));
+      // A href built from a template (`/places/${id}`) resolves at runtime;
+      // only fully literal paths can be checked here.
+      if (raw.includes("${")) continue;
       if (!routes.has(path)) {
         if (app.plannedNav && f.endsWith(app.plannedNav)) { planned++; continue; }
         console.error(`DEAD   ${app.name}: ${relative(ROOT, f)} -> ${path}`);
@@ -101,6 +104,11 @@ for (const app of APPS) {
 
   for (const r of routes) {
     if (linked.has(r) || ALLOWED_ORPHANS.has(r)) continue;
+    // A dynamic segment is reached through an interpolated href, which this
+    // checker cannot resolve statically. Reporting every [id] route as an
+    // orphan would bury the real ones, so they are skipped — the cost is that
+    // an genuinely unlinked detail page is not caught here.
+    if (r.includes("[")) continue;
     console.error(`ORPHAN ${app.name}: ${r} exists but nothing links to it`);
     orphan++;
   }

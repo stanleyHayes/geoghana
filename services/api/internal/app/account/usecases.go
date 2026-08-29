@@ -373,6 +373,12 @@ func (s *Service) AuthenticateForEnrolment(
 		return account.Session{}, account.Account{}, "", mapSessionErr(err)
 	}
 
+	// Rotate only when the token is old enough. Rotating on every request
+	// makes parallel requests from one browser supersede each other and look
+	// like theft.
+	if !sess.DueForRotation(now) {
+		return sess, a, token, nil
+	}
 	next, newToken, err := sess.Rotate(now)
 	if err != nil {
 		return account.Session{}, account.Account{}, "", apierr.Wrap(apierr.Internal, "Could not refresh the session.", err)
@@ -386,6 +392,14 @@ func (s *Service) AuthenticateForEnrolment(
 // resolve loads a session and its account, treating a replayed token as theft.
 func (s *Service) resolve(ctx context.Context, token string) (account.Session, account.Account, error) {
 	sess, err := s.sessions.ByToken(ctx, token)
+	if errors.Is(err, mongoadapter.ErrSessionSuperseded) {
+		// Rotated moments ago; this request simply started first. Serve it.
+		a, aerr := s.accounts.ByID(ctx, sess.AccountID)
+		if aerr != nil {
+			return account.Session{}, account.Account{}, apierr.New(apierr.Unauthenticated, "Not signed in.")
+		}
+		return sess, *a, nil
+	}
 	if errors.Is(err, mongoadapter.ErrSessionReplayed) {
 		// A superseded token was presented. Either the real user raced
 		// themselves or the chain leaked; we cannot tell, so we assume the

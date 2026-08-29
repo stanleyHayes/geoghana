@@ -55,8 +55,7 @@ export default function PlacesScreen() {
             </p>
             <Card style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ overflowX: "auto", maxHeight: "70vh" }}>
-                <table className="gg-table" style={{ width: "100%", minWidth: 760,
-                                                     padding: "0 var(--space-4)" }}>
+                <table className="gg-table" style={{ width: "100%", minWidth: 760 }}>
                   <thead>
                     <tr>
                       <th scope="col">Place</th>
@@ -71,7 +70,7 @@ export default function PlacesScreen() {
                     {page.data.map((p) => (
                       <tr key={p.id}>
                         <td>
-                          <span style={{ fontWeight: 600 }}>{p.name}</span>
+                          <a href={`/geography/places/${encodeURIComponent(p.id)}`} style={{ fontWeight: 600, color: "var(--brand)" }}>{p.name}</a>
                           <span style={{ display: "block", fontSize: "var(--text-2xs)",
                                          color: "var(--fg-subtle)" }}>
                             {p.type}

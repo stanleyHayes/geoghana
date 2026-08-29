@@ -1,7 +1,9 @@
 package mongo
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -38,6 +40,54 @@ func TestCoordinateDecodesFromDriverTypes(t *testing.T) {
 				t.Errorf("got %+v, want %+v", got, want)
 			}
 		})
+	}
+}
+
+func TestGeographyMetadataBackfillIsCompleteAndIdempotent(t *testing.T) {
+	doc := bson.M{
+		"_id": "gh-place-gn-2306104", "name": "Accra",
+		"datasetVersion": "2026.08.2-seed",
+		"provenance":     bson.M{"sourceId": "geonames", "externalId": "2306104"},
+	}
+	set, err := geographyMetadataDefaults(doc, "2026-08-29T12:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set["provenance.retrievedAt"] == "" {
+		t.Error("retrieval time was not backfilled")
+	}
+	hash, _ := set["provenance.sourcePayloadHash"].(string)
+	if len(hash) != 64 || strings.Trim(hash, "0123456789abcdef") != "" {
+		t.Fatalf("payload hash is not lowercase SHA-256: %q", hash)
+	}
+
+	complete := bson.M{
+		"_id": "gh-place-gn-2306104", "datasetVersion": "2026.08.2-seed",
+		"provenance": bson.M{
+			"sourceId": "geonames", "externalId": "2306104",
+			"retrievedAt": "2026-08-29T12:00:00Z", "sourcePayloadHash": hash,
+		},
+	}
+	if again, err := geographyMetadataDefaults(complete, time.Now().UTC().Format(time.RFC3339)); err != nil || len(again) != 0 {
+		t.Fatalf("second backfill changed complete metadata: set=%v err=%v", again, err)
+	}
+}
+
+func TestMergeUpsertOmitsAbsentEnrichment(t *testing.T) {
+	fields, err := mergeFields(regionDoc{ID: "gh-region-x", Name: "X"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := fields["_id"]; exists {
+		t.Fatal("immutable _id was included in $set")
+	}
+	for _, preserved := range []string{"geometry", "centroid", "capital", "officialCode"} {
+		if _, exists := fields[preserved]; exists {
+			t.Errorf("absent %s would erase existing enrichment", preserved)
+		}
+	}
+	if fields["name"] != "X" {
+		t.Errorf("present source fields are not updated: %v", fields)
 	}
 }
 

@@ -2,12 +2,18 @@ package mongo
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 )
 
 // Migrate creates collections with JSON Schema validators and the indexes the
@@ -190,6 +196,12 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 	if err := backfillIdentityDocuments(ctx, db, have); err != nil {
 		return err
 	}
+	if err := backfillGeographyMetadata(ctx, db, have); err != nil {
+		return err
+	}
+	if err := migrateGeographyIDs(ctx, db, have); err != nil {
+		return err
+	}
 
 	for _, s := range steps {
 		opts := options.CreateCollection().
@@ -238,6 +250,285 @@ func backfillIdentityDocuments(ctx context.Context, db *mongo.Database, have map
 	return nil
 }
 
+// backfillGeographyMetadata brings legacy rows forward before the stricter
+// validators below are applied. The payload hash covers the normalized source
+// document available at migration time; it is never recomputed once present.
+func backfillGeographyMetadata(ctx context.Context, db *mongo.Database, have map[string]bool) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, collection := range []string{ColRegions, ColDistricts, ColPlaces} {
+		if !have[collection] {
+			continue
+		}
+		col := db.Collection(collection)
+		filter := bson.M{"$or": bson.A{
+			bson.M{"datasetVersion": bson.M{"$in": bson.A{nil, ""}}},
+			bson.M{"datasetVersion": bson.M{"$exists": false}},
+			bson.M{"provenance.externalId": bson.M{"$in": bson.A{nil, ""}}},
+			bson.M{"provenance.externalId": bson.M{"$exists": false}},
+			bson.M{"provenance.retrievedAt": bson.M{"$in": bson.A{nil, ""}}},
+			bson.M{"provenance.retrievedAt": bson.M{"$exists": false}},
+			bson.M{"provenance.sourcePayloadHash": bson.M{"$in": bson.A{nil, ""}}},
+			bson.M{"provenance.sourcePayloadHash": bson.M{"$exists": false}},
+		}}
+		cursor, err := col.Find(ctx, filter)
+		if err != nil {
+			return fmt.Errorf("find %s metadata gaps: %w", collection, err)
+		}
+		for cursor.Next(ctx) {
+			var doc bson.M
+			if err := cursor.Decode(&doc); err != nil {
+				cursor.Close(ctx)
+				return fmt.Errorf("decode %s metadata gap: %w", collection, err)
+			}
+			set, err := geographyMetadataDefaults(doc, now)
+			if err != nil {
+				cursor.Close(ctx)
+				return fmt.Errorf("prepare %s metadata backfill: %w", collection, err)
+			}
+			if len(set) > 0 {
+				if _, err := col.UpdateOne(ctx, bson.M{"_id": doc["_id"]}, bson.M{"$set": set}); err != nil {
+					cursor.Close(ctx)
+					return fmt.Errorf("backfill %s %v: %w", collection, doc["_id"], err)
+				}
+			}
+		}
+		if err := cursor.Err(); err != nil {
+			cursor.Close(ctx)
+			return fmt.Errorf("scan %s metadata gaps: %w", collection, err)
+		}
+		cursor.Close(ctx)
+	}
+	return nil
+}
+
+func geographyMetadataDefaults(doc bson.M, retrievedAt string) (bson.M, error) {
+	set := bson.M{}
+	id := strings.TrimSpace(fmt.Sprint(doc["_id"]))
+	provenance, _ := doc["provenance"].(bson.M)
+	if provenance == nil {
+		provenance = bson.M{}
+	}
+	if strings.TrimSpace(fmt.Sprint(provenance["externalId"])) == "" || provenance["externalId"] == nil {
+		set["provenance.externalId"] = id
+	}
+	if strings.TrimSpace(fmt.Sprint(provenance["retrievedAt"])) == "" || provenance["retrievedAt"] == nil {
+		set["provenance.retrievedAt"] = retrievedAt
+	}
+	if strings.TrimSpace(fmt.Sprint(doc["datasetVersion"])) == "" || doc["datasetVersion"] == nil {
+		set["datasetVersion"] = "legacy-unversioned"
+	}
+	if strings.TrimSpace(fmt.Sprint(provenance["sourcePayloadHash"])) == "" || provenance["sourcePayloadHash"] == nil {
+		delete(provenance, "sourcePayloadHash")
+		doc["provenance"] = provenance
+		payload, err := json.Marshal(doc)
+		if err != nil {
+			return nil, err
+		}
+		sum := sha256.Sum256(payload)
+		set["provenance.sourcePayloadHash"] = hex.EncodeToString(sum[:])
+	}
+	return set, nil
+}
+
+type geographyIDMigration struct {
+	collection string
+	entity     string
+	documents  []bson.M
+	ids        map[string]string
+}
+
+// migrateGeographyIDs replaces legacy human-readable primary keys with the
+// deterministic ULIDs required by R7. It copies and relinks the entire graph,
+// writes a redirect for every published legacy id, then removes the old rows —
+// all in one transaction so a failed migration cannot expose a mixed graph.
+func migrateGeographyIDs(ctx context.Context, db *mongo.Database, have map[string]bool) error {
+	definitions := []struct{ collection, entity string }{
+		{ColRegions, "region"}, {ColDistricts, "district"}, {ColPlaces, "place"},
+	}
+	migrations := make([]geographyIDMigration, 0, len(definitions))
+	legacyCount := 0
+	for _, definition := range definitions {
+		migration := geographyIDMigration{collection: definition.collection, entity: definition.entity, ids: map[string]string{}}
+		if have[definition.collection] {
+			cursor, err := db.Collection(definition.collection).Find(ctx, bson.M{})
+			if err != nil {
+				return fmt.Errorf("read %s for id migration: %w", definition.collection, err)
+			}
+			if err := cursor.All(ctx, &migration.documents); err != nil {
+				return fmt.Errorf("decode %s for id migration: %w", definition.collection, err)
+			}
+		}
+		for _, doc := range migration.documents {
+			oldID := fmt.Sprint(doc["_id"])
+			if geography.IsULID(oldID) {
+				migration.ids[oldID] = oldID
+				continue
+			}
+			provenance, err := asBSONMap(doc["provenance"])
+			if err != nil {
+				return fmt.Errorf("decode %s provenance for %s: %w", definition.entity, oldID, err)
+			}
+			newID, err := geography.StableID(definition.entity,
+				fmt.Sprint(provenance["sourceId"]), fmt.Sprint(provenance["externalId"]))
+			if err != nil {
+				return fmt.Errorf("derive %s id for %s: %w", definition.entity, oldID, err)
+			}
+			for previousOldID, previousNewID := range migration.ids {
+				if previousNewID == newID && previousOldID != oldID {
+					return fmt.Errorf("%s id collision: %s and %s map to %s", definition.entity, previousOldID, oldID, newID)
+				}
+			}
+			migration.ids[oldID] = newID
+			legacyCount++
+		}
+		migrations = append(migrations, migration)
+	}
+	if legacyCount == 0 {
+		return nil
+	}
+
+	regionIDs, districtIDs, placeIDs := migrations[0].ids, migrations[1].ids, migrations[2].ids
+	existingRedirects := map[string]string{}
+	if have[ColRedirects] {
+		cursor, err := db.Collection(ColRedirects).Find(ctx, bson.M{})
+		if err != nil {
+			return fmt.Errorf("read redirects for id migration: %w", err)
+		}
+		var redirects []bson.M
+		if err := cursor.All(ctx, &redirects); err != nil {
+			return fmt.Errorf("decode redirects for id migration: %w", err)
+		}
+		for _, redirect := range redirects {
+			existingRedirects[fmt.Sprint(redirect["_id"])] = fmt.Sprint(redirect["newId"])
+		}
+	}
+	migratedAt := time.Now().UTC().Format(time.RFC3339)
+	session, err := db.Client().StartSession()
+	if err != nil {
+		return fmt.Errorf("start geography id migration session: %w", err)
+	}
+	defer session.EndSession(ctx)
+
+	_, err = session.WithTransaction(ctx, func(tx context.Context) (any, error) {
+		for _, migration := range migrations {
+			var inserts []any
+			var legacyIDs []string
+			var redirects []mongo.WriteModel
+			for _, original := range migration.documents {
+				oldID := fmt.Sprint(original["_id"])
+				newID := migration.ids[oldID]
+				if oldID == newID {
+					continue
+				}
+				doc := cloneBSONMap(original)
+				doc["_id"] = newID
+				switch migration.entity {
+				case "district":
+					doc["regionId"] = mappedID(regionIDs, doc["regionId"])
+				case "place":
+					doc["regionId"] = mappedID(regionIDs, doc["regionId"])
+					doc["districtId"] = mappedID(districtIDs, doc["districtId"])
+					doc["parentPlaceId"] = mappedID(placeIDs, doc["parentPlaceId"])
+				}
+				inserts = append(inserts, doc)
+				legacyIDs = append(legacyIDs, oldID)
+				redirectTarget := newID
+				if existingTarget := existingRedirects[oldID]; existingTarget != "" {
+					redirectTarget = mapAnyGeographyID(existingTarget, regionIDs, districtIDs, placeIDs)
+				}
+				redirects = append(redirects, mongo.NewUpdateOneModel().
+					SetFilter(bson.M{"_id": oldID}).
+					SetUpdate(bson.M{"$set": bson.M{"newId": redirectTarget, "reason": "id-format-migration", "mergedAt": migratedAt}}).
+					SetUpsert(true))
+				if redirectTarget != newID {
+					redirects = append(redirects, mongo.NewUpdateOneModel().
+						SetFilter(bson.M{"_id": newID}).
+						SetUpdate(bson.M{"$set": bson.M{"newId": redirectTarget, "reason": "preserved-merge-lineage", "mergedAt": migratedAt}}).
+						SetUpsert(true))
+				}
+			}
+			if len(inserts) == 0 {
+				continue
+			}
+			if _, err := db.Collection(migration.collection).InsertMany(tx, inserts); err != nil {
+				return nil, fmt.Errorf("insert ULID %s rows: %w", migration.collection, err)
+			}
+			if _, err := db.Collection(ColRedirects).BulkWrite(tx, redirects); err != nil {
+				return nil, fmt.Errorf("write %s legacy redirects: %w", migration.collection, err)
+			}
+			if _, err := db.Collection(migration.collection).DeleteMany(tx, bson.M{"_id": bson.M{"$in": legacyIDs}}); err != nil {
+				return nil, fmt.Errorf("remove legacy %s rows: %w", migration.collection, err)
+			}
+		}
+		var redirectRelinks []mongo.WriteModel
+		for oldID, oldTarget := range existingRedirects {
+			if newID, migratedWithRecord := regionIDs[oldID]; migratedWithRecord && newID != oldID {
+				continue
+			}
+			if newID, migratedWithRecord := districtIDs[oldID]; migratedWithRecord && newID != oldID {
+				continue
+			}
+			if newID, migratedWithRecord := placeIDs[oldID]; migratedWithRecord && newID != oldID {
+				continue
+			}
+			newTarget := mapAnyGeographyID(oldTarget, regionIDs, districtIDs, placeIDs)
+			if newTarget != oldTarget {
+				redirectRelinks = append(redirectRelinks, mongo.NewUpdateOneModel().
+					SetFilter(bson.M{"_id": oldID}).SetUpdate(bson.M{"$set": bson.M{"newId": newTarget}}))
+			}
+		}
+		if len(redirectRelinks) > 0 {
+			if _, err := db.Collection(ColRedirects).BulkWrite(tx, redirectRelinks); err != nil {
+				return nil, fmt.Errorf("relink existing geography redirects: %w", err)
+			}
+		}
+		return legacyCount, nil
+	})
+	if err != nil {
+		return fmt.Errorf("migrate geography ids: %w", err)
+	}
+	return nil
+}
+
+func mapAnyGeographyID(id string, maps ...map[string]string) string {
+	for _, ids := range maps {
+		if next, ok := ids[id]; ok {
+			return next
+		}
+	}
+	return id
+}
+
+func mappedID(ids map[string]string, value any) any {
+	old := strings.TrimSpace(fmt.Sprint(value))
+	if old == "" || value == nil {
+		return value
+	}
+	if next, ok := ids[old]; ok {
+		return next
+	}
+	return value
+}
+
+func cloneBSONMap(source bson.M) bson.M {
+	raw, _ := bson.Marshal(source)
+	var clone bson.M
+	_ = bson.Unmarshal(raw, &clone)
+	return clone
+}
+
+func asBSONMap(value any) (bson.M, error) {
+	raw, err := bson.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var out bson.M
+	if err := bson.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func usageEventSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
@@ -271,13 +562,13 @@ func geoJSONSchema() bson.M {
 func provenanceSchema() bson.M {
 	return bson.M{
 		"bsonType": "object",
-		"required": []string{"sourceId"},
+		"required": []string{"sourceId", "externalId", "retrievedAt", "sourcePayloadHash"},
 		"properties": bson.M{
-			"sourceId":          bson.M{"bsonType": "string"},
-			"externalId":        bson.M{"bsonType": []string{"string", "null"}},
+			"sourceId":          bson.M{"bsonType": "string", "minLength": 1},
+			"externalId":        bson.M{"bsonType": "string", "minLength": 1},
 			"sourceUrl":         bson.M{"bsonType": []string{"string", "null"}},
-			"retrievedAt":       bson.M{"bsonType": []string{"string", "null"}},
-			"sourcePayloadHash": bson.M{"bsonType": []string{"string", "null"}},
+			"retrievedAt":       bson.M{"bsonType": "string", "minLength": 1},
+			"sourcePayloadHash": bson.M{"bsonType": "string", "minLength": 64, "maxLength": 64},
 			"notes":             bson.M{"bsonType": []string{"string", "null"}},
 		},
 	}
@@ -288,12 +579,14 @@ var verificationEnum = []string{
 	"REFERENCE", "SEED_NEEDS_CANONICAL_RECONCILIATION", "REVIEWED", "CANONICAL",
 }
 
+const ulidPattern = "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+
 func regionSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
-		"required": []string{"_id", "name", "status", "verificationStatus", "provenance"},
+		"required": []string{"_id", "name", "status", "verificationStatus", "provenance", "datasetVersion"},
 		"properties": bson.M{
-			"_id":                bson.M{"bsonType": "string"},
+			"_id":                bson.M{"bsonType": "string", "pattern": ulidPattern},
 			"countryCode":        bson.M{"bsonType": "string"},
 			"name":               bson.M{"bsonType": "string", "minLength": 1},
 			"normalizedName":     bson.M{"bsonType": "string"},
@@ -304,7 +597,7 @@ func regionSchema() bson.M {
 			"centroid":           geoJSONSchema(),
 			"geometry":           geoJSONSchema(),
 			"provenance":         provenanceSchema(),
-			"datasetVersion":     bson.M{"bsonType": []string{"string", "null"}},
+			"datasetVersion":     bson.M{"bsonType": "string", "minLength": 1},
 		},
 	}}
 }
@@ -312,10 +605,10 @@ func regionSchema() bson.M {
 func districtSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
-		"required": []string{"_id", "regionId", "name", "status", "verificationStatus", "provenance"},
+		"required": []string{"_id", "regionId", "name", "status", "verificationStatus", "provenance", "datasetVersion"},
 		"properties": bson.M{
-			"_id":                bson.M{"bsonType": "string"},
-			"regionId":           bson.M{"bsonType": "string", "minLength": 1},
+			"_id":                bson.M{"bsonType": "string", "pattern": ulidPattern},
+			"regionId":           bson.M{"bsonType": "string", "pattern": ulidPattern},
 			"regionName":         bson.M{"bsonType": []string{"string", "null"}},
 			"name":               bson.M{"bsonType": "string", "minLength": 1},
 			"normalizedName":     bson.M{"bsonType": "string"},
@@ -327,7 +620,7 @@ func districtSchema() bson.M {
 			"centroid":           geoJSONSchema(),
 			"geometry":           geoJSONSchema(),
 			"provenance":         provenanceSchema(),
-			"datasetVersion":     bson.M{"bsonType": []string{"string", "null"}},
+			"datasetVersion":     bson.M{"bsonType": "string", "minLength": 1},
 		},
 	}}
 }
@@ -335,20 +628,20 @@ func districtSchema() bson.M {
 func placeSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
-		"required": []string{"_id", "name", "type", "status", "verificationStatus", "provenance"},
+		"required": []string{"_id", "name", "type", "status", "verificationStatus", "provenance", "datasetVersion"},
 		"properties": bson.M{
-			"_id":            bson.M{"bsonType": "string"},
+			"_id":            bson.M{"bsonType": "string", "pattern": ulidPattern},
 			"name":           bson.M{"bsonType": "string", "minLength": 1},
 			"normalizedName": bson.M{"bsonType": "string"},
 			"type": bson.M{"enum": []string{
 				"CITY", "TOWN", "VILLAGE", "COMMUNITY", "SUBURB",
 				"NEIGHBOURHOOD", "HAMLET", "SETTLEMENT", "LOCALITY", "REGIONAL_CAPITAL",
 			}},
-			"regionId":      bson.M{"bsonType": []string{"string", "null"}},
+			"regionId":      bson.M{"bsonType": []string{"string", "null"}, "pattern": ulidPattern},
 			"regionName":    bson.M{"bsonType": []string{"string", "null"}},
-			"districtId":    bson.M{"bsonType": []string{"string", "null"}},
+			"districtId":    bson.M{"bsonType": []string{"string", "null"}, "pattern": ulidPattern},
 			"districtName":  bson.M{"bsonType": []string{"string", "null"}},
-			"parentPlaceId": bson.M{"bsonType": []string{"string", "null"}},
+			"parentPlaceId": bson.M{"bsonType": []string{"string", "null"}, "pattern": ulidPattern},
 			"aliases": bson.M{
 				"bsonType": "array",
 				"items": bson.M{
@@ -369,7 +662,7 @@ func placeSchema() bson.M {
 			"centroid":           geoJSONSchema(),
 			"geometry":           geoJSONSchema(),
 			"provenance":         provenanceSchema(),
-			"datasetVersion":     bson.M{"bsonType": []string{"string", "null"}},
+			"datasetVersion":     bson.M{"bsonType": "string", "minLength": 1},
 		},
 	}}
 }
@@ -380,7 +673,7 @@ func redirectSchema() bson.M {
 		"required": []string{"_id", "newId"},
 		"properties": bson.M{
 			"_id":      bson.M{"bsonType": "string"},
-			"newId":    bson.M{"bsonType": "string"},
+			"newId":    bson.M{"bsonType": "string", "pattern": ulidPattern},
 			"reason":   bson.M{"bsonType": []string{"string", "null"}},
 			"mergedAt": bson.M{"bsonType": []string{"string", "null"}},
 		},

@@ -19,6 +19,10 @@ var (
 	// an expiry — it is evidence the token chain leaked, so the caller kills
 	// every session for the account rather than merely rejecting this one.
 	ErrSessionReplayed = errors.New("a superseded session token was presented")
+	// ErrSessionSuperseded means the token was rotated away from very
+	// recently — a request that was already in flight. Benign; the caller
+	// serves it and simply does not rotate again.
+	ErrSessionSuperseded = errors.New("session token was just rotated")
 )
 
 type sessionDoc struct {
@@ -88,6 +92,12 @@ func (r *SessionRepo) ByToken(ctx context.Context, token string) (account.Sessio
 		return account.Session{}, fmt.Errorf("find session: %w", err)
 	}
 	if d.SupersededAt != nil {
+		// A request already in flight when the token rotated is not theft.
+		// Inside the grace window it is accepted; outside it, someone has
+		// kept a token they should have replaced, and that is worth alarming.
+		if time.Since(*d.SupersededAt) <= account.RotationGrace {
+			return d.toDomain(), ErrSessionSuperseded
+		}
 		return d.toDomain(), ErrSessionReplayed
 	}
 	return d.toDomain(), nil

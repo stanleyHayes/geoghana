@@ -26,8 +26,7 @@ export default function RegionsScreen() {
             </p>
             <Card style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
-                <table className="gg-table" style={{ width: "100%", minWidth: 640,
-                                                     padding: "0 var(--space-4)" }}>
+                <table className="gg-table" style={{ width: "100%", minWidth: 640 }}>
                   <thead>
                     <tr>
                       <th scope="col">Region</th>
@@ -40,7 +39,7 @@ export default function RegionsScreen() {
                     {page.data.map((r) => (
                       <tr key={r.id}>
                         <td>
-                          <span style={{ fontWeight: 600 }}>{r.name}</span>
+                          <a href={`/geography/regions/${encodeURIComponent(r.id)}`} style={{ fontWeight: 600, color: "var(--brand)" }}>{r.name}</a>
                           <span style={{ display: "block", fontFamily: "var(--font-mono)",
                                          fontSize: "var(--text-2xs)", color: "var(--fg-subtle)" }}>{r.id}</span>
                         </td>

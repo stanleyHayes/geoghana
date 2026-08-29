@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Badge } from "@ghanageo/ui";
 import { ArrowUpRight, CheckCircle2, Compass, Layers3 } from "lucide-react";
 
@@ -97,10 +98,10 @@ export function PlannedScreen({
             <div><strong>Use a live workspace</strong><p>These destinations already read the API.</p></div>
           </div>
           <nav aria-label="Available live admin workspaces">
-            <a href="/geography/regions">Regions <ArrowUpRight size={14} aria-hidden /></a>
-            <a href="/geography/districts">Districts <ArrowUpRight size={14} aria-hidden /></a>
-            <a href="/geography/places">Places <ArrowUpRight size={14} aria-hidden /></a>
-            <a href="/explorer">Location Explorer <ArrowUpRight size={14} aria-hidden /></a>
+            <Link href="/geography/regions">Regions <ArrowUpRight size={14} aria-hidden /></Link>
+            <Link href="/geography/districts">Districts <ArrowUpRight size={14} aria-hidden /></Link>
+            <Link href="/geography/places">Places <ArrowUpRight size={14} aria-hidden /></Link>
+            <Link href="/explorer">Location Explorer <ArrowUpRight size={14} aria-hidden /></Link>
           </nav>
         </aside>
       </div>

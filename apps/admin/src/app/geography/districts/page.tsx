@@ -74,8 +74,7 @@ export default function DistrictsScreen() {
             </p>
             <Card style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ overflowX: "auto", maxHeight: "70vh" }}>
-                <table className="gg-table" style={{ width: "100%", minWidth: 640,
-                                                     padding: "0 var(--space-4)" }}>
+                <table className="gg-table" style={{ width: "100%", minWidth: 640 }}>
                   <thead>
                     <tr>
                       <th scope="col">District</th>
@@ -88,7 +87,7 @@ export default function DistrictsScreen() {
                     {visibleDistricts.map((d) => (
                       <tr key={d.id}>
                         <td>
-                          <span style={{ fontWeight: 600 }}>{d.name}</span>
+                          <a href={`/geography/districts/${encodeURIComponent(d.id)}`} style={{ fontWeight: 600, color: "var(--brand)" }}>{d.name}</a>
                           <span style={{ display: "block", fontFamily: "var(--font-mono)",
                                          fontSize: "var(--text-2xs)", color: "var(--fg-subtle)" }}>{d.id}</span>
                         </td>

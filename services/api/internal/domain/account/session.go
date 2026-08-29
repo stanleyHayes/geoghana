@@ -21,6 +21,24 @@ const (
 	// PrivilegedAbsoluteTimeout is shorter for roles that can change data.
 	PrivilegedAbsoluteTimeout = 4 * time.Hour
 
+	// RotationInterval is the minimum age before a session token is rotated.
+	//
+	// Rotating on EVERY request sounds stronger and is unusable from a
+	// browser: one page load issues several authenticated requests in
+	// parallel, the first rotates the cookie, and the rest — already in
+	// flight with the previous token — look exactly like a stolen token being
+	// replayed. The console signed itself out on every navigation.
+	//
+	// An interval keeps the useful property (a captured token is good for at
+	// most this long before it stops matching) while letting concurrent
+	// requests from one client agree on which token they hold.
+	RotationInterval = 60 * time.Second
+
+	// RotationGrace is how long a superseded token stays acceptable after a
+	// rotation, for requests that were already in flight when it happened.
+	// Beyond this, presenting a superseded token really is theft.
+	RotationGrace = 15 * time.Second
+
 	tokenBytes = 32 // 256 bits
 )
 
@@ -192,6 +210,14 @@ func (s Session) VerifyPreMFA(a Account, now time.Time) error {
 		return ErrSessionRevoked
 	}
 	return nil
+}
+
+// DueForRotation reports whether the token has lived long enough to replace.
+//
+// Callers rotate only when this is true, so parallel requests inside the
+// interval share one token instead of racing to supersede each other.
+func (s Session) DueForRotation(now time.Time) bool {
+	return now.Sub(s.LastUsedAt) >= RotationInterval
 }
 
 // Rotate issues a replacement token for the same logical session.
