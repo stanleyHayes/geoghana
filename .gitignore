@@ -45,3 +45,4 @@ services/*/bin/
 next-env.d.ts
 cli/dist/
 bin/
+.dev-logs/
