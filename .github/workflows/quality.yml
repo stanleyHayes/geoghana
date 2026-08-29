@@ -1,0 +1,172 @@
+name: Quality gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight run on the same ref. Without this a
+# busy branch queues runs that are already irrelevant.
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.26"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11"
+
+jobs:
+  licensed-data:
+    name: GhanaPostGPS exclusion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject unlicensed digital-address data
+        run: |
+          ./scripts/check-ghanapost-exclusion.test.sh
+          ./scripts/check-ghanapost-exclusion.sh
+
+  go:
+    name: Go build, vet and test
+    runs-on: ubuntu-latest
+    # The data layer is tested against REAL MongoDB, Redis and Typesense
+    # rather than fakes. A BSON round-trip bug — which this project has had
+    # more than once — is invisible to a mock.
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ["27117:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6679:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      typesense:
+        image: typesense/typesense:29.0
+        ports: ["8108:8108"]
+        env:
+          TYPESENSE_API_KEY: ci-local-key
+          TYPESENSE_DATA_DIR: /tmp/typesense
+        options: >-
+          --health-cmd "curl -f http://localhost:8108/health || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      MONGO_URI: mongodb://127.0.0.1:27117/ghanageo?directConnection=true
+      MONGO_DB: ghanageo
+      REDIS_URL: redis://127.0.0.1:6679/0
+      TYPESENSE_URL: http://127.0.0.1:8108
+      TYPESENSE_API_KEY: ci-local-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/api/go.sum
+      - name: gofmt
+        working-directory: services/api
+        run: |
+          # Generated files are excluded: they are the generator's output and
+          # reformatting them would only drift from the next regeneration.
+          unformatted=$(gofmt -l . | grep -v -E '(_gen\.go|/gen/)' || true)
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+      - name: Build
+        working-directory: services/api
+        run: go build ./...
+      - name: Vet
+        working-directory: services/api
+        run: go vet ./...
+      - name: Test
+        working-directory: services/api
+        run: go test -race ./...
+
+  contracts:
+    name: Contracts lint and drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/api/go.sum
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      - name: buf lint
+        run: buf lint
+      - name: OpenAPI lint
+        run: npx --yes @redocly/cli@latest lint contracts/openapi/v1.yaml
+      - name: Generated contract artifacts are current
+        run: |
+          cd services/api && go run ./cmd/gencontracts ../..
+          cd "$GITHUB_WORKSPACE"
+          # The error catalog generates Go and TypeScript. If regenerating
+          # changes anything, the committed artifacts are stale and the three
+          # transports have already drifted apart.
+          if ! git diff --exit-code; then
+            echo "Generated contract artifacts are out of date. Run 'make contracts'."
+            exit 1
+          fi
+
+  web:
+    name: Typecheck, test, build and link integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -w typecheck
+      - run: pnpm -w test
+      - run: pnpm -w build
+      - name: Link integrity
+        # Fails on a dead link AND on a route nothing links to. /docs once
+        # shipped unreachable: it built, returned 200, and no page pointed at
+        # it. A 404 is loud; an orphan is silent.
+        run: node scripts/check-links.mjs
+
+  indexes:
+    name: Query plans use indexes
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ["27117:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      MONGO_URI: mongodb://127.0.0.1:27117/ghanageo?directConnection=true
+      MONGO_DB: ghanageo
+      PERF_MONGO_URI: mongodb://127.0.0.1:27117/ghanageo?directConnection=true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/api/go.sum
+      - name: Migrate and seed
+        working-directory: services/api
+        run: |
+          go run ./cmd/ghanageo-admin migrate
+          go run ./cmd/ghanageo-admin data seed --file ../../data/seed-data/manifest.json
+      - name: Assert IXSCAN, never COLLSCAN
+        working-directory: services/api
+        # A query can meet its p95 on a small dataset while doing a collection
+        # scan, then fall over as the data grows. Latency alone cannot see it.
+        run: go test ./perf/ -run TestHotQueriesUseIndexes -v
