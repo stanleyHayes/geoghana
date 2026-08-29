@@ -74,6 +74,16 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			},
 		},
 		{
+			name:      ColAuditLog,
+			validator: auditSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "at", Value: -1}}},
+				{Keys: bson.D{{Key: "actorId", Value: 1}, {Key: "at", Value: -1}}},
+				{Keys: bson.D{{Key: "action", Value: 1}, {Key: "at", Value: -1}}},
+				{Keys: bson.D{{Key: "targetId", Value: 1}, {Key: "at", Value: -1}}},
+			},
+		},
+		{
 			name:      ColDatasetVersion,
 			validator: datasetVersionSchema(),
 			indexes: []mongo.IndexModel{
@@ -279,6 +289,31 @@ func apiKeySchema() bson.M {
 			"revokedAt":      bson.M{"bsonType": []string{"date", "null"}},
 			"elevated":       bson.M{"bsonType": []string{"bool", "null"}},
 			"elevatedReason": bson.M{"bsonType": []string{"string", "null"}},
+		},
+	}}
+}
+
+// auditSchema enforces at the DATABASE that an audit row carries who, what,
+// when and to which target. A row missing any of those is not evidence, and
+// the validator refuses it rather than storing something unusable.
+func auditSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "at", "actorKind", "actorId", "action", "targetKind", "targetId", "outcome", "hash", "prevHash"},
+		"properties": bson.M{
+			"_id":        bson.M{"bsonType": "string"},
+			"at":         bson.M{"bsonType": "date"},
+			"actorKind":  bson.M{"enum": []string{"operator", "admin", "api_key", "system"}},
+			"actorId":    bson.M{"bsonType": "string"},
+			"actorLabel": bson.M{"bsonType": []string{"string", "null"}},
+			"actorIp":    bson.M{"bsonType": []string{"string", "null"}},
+			"action":     bson.M{"bsonType": "string"},
+			"targetKind": bson.M{"bsonType": "string"},
+			"targetId":   bson.M{"bsonType": "string"},
+			"outcome":    bson.M{"enum": []string{"succeeded", "failed"}},
+			// The tamper-evident chain. Present on every row by construction.
+			"hash":     bson.M{"bsonType": "string"},
+			"prevHash": bson.M{"bsonType": "string"},
 		},
 	}}
 }

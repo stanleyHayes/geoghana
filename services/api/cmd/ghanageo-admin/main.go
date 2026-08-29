@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/user"
 	"time"
 
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/app/ingest"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/seed"
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 )
@@ -45,6 +47,8 @@ Usage:
   ghanageo-admin data assign-districts
   ghanageo-admin data dedupe [--apply]
   ghanageo-admin data export [--version <v>] [--dir <path>]
+  ghanageo-admin audit list [--actor <id>] [--action <a>] [--target <id>] [--limit N]
+  ghanageo-admin audit verify
   ghanageo migrate
 `)
 }
@@ -84,6 +88,17 @@ func run(args []string) error {
 			return cmdDedupe(ctx, args[2:])
 		case "export":
 			return cmdExport(ctx, args[2:])
+		}
+	case "audit":
+		if len(args) < 2 {
+			usage()
+			return fmt.Errorf("audit: no subcommand")
+		}
+		switch args[1] {
+		case "list":
+			return cmdAuditList(ctx, args[2:])
+		case "verify":
+			return cmdAuditVerify(ctx)
 		}
 	case "keys":
 		if len(args) < 2 {
@@ -300,8 +315,96 @@ func cmdExport(ctx context.Context, args []string) error {
 		fmt.Printf("  %-10s %-8s %8d records  %9d bytes  %s\n",
 			a.Entity, a.Format, a.RecordCount, a.SizeBytes, a.SHA256[:12])
 	}
+	recordAudit(ctx, store, audit.ActionDatasetPublished,
+		audit.Target{Kind: "dataset", ID: v.Version, Label: v.Version},
+		nil,
+		map[string]any{
+			"artifacts": len(v.Artifacts), "totalBytes": total,
+			"counts": v.Counts, "exportDir": target,
+		},
+		nil)
+
 	fmt.Printf("✓ %d artifacts, %d bytes total, published as %s\n",
 		len(v.Artifacts), total, v.Version)
+	return nil
+}
+
+// cmdAuditList reads the append-only log.
+//
+// Reading is CLI-only for now, deliberately. The log names actors and their
+// actions, and exposing it over the public API before admin authentication
+// exists (GEO-9.2) would publish exactly the operational detail an attacker
+// wants. The admin console screen lands with that story.
+func cmdAuditList(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("audit list", flag.ContinueOnError)
+	actor := fs.String("actor", "", "filter by actor id")
+	action := fs.String("action", "", "filter by action, e.g. key.revoked")
+	target := fs.String("target", "", "filter by target id")
+	limit := fs.Int("limit", 50, "maximum rows (max 200)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	entries, err := mongo.NewAuditRepo(store).List(ctx, mongo.AuditFilter{
+		Actor: *actor, Action: *action, Target: *target, Limit: *limit,
+	})
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		fmt.Println("no audit entries match")
+		return nil
+	}
+	fmt.Printf("%-20s  %-9s  %-24s  %-28s  %s\n", "WHEN", "OUTCOME", "ACTION", "TARGET", "ACTOR")
+	for _, e := range entries {
+		mark := "✓"
+		if e.Outcome != "succeeded" {
+			mark = "✗"
+		}
+		fmt.Printf("%-20s  %s %-7s  %-24s  %-28s  %s\n",
+			e.At.Format("2006-01-02 15:04:05"), mark, e.Outcome,
+			e.Action, e.Target.Kind+":"+e.Target.ID, e.Actor.Label)
+		if e.Error != "" {
+			fmt.Printf("%-20s    ↳ %s\n", "", e.Error)
+		}
+	}
+	fmt.Printf("\n%d entries\n", len(entries))
+	return nil
+}
+
+// cmdAuditVerify walks the hash chain and reports the first break.
+//
+// This is the check that gives the log its value. Application code cannot stop
+// someone with database credentials editing a row, but every entry commits to
+// the one before it, so any edit, insertion or deletion shows up here.
+func cmdAuditVerify(ctx context.Context) error {
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	entries, err := mongo.NewAuditRepo(store).Chain(ctx)
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		fmt.Println("audit log is empty — nothing to verify")
+		return nil
+	}
+	if err := audit.VerifyChain(entries); err != nil {
+		return fmt.Errorf("AUDIT CHAIN FAILED: %w", err)
+	}
+	fmt.Printf("✓ audit chain intact across %d entries\n", len(entries))
+	fmt.Printf("  first: %s  %s\n", entries[0].At.Format(time.RFC3339), entries[0].Action)
+	fmt.Printf("  last:  %s  %s\n",
+		entries[len(entries)-1].At.Format(time.RFC3339), entries[len(entries)-1].Action)
 	return nil
 }
 
@@ -324,6 +427,9 @@ func cmdReindex(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	recordAudit(ctx, store, audit.ActionReindexed,
+		audit.Target{Kind: "search_index", ID: datasetVersion, Label: cfg.TypesenseURL},
+		nil, map[string]any{"documents": n}, nil)
 	fmt.Printf("✓ indexed %d documents (regions, districts and places)\n", n)
 	return nil
 }
@@ -534,6 +640,9 @@ func cmdAssignDistricts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	recordAudit(ctx, store, audit.ActionDistrictsAssign,
+		audit.Target{Kind: "dataset", ID: datasetVersion, Label: datasetVersion},
+		nil, map[string]any{"placesAssigned": assigned}, nil)
 	fmt.Printf("✓ assigned %d places to a district\n", assigned)
 	if unassigned > 0 {
 		fmt.Printf("  %d places with coordinates still have no district.\n", unassigned)
@@ -601,6 +710,50 @@ func cmdDedupe(ctx context.Context, args []string) error {
 
 // cmdKeyCreate issues an API key. The secret is printed ONCE and is then
 // unrecoverable — only its argon2id digest is stored (Spec §12.2).
+
+// operatorActor identifies the human running this CLI.
+//
+// The OS user and host are the best evidence available: the CLI runs on a
+// trusted machine with database credentials, and there is no login to
+// attribute the action to yet (GEO-9.2). Recording what we actually know
+// beats recording "admin" and implying more.
+func operatorActor() audit.Actor {
+	name := os.Getenv("SUDO_USER")
+	if name == "" {
+		if u, err := user.Current(); err == nil {
+			name = u.Username
+		}
+	}
+	if name == "" {
+		name = "unknown"
+	}
+	host, _ := os.Hostname()
+	return audit.Actor{Kind: audit.ActorOperator, ID: name, Label: name + "@" + host}
+}
+
+// recordAudit appends an audit row for a privileged CLI action.
+//
+// A failure to write the audit row is REPORTED but does not undo the action,
+// which has already happened — silently swallowing it would leave a gap in
+// the log with nobody aware of it.
+func recordAudit(
+	ctx context.Context, store *mongo.Store, action audit.Action, target audit.Target,
+	before, after map[string]any, actionErr error,
+) {
+	e, err := audit.New(operatorActor(), action, target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not build audit entry: %v\n", err)
+		return
+	}
+	e = e.WithChange(before, after)
+	if actionErr != nil {
+		e = e.Failed(actionErr)
+	}
+	if _, err := mongo.NewAuditRepo(store).Append(ctx, e); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: audit entry NOT recorded for %s: %v\n", action, err)
+	}
+}
+
 func cmdKeyCreate(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("keys create", flag.ContinueOnError)
 	org := fs.String("org", "", "organization id")
@@ -663,8 +816,19 @@ func cmdKeyCreate(ctx context.Context, args []string) error {
 		AllowedOrigins: allowed,
 		CreatedAt:      time.Now(),
 	}
-	if err := mongo.NewKeyRepo(store).Create(ctx, key); err != nil {
-		return err
+	createErr := mongo.NewKeyRepo(store).Create(ctx, key)
+	recordAudit(ctx, store, audit.ActionKeyCreated,
+		audit.Target{Kind: "api_key", ID: key.ID, Label: key.Name},
+		nil,
+		map[string]any{
+			"prefix": key.Prefix, "class": string(key.Class),
+			"environment": string(key.Environment), "scopes": *scopes,
+			"allowedOrigins": allowed, "organizationId": key.OrganizationID,
+			"applicationId": key.ApplicationID,
+		},
+		createErr)
+	if createErr != nil {
+		return createErr
 	}
 
 	fmt.Printf("✓ created %s (%s, %s)\n\n", key.Name, key.Class, key.Environment)
@@ -690,8 +854,14 @@ func cmdKeyRevoke(ctx context.Context, args []string) error {
 	defer store.Close(ctx)
 
 	// Revocation takes effect on the very next request (Spec §13).
-	if err := mongo.NewKeyRepo(store).Revoke(ctx, *prefix, time.Now()); err != nil {
-		return err
+	revokeErr := mongo.NewKeyRepo(store).Revoke(ctx, *prefix, time.Now())
+	// Recorded whether or not it succeeded: an attempt to revoke a key that
+	// does not exist is exactly the kind of row a security review wants.
+	recordAudit(ctx, store, audit.ActionKeyRevoked,
+		audit.Target{Kind: "api_key", ID: *prefix, Label: *prefix},
+		map[string]any{"revoked": false}, map[string]any{"revoked": true}, revokeErr)
+	if revokeErr != nil {
+		return revokeErr
 	}
 	fmt.Printf("✓ revoked %s — effective immediately\n", *prefix)
 	return nil
