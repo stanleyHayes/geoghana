@@ -203,18 +203,46 @@ func cmdValidate(ctx context.Context, args []string) error {
 	}
 	defer store.Close(ctx)
 
-	fmt.Printf("→ validating dataset %q\n", *dataset)
-	if err := verifyCounts(ctx, store); err != nil {
-		return err
+	fmt.Printf("→ validating dataset %q against the Spec §22.1 acceptance suite\n\n", *dataset)
+
+	v := &seed.Validator{
+		Regions:   mongo.NewRegionRepo(store),
+		Districts: mongo.NewDistrictRepo(store),
+		Places:    mongo.NewPlaceRepo(store),
 	}
-	orphans, err := mongo.NewDistrictRepo(store).CountOrphans(ctx)
+	report, err := v.Run(ctx)
 	if err != nil {
 		return err
 	}
-	if orphans > 0 {
-		return fmt.Errorf("%d active districts reference a missing region", orphans)
+	for _, c := range report.Checks {
+		mark := "✓"
+		if !c.Passed {
+			mark = "✗"
+		}
+		fmt.Printf("  %s %-42s %s\n", mark, c.Name, c.Detail)
 	}
-	fmt.Println("✓ every active district references an active region")
+
+	// Boundary coverage is reported but does NOT block: a district can be
+	// entirely valid while its polygon is simply not yet ingested.
+	districts := mongo.NewDistrictRepo(store)
+	withGeom, total, gerr := districts.CountWithGeometry(ctx)
+	if gerr == nil {
+		fmt.Printf("\n  boundary coverage: %d/%d districts\n", withGeom, total)
+		if withGeom < total {
+			fmt.Printf("  %d without a boundary — reported, not fatal. Causes are either a\n", total-withGeom)
+			fmt.Println("  name that did not reconcile, or a district created after the source")
+			fmt.Println("  snapshot was published (Guan, inaugurated 8 October 2021).")
+		}
+	}
+
+	if failed := report.Failed(); len(failed) > 0 {
+		fmt.Printf("\n✗ %d check(s) failed\n", len(failed))
+		if report.BlocksPublication() {
+			return fmt.Errorf("validation failed; this dataset must not be published")
+		}
+		return nil
+	}
+	fmt.Println("\n✓ all acceptance checks passed")
 	return nil
 }
 

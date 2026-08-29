@@ -462,3 +462,16 @@ func (s *Store) FindBoundary(ctx context.Context, id string) (*Boundary, error) 
 	}
 	return nil, ErrNotFound
 }
+
+// CountWithGeometry reports how many districts carry a boundary polygon.
+func (r *DistrictRepo) CountWithGeometry(ctx context.Context) (withGeom, total int, err error) {
+	w, err := r.col.CountDocuments(ctx, bson.M{"geometry": bson.M{"$ne": nil}})
+	if err != nil {
+		return 0, 0, err
+	}
+	t, err := r.col.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return 0, 0, err
+	}
+	return int(w), int(t), nil
+}
