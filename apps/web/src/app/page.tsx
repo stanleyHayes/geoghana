@@ -1,191 +1,41 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Card, Badge, SupportPanel, SponsorWall, SkipLink, verificationTone } from "@ghanageo/ui";
+import { Badge, SkipLink, verificationTone } from "@ghanageo/ui";
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
-import { Globe, Search, Terminal, Zap, ShieldCheck, Scale } from "lucide-react";
+import { ArrowRight, Braces, Check, ChevronRight, Database, Globe2, Map, MapPin, Search, ShieldCheck, Sparkles, Terminal } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_GHANAGEO_API_URL ?? "http://localhost:8180/v1";
-
-/** Every figure here is asserted by the acceptance suite on each dataset run
- *  (ghanageo-admin data validate). Nothing on this page is a number we cannot
- *  reproduce from the database. */
-const COVERAGE = [
-  { value: "16", label: "Regions", note: "Post-2018 structure" },
-  { value: "261", label: "Districts / MMDAs", note: "Verified against published figures" },
-  { value: "15,925", label: "Places with coordinates", note: "Towns, suburbs, villages" },
-  { value: "248", label: "District boundaries", note: "GeoJSON polygons" },
-];
-
-type Hit = {
-  id: string; name: string; kind: string; type: string;
-  regionName?: string; districtName?: string;
-  score: number; matchReason?: string;
-};
+const COVERAGE = [{ value: "16", label: "Regions" }, { value: "261", label: "Districts / MMDAs" }, { value: "15,925", label: "Mapped places" }, { value: "248", label: "Boundaries" }];
+type Hit = { id:string; name:string; kind:string; type:string; regionName?:string; districtName?:string; score:number };
 
 export default function Home() {
-  const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const abort = useRef<AbortController | null>(null);
+  const [q, setQ] = useState(""); const [hits, setHits] = useState<Hit[]>([]); const [loading, setLoading] = useState(false); const abort = useRef<AbortController|null>(null);
+  const run = useCallback(async (query:string) => { if(query.trim().length<2){setHits([]);return} abort.current?.abort(); const c=new AbortController(); abort.current=c; setLoading(true); try{const res=await fetch(`${API}/search?q=${encodeURIComponent(query)}&limit=5`,{signal:c.signal}); if(res.ok)setHits((await res.json()).data??[])}catch{}finally{if(!c.signal.aborted)setLoading(false)} },[]);
+  useEffect(()=>{const t=setTimeout(()=>run(q),200);return()=>clearTimeout(t)},[q,run]);
 
-  const run = useCallback(async (query: string) => {
-    if (query.trim().length < 2) { setHits([]); return; }
-    abort.current?.abort();
-    const c = new AbortController();
-    abort.current = c;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API}/search?q=${encodeURIComponent(query)}&limit=5`, { signal: c.signal });
-      if (res.ok) setHits((await res.json()).data ?? []);
-    } catch { /* aborted or offline — an empty result is the honest answer */ }
-    finally { if (!c.signal.aborted) setLoading(false); }
-  }, []);
+  return <div className="site-page"><SkipLink/><MarketingHeader active="/"/><main id="main">
+    <section className="home-hero">
+      <div className="home-hero__map" aria-hidden><span>ACCRA</span><span>KUMASI</span><span>TAMALE</span><i/><i/><i/></div>
+      <div className="home-hero__content"><p className="site-eyebrow"><Sparkles size={14}/> Open data. Built for Ghana.</p><h1>Every place in Ghana,<br/><em>finally in one place.</em></h1><p className="home-hero__lede">A dependable, open location layer for regions, districts, towns and boundaries—designed for the way Ghanaian places are actually named.</p>
+        <div className="home-search-wrap"><label className="home-search"><Search size={20}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search Osu, Kwabenya, Tema Community 25…" aria-label="Search Ghanaian places"/>{loading?<span>Searching…</span>:<kbd>⌘ K</kbd>}</label>
+          {hits.length>0?<div className="home-results">{hits.map(h=>{const v=verificationTone("REFERENCE");return <div key={h.id}><MapPin size={16}/><span><strong>{h.name}</strong><small>{[h.districtName,h.regionName].filter(Boolean).join(" · ")||h.kind}</small></span><Badge tone={v.tone}>{h.kind}</Badge></div>})}</div>:q.trim().length>=2&&!loading?<p className="home-no-result">No match yet. Try “kumsai” for typo-tolerant search.</p>:null}
+        </div>
+        <div className="home-hero__actions"><a href="http://localhost:3101" className="site-button site-button--primary">Explore the API <ArrowRight size={16}/></a><a href="/docs" className="site-button">Read documentation</a></div>
+      </div>
+      <div className="home-proof"><div><ShieldCheck size={17}/><span><strong>Source-aware</strong><small>Provenance on every record</small></span></div><div><Globe2 size={17}/><span><strong>Free forever</strong><small>No account or API key</small></span></div><div><Check size={17}/><span><strong>Ghana-ready</strong><small>Twi, Ga and Ewe preserved</small></span></div></div>
+    </section>
 
-  useEffect(() => { const t = setTimeout(() => run(q), 200); return () => clearTimeout(t); }, [q, run]);
+    <section className="home-stats gg-page gg-page--mid"><div className="section-intro"><p className="site-eyebrow">One canonical layer</p><h2>From the national view<br/>to the name on your street.</h2></div><div className="home-stats__grid">{COVERAGE.map((s,i)=><div key={s.label}><span>0{i+1}</span><strong>{s.value}</strong><p>{s.label}</p></div>)}</div></section>
 
-  return (
-    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--fg)" }}>
-      <SkipLink />
+    <section className="home-platform gg-page gg-page--mid"><div className="home-platform__copy"><p className="site-eyebrow">Made to be used</p><h2>One dataset.<br/><em>Every interface.</em></h2><p>Use GhanaGeo from a browser, terminal or production service. The same semantics and source metadata travel everywhere.</p><a href="/docs">See all developer options <ArrowRight size={15}/></a></div><div className="home-platform__cards">
+      <a href="http://localhost:3101"><span><Terminal size={21}/><small>01</small></span><h3>REST API</h3><p>Simple HTTP endpoints for search, geocoding and boundaries.</p><code>GET /v1/search?q=osu</code><ChevronRight size={17}/></a>
+      <a href="/docs"><span><Braces size={21}/><small>02</small></span><h3>GraphQL</h3><p>Navigate nested geography in one strongly typed request.</p><code>place → district → region</code><ChevronRight size={17}/></a>
+      <a href="/docs"><span><Database size={21}/><small>03</small></span><h3>CLI & SDKs</h3><p>Human-friendly output and typed packages for your stack.</p><code>npx ghanageo search "tema"</code><ChevronRight size={17}/></a>
+    </div></section>
 
-      <MarketingHeader active="/" />
+    <section className="home-trust"><div className="gg-page gg-page--mid home-trust__inner"><div><p className="site-eyebrow">Designed for trust</p><h2>Know where every answer came from.</h2><p>Location data becomes infrastructure only when teams can explain it. GhanaGeo keeps the source, retrieval date, verification status and licensing context attached.</p><a className="site-button" href="/about">How the data works <ArrowRight size={15}/></a></div><div className="home-trust__visual" aria-hidden><Map size={44}/><span className="trust-pin trust-pin--one"><i/>Accra · verified</span><span className="trust-pin trust-pin--two"><i/>Ho · source linked</span><span className="trust-pin trust-pin--three"><i/>Wa · canonical</span></div></div></section>
 
-      <main id="main" className="gg-page gg-page--mid">
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <p style={{ fontSize: "var(--text-2xs)", letterSpacing: ".16em", textTransform: "uppercase",
-                      color: "var(--brand)", fontWeight: 800, margin: 0 }}>
-            Free public infrastructure
-          </p>
-          <h1 className="gg-hero__title">
-            Ghana&rsquo;s location data, as infrastructure
-          </h1>
-          <p className="gg-hero__lede">
-            Regions, districts, towns, suburbs and boundaries — through one API,
-            with provenance on every record. No account, no API key, no paid tier.
-          </p>
-
-          {/* A live search box, not a screenshot. The claim on this page is that
-              the thing works, so the page should demonstrate it working. */}
-          <div style={{ marginTop: "var(--space-8)", maxWidth: 620 }}>
-            <label className="gg-searchbar" style={{ cursor: "text", minHeight: 52 }}>
-              <Search size={18} aria-hidden />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Try “kumsai”, “tema comm”, or “osu”"
-                aria-label="Search Ghanaian places"
-                style={{ flex: 1, border: 0, background: "transparent", outline: "none",
-                         color: "var(--fg)", fontSize: "var(--text-base)", fontFamily: "var(--font-sans)" }}
-              />
-              {loading ? <span style={{ fontSize: "var(--text-2xs)", color: "var(--fg-subtle)" }}>…</span> : null}
-            </label>
-
-            {hits.length > 0 ? (
-              <Card style={{ marginTop: "var(--space-3)", padding: "var(--space-2)" }}>
-                {hits.map((h) => {
-                  const v = verificationTone("REFERENCE");
-                  const ctx = [h.districtName, h.regionName].filter(Boolean).join(" · ");
-                  return (
-                    <div key={h.id} style={{ display: "flex", alignItems: "center", gap: "var(--space-3)",
-                                             padding: "var(--space-2) var(--space-3)" }}>
-                      <strong style={{ minWidth: 150 }}>{h.name}</strong>
-                      <span style={{ fontSize: "var(--text-xs)", color: "var(--fg-muted)", flex: 1 }}>{ctx || h.kind}</span>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-2xs)",
-                                     color: "var(--fg-subtle)" }}>{h.score.toFixed(2)}</span>
-                      <Badge tone={v.tone}><span aria-hidden>{v.glyph}</span> {h.kind}</Badge>
-                    </div>
-                  );
-                })}
-              </Card>
-            ) : q.trim().length >= 2 && !loading ? (
-              <p style={{ marginTop: "var(--space-3)", color: "var(--fg-subtle)", fontSize: "var(--text-sm)" }}>
-                No match. Typos are tolerated — try “kumsai” for Kumasi.
-              </p>
-            ) : null}
-          </div>
-        </section>
-
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>What is in it</h2>
-          <div className="gg-auto-grid gg-auto-grid--sm">
-            {COVERAGE.map((s) => (
-              <Card key={s.label}>
-                <p style={{ fontSize: "var(--text-3xl)", fontWeight: 700, margin: 0,
-                            fontVariantNumeric: "tabular-nums" }}>{s.value}</p>
-                <p style={{ fontWeight: 650, margin: "var(--space-1) 0 0" }}>{s.label}</p>
-                <p style={{ fontSize: "var(--text-xs)", color: "var(--fg-muted)", margin: "var(--space-1) 0 0" }}>{s.note}</p>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>Reach it how you like</h2>
-          <div className="gg-auto-grid">
-            {[
-              { icon: Zap, t: "REST", d: "GET /v1/search?q=osu — works from anywhere, including curl." },
-              { icon: Globe, t: "GraphQL", d: "Nested geography in one round trip, with a complexity budget." },
-              { icon: Zap, t: "gRPC", d: "Typed service-to-service access, plus a dataset change stream." },
-              { icon: Terminal, t: "CLI", d: "ghanageo search \"tema\" — no account, table/JSON/CSV output." },
-            ].map((p) => (
-              <Card key={p.t} interactive>
-                <p.icon size={18} style={{ color: "var(--brand)" }} aria-hidden />
-                <p style={{ fontWeight: 650, margin: "var(--space-2) 0 var(--space-1)" }}>{p.t}</p>
-                <p style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)", margin: 0 }}>{p.d}</p>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <section style={{ marginBottom: "var(--space-16)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>Why you can rely on it</h2>
-          <div className="gg-auto-grid">
-            <Card>
-              <ShieldCheck size={18} style={{ color: "var(--brand)" }} aria-hidden />
-              <p style={{ fontWeight: 650, margin: "var(--space-2) 0 var(--space-1)" }}>Provenance on every record</p>
-              <p style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)", margin: 0 }}>
-                Each place carries its source, retrieval date and verification status.
-                You can see whether a record is canonical or still awaiting reconciliation.
-              </p>
-            </Card>
-            <Card>
-              <Scale size={18} style={{ color: "var(--brand)" }} aria-hidden />
-              <p style={{ fontWeight: 650, margin: "var(--space-2) 0 var(--space-1)" }}>Licensing you can act on</p>
-              <p style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)", margin: 0 }}>
-                Sources are CC BY, and attribution travels in the API response — not just a
-                footer. GhanaPostGPS digital addresses are not included: they are not ours to give.
-              </p>
-            </Card>
-            <Card>
-              <Search size={18} style={{ color: "var(--brand)" }} aria-hidden />
-              <p style={{ fontWeight: 650, margin: "var(--space-2) 0 var(--space-1)" }}>Built for how Ghanaians write</p>
-              <p style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)", margin: 0 }}>
-                Twi, Ga and Ewe orthography is preserved for display and folded for matching,
-                so “Kwabɛnya” and “Kwabenya” find each other. Abbreviations expand: “comm” → “community”.
-              </p>
-            </Card>
-          </div>
-        </section>
-
-        <section style={{ marginBottom: "var(--space-12)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>Support</h2>
-          <div style={{ display: "grid", gap: "var(--space-5)" }}>
-            <SupportPanel donateHref="/support"
-              figures={{ monthlyCostMinor: 48000, monthlyReceivedMinor: 17500, currency: "GHS" }} />
-            <SponsorWall sponsors={[
-              { id: "a", name: "Ghana Open Data Initiative", months: 14 },
-              { id: "b", name: "Accra Dev Collective", months: 6 },
-            ]} />
-          </div>
-        </section>
-      </main>
-
-      <MarketingFooter>
-        <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
-          GhanaGeo is the first product on <strong>digitalghana.dev</strong> — public digital
-          infrastructure for Ghana.
-        </p>
-      </MarketingFooter>
-    </div>
-  );
+    <section className="home-cta gg-page gg-page--mid"><p className="site-eyebrow">Start anywhere</p><h2>Ask Ghana where Ghana is.</h2><p>No signup. No trial. Make a real request now.</p><div><a className="site-button site-button--primary" href="http://localhost:3101">Open the sandbox <ArrowRight size={16}/></a><a className="site-button" href="http://localhost:3102">Developer portal</a></div></section>
+  </main><MarketingFooter/></div>;
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, JetBrains_Mono, Outfit } from "next/font/google";
 import { ThemeProvider, themeInitScript } from "@ghanageo/ui";
+import { AdminShell } from "@/components/admin-shell";
 import "./globals.css";
 
 // latin-ext is REQUIRED, not optional: the `latin` subset alone drops the
@@ -44,7 +45,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {/* The shell lives in the layout so the rail, navbar and palette
+              persist across navigation instead of remounting per page. */}
+          <AdminShell>{children}</AdminShell>
+        </ThemeProvider>
       </body>
     </html>
   );

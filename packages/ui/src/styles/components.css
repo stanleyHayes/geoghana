@@ -253,6 +253,13 @@
   }
   .gg-code--lg { padding: var(--space-4); font-size: var(--text-sm); }
 
+  /* Spinner. Honours reduced-motion by simply not spinning — the icon still
+     reads as "busy" beside its label, so nothing is lost. */
+  @keyframes gg-spin { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-spin { animation: gg-spin 900ms linear infinite; }
+  }
+
   /* --------------------------------------------------------------- Table
      Dense data surface. Materials are scaled down here on purpose: a table
      rendered in full clay or neu is unreadable at row density. */

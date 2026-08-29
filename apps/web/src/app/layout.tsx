@@ -31,8 +31,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GhanaGeo — web",
-  description: "Curate, review, reconcile, publish and audit Ghana's canonical location data.",
+  title: "GhanaGeo — Ghana's open location infrastructure",
+  description: "Search Ghana's regions, districts, towns and boundaries through one open, source-aware location layer.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -60,11 +60,30 @@ export function Sidebar({
     }
   }, [collapsed, open]);
 
-  const isActive = useCallback(
-    (href: string, exact?: boolean) =>
-      exact ? pathname === href : pathname === href || pathname.startsWith(href + "/"),
-    [pathname],
-  );
+  /**
+   * Exactly one rail item is active: the one whose href is the LONGEST prefix
+   * of the current path.
+   *
+   * A plain prefix test lights every ancestor, so `/ingest/duplicates` also
+   * activated `/ingest` ("Pipeline Overview") and the rail claimed you were on
+   * a page you were not. Longest-match keeps the useful half of prefix
+   * matching — a detail route like `/geography/places/gh-place-accra` still
+   * highlights "Places" — while a sibling section index never steals it.
+   */
+  const activeHref = useMemo(() => {
+    let best: string | null = null;
+    for (const group of groups) {
+      for (const item of group.items) {
+        const hit = item.exact
+          ? pathname === item.href
+          : pathname === item.href || pathname.startsWith(item.href + "/");
+        if (hit && (best === null || item.href.length > best.length)) best = item.href;
+      }
+    }
+    return best;
+  }, [groups, pathname]);
+
+  const isActive = useCallback((href: string) => href === activeHref, [activeHref]);
 
   const toggleGroup = (id: string, hasActive: boolean) => {
     if (hasActive && !dismissedPath) {
@@ -104,7 +123,7 @@ export function Sidebar({
 
         <nav className="gg-sidebar__nav">
           {visible.map((group) => {
-            const hasActive = group.items.some((i) => isActive(i.href, i.exact));
+            const hasActive = group.items.some((i) => isActive(i.href));
             const forcedOpen = hasActive && dismissedPath !== pathname;
             const expanded = open.includes(group.id) || forcedOpen;
             const rollup = groupBadge(group);
@@ -116,7 +135,7 @@ export function Sidebar({
                   {group.items.map((item) => (
                     <NavLink
                       key={item.id} item={item} collapsed={isCollapsed}
-                      active={isActive(item.href, item.exact)} onNavigate={onNavigate}
+                      active={isActive(item.href)} onNavigate={onNavigate}
                     />
                   ))}
                 </div>
@@ -150,7 +169,7 @@ export function Sidebar({
                     {group.items.map((item) => (
                       <NavLink
                         key={item.id} item={item} collapsed={isCollapsed}
-                        active={isActive(item.href, item.exact)} onNavigate={onNavigate}
+                        active={isActive(item.href)} onNavigate={onNavigate}
                       />
                     ))}
                   </div>
