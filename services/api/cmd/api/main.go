@@ -20,6 +20,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 	gqlserver "github.com/ghanageo/ghanageo/services/api/internal/transport/graphql"
+	grpcserver "github.com/ghanageo/ghanageo/services/api/internal/transport/grpc"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/rest"
 )
 
@@ -118,6 +119,16 @@ func run(cfg config.Config, log *slog.Logger) error {
 	go func() {
 		log.Info("listening", "addr", srv.Addr, "env", cfg.Env)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+	}()
+
+	// gRPC on its own port, over the SAME application services. It is a third
+	// transport, not a second implementation — the published contract in
+	// proto/ has been claimed on the marketing site, so it has to be real.
+	grpcSrv := grpcserver.NewServer(geo, searchSvc, store, log)
+	go func() {
+		if err := grpcserver.Serve(ctx, ":"+cfg.GRPCPort, grpcSrv, log); err != nil {
 			errCh <- err
 		}
 	}()

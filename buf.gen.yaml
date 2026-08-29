@@ -1,0 +1,18 @@
+# Go code generation for the published gRPC contract.
+#
+# Output lands in services/api/gen and is COMMITTED: the build must not require
+# a protoc toolchain, and a reviewer should see exactly what the contract
+# compiles to. Never hand-edit anything under gen/.
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/ghanageo/ghanageo/services/api/gen
+plugins:
+  - local: protoc-gen-go
+    out: services/api/gen
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: services/api/gen
+    opt: paths=source_relative
