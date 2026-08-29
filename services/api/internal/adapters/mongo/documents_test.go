@@ -72,3 +72,57 @@ func TestNilAndNonPointGeometryDecodeToNil(t *testing.T) {
 		t.Error("a one-element position is malformed and must decode to nil")
 	}
 }
+
+// Geometry must survive a full round trip for every entity that can carry one.
+//
+// It previously did not: geomOf mapped the write direction, but no from*Doc
+// read it back, so boundaries were stored and then silently dropped on every
+// read. Nothing failed loudly — /boundaries/{id} queried the collection
+// directly and masked it, and the loss only surfaced as a GeoJSON export in
+// which every feature had null geometry.
+func TestGeometrySurvivesRoundTrip(t *testing.T) {
+	poly := &geography.Geometry{
+		Type: "Polygon",
+		Coordinates: []any{[]any{
+			[]any{-0.2, 5.5}, []any{-0.1, 5.5}, []any{-0.1, 5.6},
+			[]any{-0.2, 5.6}, []any{-0.2, 5.5},
+		}},
+	}
+
+	t.Run("region", func(t *testing.T) {
+		got := fromRegionDoc(toRegionDoc(geography.Region{
+			ID: "gh-region-x", Name: "X", Geometry: poly,
+		}))
+		if got.Geometry == nil {
+			t.Fatal("region geometry dropped on read")
+		}
+		if got.Geometry.Type != "Polygon" {
+			t.Errorf("region geometry type = %q", got.Geometry.Type)
+		}
+	})
+
+	t.Run("district", func(t *testing.T) {
+		got := fromDistrictDoc(toDistrictDoc(geography.District{
+			ID: "gh-district-x", Name: "X", Geometry: poly,
+		}))
+		if got.Geometry == nil {
+			t.Fatal("district geometry dropped on read")
+		}
+	})
+
+	t.Run("place", func(t *testing.T) {
+		got := fromPlaceDoc(toPlaceDoc(geography.Place{
+			ID: "gh-place-x", Name: "X", Geometry: poly,
+		}))
+		if got.Geometry == nil {
+			t.Fatal("place geometry dropped on read")
+		}
+	})
+
+	t.Run("nil stays nil", func(t *testing.T) {
+		// A record with no boundary must not gain an empty one.
+		if got := fromRegionDoc(toRegionDoc(geography.Region{ID: "r"})); got.Geometry != nil {
+			t.Errorf("absent geometry became %+v", got.Geometry)
+		}
+	})
+}

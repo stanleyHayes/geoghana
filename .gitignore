@@ -49,3 +49,7 @@ bin/
 
 # Local agent tooling scratch, not project source
 skill-observations/
+
+# Generated dataset artifacts — rebuilt by `ghanageo-admin data export`,
+# checksummed in the database, and far too large to version.
+data/exports/

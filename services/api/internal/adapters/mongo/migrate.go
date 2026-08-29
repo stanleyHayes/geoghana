@@ -297,6 +297,23 @@ func datasetVersionSchema() bson.M {
 			"changelog":   bson.M{"bsonType": []string{"string", "null"}},
 			"checksum":    bson.M{"bsonType": []string{"string", "null"}},
 			"counts":      bson.M{"bsonType": []string{"object", "null"}},
+			// Downloadable files for this version. Each entry describes a file
+			// that EXISTS, with a checksum taken from its actual bytes.
+			"artifacts": bson.M{
+				"bsonType": []string{"array", "null"},
+				"items": bson.M{
+					"bsonType": "object",
+					"required": []string{"entity", "format", "filename", "sizeBytes", "sha256"},
+					"properties": bson.M{
+						"entity":      bson.M{"bsonType": "string"},
+						"format":      bson.M{"enum": []string{"geojson", "csv", "json"}},
+						"filename":    bson.M{"bsonType": "string"},
+						"sizeBytes":   bson.M{"bsonType": []string{"long", "int"}},
+						"sha256":      bson.M{"bsonType": "string"},
+						"recordCount": bson.M{"bsonType": []string{"long", "int", "null"}},
+					},
+				},
+			},
 		},
 	}}
 }

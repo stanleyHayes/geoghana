@@ -15,6 +15,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 
+	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	app "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
@@ -29,6 +30,14 @@ type Handler struct {
 	auth           *auth.Authenticator
 	store          *mongoadapter.Store
 	graphql        http.Handler
+	datasets       *appdataset.Service
+}
+
+// WithDatasets attaches the dataset catalogue. Absent in unit tests, where the
+// endpoints report that they are not configured rather than panicking.
+func (h *Handler) WithDatasets(d *appdataset.Service) *Handler {
+	h.datasets = d
+	return h
 }
 
 // WithStore attaches the datastore for endpoints that read across collections.
@@ -122,6 +131,12 @@ func (h *Handler) Routes() http.Handler {
 
 		r.Get("/nearby", h.nearby)
 		r.Get("/boundaries/{id}", h.boundary)
+
+		// Bulk downloads (GEO-8.3). Cheaper for a consumer than paginating
+		// the whole dataset, and cheaper for us to serve.
+		r.Get("/datasets", h.listDatasets)
+		r.Get("/datasets/{version}/downloads", h.datasetDownloads)
+		r.Get("/datasets/{version}/downloads/{entity}.{format}", h.datasetArtifact)
 
 		// Search surface (EP-12). Registered only when a SearchPort is wired,
 		// so a deployment without one returns 404 rather than a 500.

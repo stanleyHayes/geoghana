@@ -152,6 +152,23 @@ func geomOf(g *geography.Geometry) *geoJSON {
 	return &geoJSON{Type: string(g.Type), Coordinates: g.Coordinates}
 }
 
+// geomFrom is the READ direction for boundary geometry.
+//
+// Its absence was a silent data loss: geomOf existed, so writes stored
+// polygons correctly, but every from*Doc built a domain record with a nil
+// Geometry. Boundaries were in the database and invisible to the whole domain.
+// /boundaries/{id} masked it by querying the collection directly, so the only
+// place it surfaced was a GeoJSON export full of null geometries.
+func geomFrom(g *geoJSON) *geography.Geometry {
+	if g == nil {
+		return nil
+	}
+	return &geography.Geometry{
+		Type:        geography.GeometryType(g.Type),
+		Coordinates: g.Coordinates,
+	}
+}
+
 func provOf(p geography.Provenance) provenanceDoc {
 	return provenanceDoc{
 		SourceID: p.SourceID, ExternalID: p.ExternalID, SourceURL: p.SourceURL,
@@ -181,7 +198,8 @@ func fromRegionDoc(d regionDoc) geography.Region {
 		ID: d.ID, CountryCode: d.CountryCode, Name: d.Name, Capital: d.Capital,
 		OfficialCode: d.OfficialCode, Status: geography.Status(d.Status),
 		VerificationStatus: geography.VerificationStatus(d.VerificationStatus),
-		Centroid:           coordOf(d.Centroid), Provenance: provFrom(d.Provenance),
+		Centroid:           coordOf(d.Centroid), Geometry: geomFrom(d.Geometry),
+		Provenance:     provFrom(d.Provenance),
 		DatasetVersion: d.DatasetVersion,
 	}
 }
@@ -202,7 +220,8 @@ func fromDistrictDoc(d districtDoc) geography.District {
 		ID: d.ID, RegionID: d.RegionID, RegionName: d.RegionName, Name: d.Name,
 		DistrictType: d.DistrictType, OfficialCode: d.OfficialCode, Capital: d.Capital,
 		Status: geography.Status(d.Status), VerificationStatus: geography.VerificationStatus(d.VerificationStatus),
-		Centroid: coordOf(d.Centroid), Provenance: provFrom(d.Provenance),
+		Centroid: coordOf(d.Centroid), Geometry: geomFrom(d.Geometry),
+		Provenance:     provFrom(d.Provenance),
 		DatasetVersion: d.DatasetVersion,
 	}
 }
@@ -240,7 +259,8 @@ func fromPlaceDoc(d placeDoc) geography.Place {
 		DistrictID: d.DistrictID, DistrictName: d.DistrictName, ParentPlaceID: d.ParentPlaceID,
 		Aliases: aliases, Population: d.Population, Status: geography.Status(d.Status),
 		VerificationStatus: geography.VerificationStatus(d.VerificationStatus),
-		Centroid:           coordOf(d.Centroid), Provenance: provFrom(d.Provenance),
+		Centroid:           coordOf(d.Centroid), Geometry: geomFrom(d.Geometry),
+		Provenance:     provFrom(d.Provenance),
 		DatasetVersion: d.DatasetVersion,
 	}
 }

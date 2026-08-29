@@ -17,7 +17,10 @@ type Config struct {
 	TypesenseKey string
 	HTTPPort     string
 	GRPCPort     string
-	LogLevel     string
+	// ExportDir is where dataset download artifacts are written and served
+	// from. Relative to the process working directory.
+	ExportDir string
+	LogLevel  string
 	// AllowedOrigins is a CORS allow-list, never a wildcard (Spec 12.4).
 	AllowedOrigins []string
 }
@@ -32,6 +35,7 @@ func Load() Config {
 		TypesenseKey: env("TYPESENSE_API_KEY", "ghanageo_local_dev_only"),
 		HTTPPort:     env("API_HTTP_PORT", "8180"),
 		GRPCPort:     env("API_GRPC_PORT", "9190"),
+		ExportDir:    env("API_EXPORT_DIR", "../../data/exports"),
 		LogLevel:     env("API_LOG_LEVEL", "info"),
 		AllowedOrigins: strings.Split(env("API_ALLOWED_ORIGINS",
 			"http://localhost:3103,http://localhost:3102,http://localhost:3101,http://localhost:3100"), ","),

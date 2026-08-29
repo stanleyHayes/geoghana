@@ -15,6 +15,7 @@ import (
 
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/geoboundaries"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/geonames"
+	"github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/ingest"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/seed"
@@ -43,6 +44,7 @@ Usage:
   ghanageo-admin data boundaries --level ADM1|ADM2 --file <geojson> [--apply]
   ghanageo-admin data assign-districts
   ghanageo-admin data dedupe [--apply]
+  ghanageo-admin data export [--version <v>] [--dir <path>]
   ghanageo migrate
 `)
 }
@@ -80,6 +82,8 @@ func run(args []string) error {
 			return cmdAssignDistricts(ctx)
 		case "dedupe":
 			return cmdDedupe(ctx, args[2:])
+		case "export":
+			return cmdExport(ctx, args[2:])
 		}
 	case "keys":
 		if len(args) < 2 {
@@ -250,6 +254,57 @@ func cmdValidate(ctx context.Context, args []string) error {
 }
 
 // cmdReindex rebuilds the search index from canonical data.
+// cmdExport writes the downloadable dataset artifacts and records them.
+//
+// The catalogue is only updated after every file is on disk, and each
+// checksum is taken from the bytes actually written — /datasets must never
+// advertise a download that does not exist or does not match.
+func cmdExport(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("export", flag.ContinueOnError)
+	version := fs.String("version", datasetVersion, "dataset version to publish")
+	dir := fs.String("dir", "", "export directory (defaults to API_EXPORT_DIR)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	store, cfg, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	target := *dir
+	if target == "" {
+		target = cfg.ExportDir
+	}
+
+	b := dataset.NewBuilder(
+		mongo.NewRegionRepo(store),
+		mongo.NewDistrictRepo(store),
+		mongo.NewPlaceRepo(store),
+		mongo.NewDatasetRepo(store),
+		target,
+	)
+
+	fmt.Printf("→ building %s into %s\n", *version, target)
+	// Stamped once so every artifact in a run shares a generation time.
+	generatedAt := time.Now().UTC().Format(time.RFC3339)
+	v, err := b.Build(ctx, *version, generatedAt)
+	if err != nil {
+		return err
+	}
+
+	var total int64
+	for _, a := range v.Artifacts {
+		total += a.SizeBytes
+		fmt.Printf("  %-10s %-8s %8d records  %9d bytes  %s\n",
+			a.Entity, a.Format, a.RecordCount, a.SizeBytes, a.SHA256[:12])
+	}
+	fmt.Printf("✓ %d artifacts, %d bytes total, published as %s\n",
+		len(v.Artifacts), total, v.Version)
+	return nil
+}
+
 func cmdReindex(ctx context.Context) error {
 	store, cfg, err := connect(ctx)
 	if err != nil {

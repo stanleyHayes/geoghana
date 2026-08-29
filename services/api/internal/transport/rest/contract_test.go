@@ -39,17 +39,16 @@ func TestRoutesMatchOpenAPIContract(t *testing.T) {
 		"/places": true, "/places/{}": true,
 		"/nearby": true, "/search": true, "/autocomplete": true,
 		"/geocode": true, "/reverse": true, "/boundaries/{}": true,
+		"/datasets": true, "/datasets/{}/downloads": true,
 	}
 	// Documented but not yet implemented. Each entry is a promise with a story
 	// behind it; the list must shrink, never grow silently.
 	notYetImplemented := map[string]string{
-		"/search":                "GEO-12.1",
-		"/autocomplete":          "GEO-12.2",
-		"/geocode":               "GEO-12.3",
-		"/reverse":               "GEO-12.4",
-		"/boundaries/{}":         "GEO-8.2",
-		"/datasets":              "GEO-8.3",
-		"/datasets/{}/downloads": "GEO-8.3",
+		"/search":        "GEO-12.1",
+		"/autocomplete":  "GEO-12.2",
+		"/geocode":       "GEO-12.3",
+		"/reverse":       "GEO-12.4",
+		"/boundaries/{}": "GEO-8.2",
 	}
 
 	for _, p := range documented {

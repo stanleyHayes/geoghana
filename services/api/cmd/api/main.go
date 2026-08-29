@@ -14,6 +14,7 @@ import (
 	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	redisadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/redis"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
+	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
@@ -96,6 +97,11 @@ func run(cfg config.Config, log *slog.Logger) error {
 		cfg.Env == "sandbox",
 	)
 
+	datasetSvc := appdataset.NewService(
+		mongoadapter.NewDatasetRepo(store),
+		cfg.ExportDir,
+	)
+
 	// One mux so REST and GraphQL share a port, the same authenticator and the
 	// same fair-use accounting. A separate GraphQL server would be a second
 	// place for those to drift.
@@ -103,6 +109,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		WithAuth(authenticator).
 		WithStore(store).
 		WithGraphQL(gqlserver.NewHandler(geo, searchSvc)).
+		WithDatasets(datasetSvc).
 		Routes()
 
 	srv := &http.Server{
