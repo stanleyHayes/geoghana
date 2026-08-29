@@ -37,7 +37,8 @@ func TestRoutesMatchOpenAPIContract(t *testing.T) {
 		"/regions": true, "/regions/{}": true, "/regions/{}/districts": true,
 		"/districts": true, "/districts/{}": true, "/districts/{}/places": true,
 		"/places": true, "/places/{}": true,
-		"/nearby": true,
+		"/nearby": true, "/search": true, "/autocomplete": true,
+		"/geocode": true, "/reverse": true, "/boundaries/{}": true,
 	}
 	// Documented but not yet implemented. Each entry is a promise with a story
 	// behind it; the list must shrink, never grow silently.

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 
@@ -26,6 +27,13 @@ type Handler struct {
 	log            *slog.Logger
 	allowedOrigins map[string]bool
 	auth           *auth.Authenticator
+	store          *mongoadapter.Store
+}
+
+// WithStore attaches the datastore for endpoints that read across collections.
+func (h *Handler) WithStore(s *mongoadapter.Store) *Handler {
+	h.store = s
+	return h
 }
 
 // WithAuth attaches the authenticator. When absent — in unit tests — the
@@ -98,6 +106,7 @@ func (h *Handler) Routes() http.Handler {
 		r.Get("/places/{id}", h.getPlace)
 
 		r.Get("/nearby", h.nearby)
+		r.Get("/boundaries/{id}", h.boundary)
 
 		// Search surface (EP-12). Registered only when a SearchPort is wired,
 		// so a deployment without one returns 404 rather than a 500.

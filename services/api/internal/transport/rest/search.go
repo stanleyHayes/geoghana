@@ -1,7 +1,10 @@
 package rest
 
 import (
+	"encoding/json"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
 
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
@@ -107,3 +110,48 @@ func (h *Handler) reverseHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 var _ = appsearch.MinQueryLength
+
+// boundaryFeature is a GeoJSON Feature, which is what a mapping client expects
+// to be handed rather than a bare geometry.
+type boundaryFeature struct {
+	Type       string         `json:"type"`
+	Geometry   any            `json:"geometry"`
+	Properties map[string]any `json:"properties"`
+}
+
+func (h *Handler) boundary(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	b, err := h.store.FindBoundary(r.Context(), id)
+	if err != nil {
+		writeErr(w, r, apierr.New(apierr.NotFound, "No record matches that identifier.").WithDetail("id", id))
+		return
+	}
+	if b.Geometry == nil {
+		// The record exists; its boundary has not been ingested. Saying so is
+		// more useful than a 404, which would suggest the id is wrong.
+		writeErr(w, r, apierr.
+			New(apierr.NotFound, "This record has no boundary geometry yet.").
+			WithDetail("id", id).
+			WithDetail("name", b.Name).
+			WithDetail("kind", b.Kind))
+		return
+	}
+
+	// application/geo+json, so a client can tell this apart from a plain
+	// JSON body without inspecting it.
+	w.Header().Set("Content-Type", "application/geo+json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(boundaryFeature{
+		Type:     "Feature",
+		Geometry: b.Geometry,
+		Properties: map[string]any{
+			"id":             b.ID,
+			"name":           b.Name,
+			"kind":           b.Kind,
+			"datasetVersion": b.DatasetVersion,
+			// Attribution travels with the data, as CC BY requires. A footer
+			// on a website does not satisfy the licence for an API response.
+			"attribution": "Boundaries from geoBoundaries (https://www.geoboundaries.org), licensed CC BY 4.0.",
+		},
+	})
+}

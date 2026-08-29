@@ -418,3 +418,47 @@ func (r *PlaceRepo) AssignDistrictsByContainment(
 	}
 	return assigned, int(unassigned), nil
 }
+
+// Boundary is a stored geometry with the attribution its licence requires.
+type Boundary struct {
+	ID             string
+	Name           string
+	Kind           string
+	Geometry       any
+	DatasetVersion string
+}
+
+// FindBoundary resolves an id to its geometry, whether it names a region, a
+// district or a place. Callers should not need to know which.
+func (s *Store) FindBoundary(ctx context.Context, id string) (*Boundary, error) {
+	for _, c := range []struct{ col, kind string }{
+		{ColRegions, "region"}, {ColDistricts, "district"}, {ColPlaces, "place"},
+	} {
+		var d struct {
+			ID             string `bson:"_id"`
+			Name           string `bson:"name"`
+			Geometry       any    `bson:"geometry"`
+			DatasetVersion string `bson:"datasetVersion"`
+		}
+		err := s.db.Collection(c.col).FindOne(ctx, bson.M{"_id": id},
+			options.FindOne().SetProjection(bson.M{"name": 1, "geometry": 1, "datasetVersion": 1}),
+		).Decode(&d)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if d.Geometry == nil {
+			// The record exists but carries no boundary yet. That is a
+			// different answer from "no such record", and the caller needs to
+			// be able to tell them apart.
+			return &Boundary{ID: d.ID, Name: d.Name, Kind: c.kind, DatasetVersion: d.DatasetVersion}, nil
+		}
+		return &Boundary{
+			ID: d.ID, Name: d.Name, Kind: c.kind,
+			Geometry: d.Geometry, DatasetVersion: d.DatasetVersion,
+		}, nil
+	}
+	return nil, ErrNotFound
+}
