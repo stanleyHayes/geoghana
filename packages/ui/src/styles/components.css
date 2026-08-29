@@ -192,8 +192,8 @@
   .gg-tabs__panel { padding-block: var(--space-4); }
   .gg-table-wrap { width: 100%; overflow-x: auto; background: var(--surface); border: 0; border-radius: var(--mat-radius-sm); box-shadow: var(--mat-shadow-raised); }
   .gg-table-wrap .gg-table { min-width: 100%; }
-  .gg-table-wrap .gg-table th:first-child, .gg-table-wrap .gg-table td:first-child { padding-inline-start: var(--space-3); }
-  .gg-table-wrap .gg-table th:last-child, .gg-table-wrap .gg-table td:last-child { padding-inline-end: var(--space-3); }
+  .gg-table-wrap .gg-table th:first-child, .gg-table-wrap .gg-table td:first-child { padding-inline-start: var(--space-5); }
+  .gg-table-wrap .gg-table th:last-child, .gg-table-wrap .gg-table td:last-child { padding-inline-end: var(--space-5); }
   .gg-pagination { margin-top: var(--space-4); padding: var(--space-2); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); color: var(--fg-muted); background: var(--surface-sunken); border-radius: var(--mat-radius); box-shadow: var(--mat-shadow-inset); font-variant-numeric: tabular-nums; }
   .gg-pagination > span { text-align: center; }
   .gg-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
@@ -304,9 +304,6 @@
   }
   .gg-code--lg { padding: var(--space-4); font-size: var(--text-sm); }
 
-  /* Spinner. Honours reduced-motion by simply not spinning — the icon still
-     reads as "busy" beside its label, so nothing is lost. */
-
   /* --------------------------------------------------------------- Table
      Dense data surface. Materials are scaled down here on purpose: a table
      rendered in full clay or neu is unreadable at row density. */
@@ -329,8 +326,13 @@
   }
   .gg-table tbody tr:last-child td { border-block-end: none; }
   .gg-table tbody tr:hover td { background: var(--accent); }
-  .gg-table td:first-child, .gg-table th:first-child { padding-inline-start: 0; }
-  .gg-table td:last-child,  .gg-table th:last-child  { padding-inline-end: 0; }
+  .gg-table td:first-child, .gg-table th:first-child { padding-inline-start: var(--space-5); }
+  .gg-table td:last-child,  .gg-table th:last-child  { padding-inline-end: var(--space-5); }
+
+  @media (max-width: 640px) {
+    .gg-table td:first-child, .gg-table th:first-child { padding-inline-start: var(--space-4); }
+    .gg-table td:last-child, .gg-table th:last-child { padding-inline-end: var(--space-4); }
+  }
 
   /* ------------------------------------------ Compact theme menu (navbar)
      The three axes — mode, material, brand — one click from any header.
@@ -452,6 +454,31 @@
 
   .gg-radiogroup { display: grid; gap: var(--space-3); }
   .gg-radiogroup--horizontal { display: flex; flex-wrap: wrap; gap: var(--space-5); }
+
+  /* ------------------------------------------------------ Date and time */
+  .gg-datetime {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr);
+    gap: var(--space-2); padding: var(--space-1);
+    background: var(--surface-sunken); border: 0;
+    border-radius: var(--mat-radius-sm); box-shadow: var(--mat-shadow-inset);
+  }
+  .gg-datetime__part {
+    min-width: 0; min-height: 38px; padding-inline: var(--space-2);
+    display: flex; align-items: center; gap: var(--space-2);
+    color: var(--fg-muted); background: var(--surface-raised); border: 0;
+    border-radius: calc(var(--mat-radius-sm) - var(--space-1));
+    box-shadow: var(--mat-shadow-flat);
+  }
+  .gg-datetime__part:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .gg-datetime__part > svg { flex: none; color: var(--brand); }
+  .gg-datetime__input {
+    min-width: 0; width: 100%; padding: 0; color: var(--fg);
+    background: transparent; border: 0; outline: 0; box-shadow: none;
+    font: 500 var(--text-sm)/1 var(--font-mono); letter-spacing: .02em;
+  }
+  .gg-datetime__input::placeholder { color: var(--fg-subtle); }
+  .gg-datetime > input[type="hidden"] { display: none; }
+  @media (max-width: 440px) { .gg-datetime { grid-template-columns: 1fr; } }
 
   .gg-switch {
     flex-shrink: 0;

@@ -3,6 +3,7 @@
 import { ThemeMenu } from "@ghanageo/ui";
 import { Activity, ArrowRight, BookOpen, Braces, CheckCircle2, ChevronRight, CircleHelp, Clock3, Code2, Globe2, KeyRound, MapPin, Menu, Radio, Search, ShieldCheck, Sparkles, Terminal, X } from "lucide-react";
 import { useState } from "react";
+import { AccountWorkspace } from "./account-workspace";
 
 const tools = [
   { icon: Terminal, label: "REST API", meta: "11 endpoints", href: "http://localhost:3101" },
@@ -38,9 +39,10 @@ export default function Portal() {
         <div className="portal-dashboard">
           <section className="portal-panel"><div className="portal-section-head"><div><p>Workspace</p><h2>Developer tools</h2></div><a href="http://localhost:3100/docs">View all <ArrowRight size={14} /></a></div><div className="portal-tool-list">{tools.map(({ icon: Icon, label, meta, href }) => <a href={href} key={label}><span className="portal-tool-icon"><Icon size={18} /></span><span><strong>{label}</strong><small>{meta}</small></span><ChevronRight size={16} /></a>)}</div></section>
           <section className="portal-panel portal-panel--activity"><div className="portal-section-head"><div><p>Live sample</p><h2>Recent requests</h2></div><span className="portal-live"><Radio size={13} /> API online</span></div><div className="portal-activity">{activity.map((row) => <div key={row.path}><span className="portal-method">GET</span><span className="portal-path"><strong>{row.path}</strong><small>{row.detail}</small></span><span className="portal-ok">200</span><span className="portal-time">{row.time}</span></div>)}</div><p className="portal-disclosure"><CircleHelp size={14} /> Example traffic illustrates the response format. Connect a key to see account activity.</p></section>
-          <aside className="portal-panel portal-panel--account"><div className="portal-orbit"><Globe2 size={25} /><i /><i /><i /></div><p className="portal-eyebrow">Optional account</p><h2>Anonymous by default.</h2><p>Every public endpoint works without signing in. Create a key only when you need usage attribution, origin controls or audit history.</p><button type="button" disabled><KeyRound size={15} /> Account access coming soon</button><span><ShieldCheck size={14} /> Donations never change your limits</span></aside>
+          <aside className="portal-panel portal-panel--account"><div className="portal-orbit"><Globe2 size={25} /><i /><i /><i /></div><p className="portal-eyebrow">Optional account</p><h2>Anonymous by default.</h2><p>Every public endpoint works without signing in. Create a key only when you need usage attribution, origin controls or audit history.</p><a className="portal-secondary" href="#account"><KeyRound size={15} /> Manage your account</a><span><ShieldCheck size={14} /> Donations never change your limits</span></aside>
         </div>
         <section className="portal-bottom-grid"><a href="http://localhost:3101"><Search size={19} /><span><strong>Explore the dataset</strong><small>Run search, reverse geocoding and boundary requests.</small></span><ArrowRight size={17} /></a><a href="http://localhost:3100/transparency"><Activity size={19} /><span><strong>Service transparency</strong><small>See operating commitments, reporting and provenance.</small></span><ArrowRight size={17} /></a></section>
+        <AccountWorkspace />
       </main>
       <footer className="portal-footer"><span>GhanaGeo · a digitalghana.dev public good</span><span><Clock3 size={13} /> Dataset v2026.08</span><a href="mailto:support@digitalghana.dev">Get help</a></footer>
     </div>

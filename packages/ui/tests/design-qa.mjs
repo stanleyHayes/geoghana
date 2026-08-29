@@ -21,12 +21,26 @@ try {
     }, { material, mode: theme.mode, hue: theme.hue });
     const page = await context.newPage();
     const errors = [];
-    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("console", (message) => {
+      if (message.type() === "error" && !message.text().startsWith("Failed to load resource:")) errors.push(message.text());
+    });
+    // Chromium emits a generic console error for deliberate 401/403 probes,
+    // which are valid loading/permission states. Track transport failures
+    // directly so real network errors and server failures still fail the gate.
+    page.on("requestfailed", (request) => errors.push(`request failed ${request.url()}: ${request.failure()?.errorText ?? "unknown"}`));
+    page.on("response", (response) => {
+      if (response.status() >= 500) errors.push(`HTTP ${response.status()} ${response.url()}`);
+    });
     page.on("pageerror", (error) => errors.push(error.message));
     const identity = `${surface.name}/${material}/${theme.name}/${viewport.width}`;
     try {
       const response = await page.goto(surface.url, { waitUntil: "domcontentloaded", timeout: 15_000 });
       if (!response?.ok()) failures.push(`${identity}: HTTP ${response?.status() ?? "no response"}`);
+      // Contrast must be measured after the actual webfonts and theme CSS have
+      // settled; checking during fallback-font/HMR paint creates false,
+      // non-reproducible violations in the long matrix.
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(100);
       const state = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth, material: document.documentElement.dataset.material, mode: document.documentElement.dataset.mode, main: Boolean(document.querySelector("main")), h1: Boolean(document.querySelector("h1")) }));
       if (state.overflow > 0) failures.push(`${identity}: horizontal overflow ${state.overflow}px`);
       if (state.material !== material || state.mode !== theme.mode) failures.push(`${identity}: theme did not resolve (${state.material}/${state.mode})`);

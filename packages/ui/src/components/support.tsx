@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, ExternalLink } from "lucide-react";
+import { Database, Download, ExternalLink, Heart, Server, ShieldCheck } from "lucide-react";
 import { Card } from "./primitives";
 
 /**
@@ -52,22 +52,30 @@ export function SupportPanel({
   const pct = hasFigures
     ? Math.min(100, Math.round((figures.monthlyReceivedMinor! / figures.monthlyCostMinor!) * 100))
     : null;
+  const remaining = hasFigures
+    ? Math.max(0, figures.monthlyCostMinor! - figures.monthlyReceivedMinor!)
+    : null;
 
   return (
     <Card className="gg-support">
-      <div className="gg-support__head">
-        <Heart size={18} aria-hidden className="gg-support__icon" />
-        <div>
-          <h3 className="gg-support__title">GhanaGeo is free, and stays free</h3>
+      <header className="gg-support__head">
+        <span className="gg-support__icon"><Heart size={20} aria-hidden /></span>
+        <div className="gg-support__intro">
+          <p className="gg-support__eyebrow">Community funded · public by design</p>
+          <h3 className="gg-support__title">Free for everyone. Funded by people who care.</h3>
           <p className="gg-support__lede">
-            No paid tier, no plan upgrade, no card. Donations cover hosting, data
-            licensing and the bandwidth that bulk downloads consume.
+            No paid tier, upgrade path or card required. Contributions keep the
+            location layer reliable and openly available.
           </p>
         </div>
-      </div>
+      </header>
 
       {hasFigures ? (
         <div className="gg-support__figures">
+          <div className="gg-support__totals">
+            <p><span>Raised this month</span><strong>{formatMinor(figures.monthlyReceivedMinor!, currency)}</strong></p>
+            <p><span>Monthly operating target</span><strong>{formatMinor(figures.monthlyCostMinor!, currency)}</strong></p>
+          </div>
           <div
             className="gg-support__meter"
             role="meter"
@@ -78,20 +86,16 @@ export function SupportPanel({
           >
             <span className="gg-support__meter-fill" style={{ width: `${pct}%` }} />
           </div>
-          <p className="gg-support__figures-text">
-            <strong>{formatMinor(figures.monthlyReceivedMinor!, currency)}</strong>
-            {" of "}
-            {formatMinor(figures.monthlyCostMinor!, currency)} this month&rsquo;s running cost
-          </p>
+          <div className="gg-support__figures-text"><strong>{pct}% funded</strong><span>{formatMinor(remaining!, currency)} still needed</span></div>
         </div>
       ) : null}
 
       {!compact ? (
-        <ul className="gg-support__list">
-          <li>Hosting for the API, database, search index and CDN.</li>
-          <li>Licensed source data, and the steward time to reconcile it.</li>
-          <li>Bandwidth for bulk dataset downloads — the largest variable cost.</li>
-        </ul>
+        <div className="gg-support__costs" aria-label="What donations fund">
+          <div><Server size={17} aria-hidden /><span><strong>Infrastructure</strong><small>API, search and CDN</small></span></div>
+          <div><Database size={17} aria-hidden /><span><strong>Data stewardship</strong><small>Licensing and reconciliation</small></span></div>
+          <div><Download size={17} aria-hidden /><span><strong>Open downloads</strong><small>Bulk dataset bandwidth</small></span></div>
+        </div>
       ) : null}
 
       <div className="gg-support__actions">
@@ -105,10 +109,7 @@ export function SupportPanel({
 
       {/* Rule F3: sponsorship buys recognition, never capability. Saying so
           plainly is the honest thing and it also prevents the expectation. */}
-      <p className="gg-support__note">
-        Donating does not change your rate limits. Everyone gets the same
-        allowance, whether they give or not.
-      </p>
+      <p className="gg-support__note"><ShieldCheck size={16} aria-hidden /><span><strong>Support never buys access.</strong> Everyone receives the same rate limits, whether they donate or not.</span></p>
     </Card>
   );
 }

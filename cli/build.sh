@@ -3,6 +3,7 @@
 # runtime installed — which matters for a tool aimed at a broad public.
 set -euo pipefail
 VERSION="${1:-dev}"
+API_VERSION="${2:-v1}"
 OUT="dist"
 rm -rf "$OUT" && mkdir -p "$OUT"
 
@@ -17,7 +18,9 @@ for p in "${PLATFORMS[@]}"; do
   name="ghanageo_${GOOS}_${GOARCH}"
   [ "$GOOS" = "windows" ] && name="${name}.exe"
   CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
-    go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "$OUT/$name" .
+    go build -trimpath \
+      -ldflags "-s -w -X main.version=${VERSION} -X main.apiVersion=${API_VERSION}" \
+      -o "$OUT/$name" .
   echo "  built $name"
 done
 

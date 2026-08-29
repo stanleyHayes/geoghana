@@ -59,7 +59,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
      districts". The registry is already the source of truth for the rail. */
   const crumbs = useMemo<Crumb[]>(() => {
     const trail: Crumb[] = [{ label: "Ghana", href: "/" }];
-    if (pathname === "/") return [...trail, { label: "Overview", href: "/" }];
+    if (pathname === "/") return [{ label: "Overview", href: "/" }];
     for (const group of NAVIGATION) {
       for (const item of group.items) {
         if (item.href !== pathname) continue;
@@ -120,7 +120,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           onToggleCollapse={() => setCollapsed((c) => !c)}
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
-          datasetVersion="2026.08.1-seed"
+          datasetVersion="2026.08.3-ulid"
           datasetStatus="working"
           environment="local"
           pipelineHealth="ok"

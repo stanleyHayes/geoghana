@@ -5,7 +5,7 @@
 // identified for fair-use accounting; it never unlocks anything.
 //
 //	ghanageo search "tema"
-//	ghanageo districts --region gh-region-ashanti --json | jq '.[].name'
+//	ghanageo districts --region 01KDVDNA00JR6256MY7B23EX4J --json | jq '.[].name'
 //	ghanageo regions --csv > regions.csv
 package main
 
@@ -24,8 +24,13 @@ import (
 	"github.com/ghanageo/ghanageo-cli/internal/render"
 )
 
-// version is overwritten at build time with -ldflags "-X main.version=…".
-var version = "dev"
+// Release metadata is overwritten at build time with -ldflags. Keeping the
+// API target explicit lets operators see compatibility without making a
+// request first.
+var (
+	version    = "dev"
+	apiVersion = "v1"
+)
 
 const usage = `ghanageo — Ghana's location data, from your terminal
 
@@ -60,7 +65,7 @@ COMMON FLAGS
 
 EXAMPLES
   ghanageo search "tema comm 25"
-  ghanageo districts --region gh-region-greater-accra
+  ghanageo districts --region 01KDVDNA00A63NSRPVSM94SCQD
   ghanageo regions --json | jq -r '.[].capital'
   ghanageo nearby 5.556 -0.182 --radius 10000
   ghanageo reverse 6.688 -1.624
@@ -112,7 +117,7 @@ func run(args []string) error {
 		fmt.Print(usage)
 		return nil
 	case "version", "--version", "-v":
-		fmt.Printf("ghanageo %s\n", version)
+		fmt.Printf("ghanageo %s (targets GhanaGeo API %s)\n", version, apiVersion)
 		return nil
 	}
 

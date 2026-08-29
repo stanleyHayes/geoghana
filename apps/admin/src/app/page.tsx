@@ -19,7 +19,7 @@ export default function AdminHome() {
         title="Ghana’s location data, as infrastructure"
         lede={
           <>
-            Bootstrap dataset <code style={{ fontFamily: "var(--font-mono)" }}>2026.08.1-seed</code>.
+            Current dataset <code style={{ fontFamily: "var(--font-mono)" }}>2026.08.3-ulid</code>.
             Press <kbd className="gg-kbd">⌘K</kbd> to search.
           </>
         }

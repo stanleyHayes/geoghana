@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useGhanaGeoClient } from "./provider";
-import type { District, Page, Place, Region, SearchResult } from "./types";
+import type { DistrictPage, Place, PlacePage, Region, RegionPage, ReverseResult, SearchPage } from "@ghanageo/client";
 
 export const ghanaGeoKeys = {
   all: ["ghanageo"] as const,
@@ -17,27 +17,27 @@ export const ghanaGeoKeys = {
 
 export function useRegions() {
   const client = useGhanaGeoClient();
-  return useQuery({ queryKey: ghanaGeoKeys.regions(), queryFn: ({ signal }) => client.get<Page<Region>>("/regions", undefined, signal) });
+  return useQuery({ queryKey: ghanaGeoKeys.regions(), queryFn: ({ signal }) => client.regions({}, signal) });
 }
 
 export function useRegion(id?: string) {
   const client = useGhanaGeoClient();
-  return useQuery({ queryKey: ghanaGeoKeys.region(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.get<Region>(`/regions/${encodeURIComponent(id!)}`, undefined, signal) });
+  return useQuery({ queryKey: ghanaGeoKeys.region(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.region(id!, signal) });
 }
 
 export function useDistricts(params: { regionId?: string; first?: number } = {}) {
   const client = useGhanaGeoClient();
-  return useQuery({ queryKey: ghanaGeoKeys.districts(params.regionId), queryFn: ({ signal }) => client.get<Page<District>>("/districts", { regionId: params.regionId, first: params.first }, signal) });
+  return useQuery({ queryKey: ghanaGeoKeys.districts(params.regionId), queryFn: ({ signal }) => client.districts({ ...(params.regionId ? { regionId: params.regionId } : {}), ...(params.first ? { limit: params.first } : {}) }, signal) });
 }
 
 export function useDistrict(id?: string) {
   const client = useGhanaGeoClient();
-  return useQuery({ queryKey: ghanaGeoKeys.district(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.get<District>(`/districts/${encodeURIComponent(id!)}`, undefined, signal) });
+  return useQuery({ queryKey: ghanaGeoKeys.district(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.get<{ data: DistrictPage["data"][number]; datasetVersion: string }>(`/districts/${encodeURIComponent(id!)}`, undefined, signal) });
 }
 
 export function usePlace(id?: string) {
   const client = useGhanaGeoClient();
-  return useQuery({ queryKey: ghanaGeoKeys.place(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.get<Place>(`/places/${encodeURIComponent(id!)}`, undefined, signal) });
+  return useQuery({ queryKey: ghanaGeoKeys.place(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.place(id!, signal) });
 }
 
 export function useSearch(query: string, options: { type?: string; first?: number; enabled?: boolean } = {}) {
@@ -46,7 +46,7 @@ export function useSearch(query: string, options: { type?: string; first?: numbe
   return useQuery({
     queryKey: ghanaGeoKeys.search(q, options.type),
     enabled: (options.enabled ?? true) && q.length >= 2,
-    queryFn: ({ signal }) => client.get<Page<SearchResult>>("/search", { q, type: options.type, first: options.first }, signal),
+    queryFn: ({ signal }) => client.search(q, { ...(options.type ? { type: options.type } : {}), ...(options.first ? { limit: options.first } : {}) }, signal),
   });
 }
 
@@ -57,7 +57,7 @@ export function useAutocomplete(query: string, options: { first?: number; enable
     queryKey: ghanaGeoKeys.autocomplete(q),
     enabled: (options.enabled ?? true) && q.length >= 2,
     staleTime: 30 * 60_000,
-    queryFn: ({ signal }) => client.get<SearchResult[]>("/autocomplete", { q, first: options.first ?? 10 }, signal),
+    queryFn: ({ signal }) => client.autocomplete(q, options.first ?? 10, signal),
   });
 }
 
@@ -67,7 +67,7 @@ export function useGeocode(query: string, options: { first?: number; enabled?: b
   return useQuery({
     queryKey: [...ghanaGeoKeys.all, "geocode", q, options.first] as const,
     enabled: (options.enabled ?? true) && q.length >= 2,
-    queryFn: ({ signal }) => client.get<SearchResult[]>("/geocode", { q, first: options.first ?? 10 }, signal),
+    queryFn: ({ signal }) => client.geocode(q, options.first ?? 10, signal),
   });
 }
 
@@ -77,7 +77,7 @@ export function useReverseGeocode(latitude?: number, longitude?: number, options
   return useQuery({
     queryKey: ghanaGeoKeys.reverse(latitude ?? 0, longitude ?? 0),
     enabled: (options.enabled ?? true) && valid,
-    queryFn: ({ signal }) => client.get<unknown>("/reverse", { lat: latitude!, lng: longitude! }, signal),
+    queryFn: ({ signal }) => client.reverse(latitude!, longitude!, signal),
   });
 }
 
@@ -87,7 +87,7 @@ export function useNearby(latitude?: number, longitude?: number, radiusMeters = 
   return useQuery({
     queryKey: ghanaGeoKeys.nearby(latitude ?? 0, longitude ?? 0, radiusMeters),
     enabled: (options.enabled ?? true) && valid,
-    queryFn: ({ signal }) => client.get<SearchResult[]>("/nearby", { lat: latitude!, lng: longitude!, radiusMeters }, signal),
+    queryFn: ({ signal }) => client.nearby(latitude!, longitude!, radiusMeters, 20, signal),
   });
 }
 

@@ -4,7 +4,7 @@ GhanaGeo is **free**. No account, no API key, no rate-limit upgrade to buy.
 
 ```bash
 ghanageo search "tema"
-ghanageo districts --region gh-region-ashanti
+ghanageo districts --region 01KDVDNA00JR6256MY7B23EX4J
 ghanageo regions --json | jq -r '.[].capital'
 ```
 

@@ -1,11 +1,37 @@
 package main
 
 import (
+	"io"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/ghanageo/ghanageo-cli/internal/render"
 )
+
+func TestVersionReportsTargetAPIVersion(t *testing.T) {
+	original := os.Stdout
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = write
+	t.Cleanup(func() { os.Stdout = original })
+
+	if err := run([]string{"version"}); err != nil {
+		t.Fatalf("version: %v", err)
+	}
+	if err := write.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(output); !strings.Contains(got, "targets GhanaGeo API v1") {
+		t.Fatalf("version output %q does not report the API target", got)
+	}
+}
 
 // Go's flag package stops at the first non-flag argument, so `search accra
 // --json` would silently ignore --json without the split in parseFlags.

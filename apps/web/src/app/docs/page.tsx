@@ -38,7 +38,7 @@ const { data } = useAutocomplete(query);`,
     icon: Code2,
     title: "GraphQL",
     body: "Nested geography in one round trip, with a complexity budget.",
-    code: `query { place(id: "gh-place-gn-2306104") {
+    code: `query { place(id: "01KDVDNA00N6BFFK8VF5K8YXPW") {
   name district { name region { name } }
 } }`,
     ready: true,
@@ -67,6 +67,20 @@ const ENDPOINTS = [
   ["GET /v1/reverse", "Coordinates to region and district", "spatial"],
   ["GET /v1/nearby", "Places within a radius", "spatial"],
   ["GET /v1/boundaries/{id}", "GeoJSON Feature with attribution", "geometry"],
+  ["GET /v1/roads", "OpenStreetMap-derived roads with ODbL attribution", "cheap"],
+  ["GET /v1/pois", "OpenStreetMap-derived points of interest", "cheap"],
+  ["GET /v1/datasets", "Published versions and immutable downloads", "cheap"],
+];
+
+const ACCOUNT_ENDPOINTS = [
+  ["POST /v1/auth/register", "Create a developer account and begin email verification"],
+  ["POST /v1/auth/login", "Start a rotating HttpOnly browser session"],
+  ["POST /v1/auth/passkeys/login/begin", "Begin passwordless passkey login"],
+  ["GET · POST /v1/developer/organizations", "List or create organizations"],
+  ["GET · POST /v1/developer/organizations/{orgId}/applications", "List or create test/live applications"],
+  ["GET · POST /v1/developer/organizations/{orgId}/applications/{appId}/keys", "List keys or create a one-time secret"],
+  ["GET /v1/developer/organizations/{orgId}/applications/{appId}/usage", "Inspect attributed usage"],
+  ["GET /v1/developer/organizations/{orgId}/applications/{appId}/requests", "Page through redacted request logs"],
 ];
 
 export default function Docs() {
@@ -142,6 +156,35 @@ export default function Docs() {
           </Card>
         </section>
 
+        <section style={{ marginBottom: "var(--space-12)" }}>
+          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-2)" }}>Accounts and application keys</h2>
+          <p style={{ color: "var(--fg-muted)", margin: "0 0 var(--space-5)", maxWidth: "66ch" }}>
+            Public geography remains anonymous by default. Create an account only when you need
+            application attribution, origin or IP controls, key rotation, usage analytics or request logs.
+            Account and developer routes use a rotating HttpOnly session cookie; browser mutations also
+            enforce the configured origin allow-list.
+          </p>
+          <Card data-intensity="restrained" style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
+                <thead><tr style={{ background: "var(--bg-subtle)" }}>
+                  {['Endpoint', 'Purpose'].map((heading) => <th key={heading} style={{ textAlign: "start", padding: "var(--space-3) var(--space-4)", fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".08em", color: "var(--fg-subtle)" }}>{heading}</th>)}
+                </tr></thead>
+                <tbody>{ACCOUNT_ENDPOINTS.map(([endpoint, purpose]) => <tr key={endpoint} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "var(--space-3) var(--space-4)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>{endpoint}</td>
+                  <td style={{ padding: "var(--space-3) var(--space-4)", color: "var(--fg-muted)", minWidth: 260 }}>{purpose}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+          </Card>
+          <p style={{ marginTop: "var(--space-4)", fontSize: "var(--text-sm)" }}>
+            <a href="https://github.com/stanleyHayes/geoghana/blob/main/contracts/openapi/v1.yaml"
+               rel="noopener noreferrer" target="_blank" style={{ color: "var(--brand)" }}>
+              Complete OpenAPI 3.1 contract <ExternalLink size={12} style={{ display: "inline" }} aria-hidden />
+            </a>
+          </p>
+        </section>
+
         <section>
           <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-3)" }}>Errors</h2>
           <p style={{ color: "var(--fg-muted)", margin: "0 0 var(--space-4)", maxWidth: "62ch" }}>
@@ -155,7 +198,7 @@ export default function Docs() {
     "code": "RESOURCE_GONE",
     "message": "Place was merged into another record.",
     "requestId": "req_01K3Y…",
-    "details": { "mergedInto": "gh-place-accra" },
+    "details": { "mergedInto": "01KDVDNA00N6BFFK8VF5K8YXPW" },
     "docs": "/docs/errors/RESOURCE_GONE"
   }
 }`}

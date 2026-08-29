@@ -1,0 +1,106 @@
+services:
+  - type: web
+    name: ghanageo-api
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: GHANAGEO_ENV
+        value: production
+      - key: GHANAGEO_SERVE_MODE
+        value: http
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: ghanageo
+      - key: REDIS_URL
+        sync: false
+      - key: TYPESENSE_URL
+        sync: false
+      - key: TYPESENSE_API_KEY
+        sync: false
+      - key: DATASET_VERSION
+        value: 2026.08.3-ulid
+      - key: API_EXPORT_DIR
+        value: /var/lib/ghanageo/exports
+      - key: API_ALLOWED_ORIGINS
+        value: https://geo.digitalghana.dev,https://sandbox.geo.digitalghana.dev,https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev
+      - key: API_PASSKEY_RPID
+        value: digitalghana.dev
+      - key: API_PASSKEY_ORIGINS
+        value: https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev
+      - key: API_LOG_LEVEL
+        value: info
+      - key: OTEL_TRACES_EXPORTER
+        value: otlp
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: SECURITY_ALERT_WEBHOOK_URL
+        sync: false
+      - key: SECURITY_ALERT_WEBHOOK_SECRET
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: INTERNAL_SERVICE_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+    disk:
+      name: dataset-exports
+      mountPath: /var/lib/ghanageo
+      sizeGB: 10
+
+  - type: worker
+    name: ghanageo-worker
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: /ghanageo-worker
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: GHANAGEO_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: ghanageo
+      - key: REDIS_URL
+        sync: false
+      - key: TYPESENSE_URL
+        sync: false
+      - key: TYPESENSE_API_KEY
+        sync: false
+      - key: DATASET_VERSION
+        value: 2026.08.3-ulid
+      - key: WORKER_POLL_INTERVAL
+        value: 1s
+      - key: WORKER_LEASE
+        value: 5m
+      - key: WORKER_RETRY_BASE
+        value: 5s
+      - key: WORKER_MAX_ATTEMPTS
+        value: "5"
+      - key: WORKER_METRICS_PORT
+        value: "9091"
+      - key: OTEL_TRACES_EXPORTER
+        value: otlp
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

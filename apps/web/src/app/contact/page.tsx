@@ -1,0 +1,9 @@
+import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
+import { ArrowUpRight, Building2, Mail, MessageSquareText, ShieldAlert } from "lucide-react";
+
+const contacts=[
+  {icon:MessageSquareText,title:"Product and data questions",copy:"Coverage, licensing, corrections and integration guidance.",href:"mailto:support@digitalghana.dev",label:"support@digitalghana.dev"},
+  {icon:Building2,title:"Government and institutions",copy:"Public-sector adoption, data stewardship and high-volume public-interest use.",href:"mailto:partnerships@digitalghana.dev",label:"partnerships@digitalghana.dev"},
+  {icon:ShieldAlert,title:"Security reports",copy:"Report vulnerabilities privately. Do not include secrets in the subject line.",href:"mailto:security@digitalghana.dev",label:"security@digitalghana.dev"},
+] as const;
+export default function ContactPage(){return <div className="site-page"><MarketingHeader active="/contact"/><main id="main" className="launch-page"><section className="launch-hero gg-page gg-page--mid"><p className="site-eyebrow">Contact GhanaGeo</p><h1>Bring the place,<br/><em>the problem, and the context.</em></h1><p>Whether you found a data issue or want to integrate national geography into a public service, the right context helps us respond usefully.</p></section><section className="contact-routes gg-page gg-page--mid">{contacts.map(({icon:Icon,title,copy,href,label})=><a key={title} href={href}><Icon size={21}/><h2>{title}</h2><p>{copy}</p><span><Mail size={14}/>{label}<ArrowUpRight size={14}/></span></a>)}</section><section className="contact-note gg-page gg-page--mid"><h2>For data corrections</h2><p>Include the record ID, the name or boundary you believe is wrong, the source supporting the correction, and how we may contact you. Corrections are reviewed; they are never promoted directly into the published dataset.</p></section></main><MarketingFooter/></div>}

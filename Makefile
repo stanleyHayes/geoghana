@@ -1,4 +1,4 @@
-.PHONY: dev up down logs seed test lint api
+.PHONY: dev up down logs seed validate test lint api contracts cli cli-release cli-release-verify check-licensed-data restore-drill perf perf-indexes
 
 up:      ## Start MongoDB (rs0), Redis and Typesense
 	docker compose up -d --wait
@@ -19,9 +19,13 @@ contracts:  ## Regenerate error code artifacts and validate all three contracts
 	node -e "const{buildSchema}=require('graphql');buildSchema(require('fs').readFileSync('contracts/graphql/schema.graphql','utf8'));console.log('graphql schema ok')"
 
 test:
-	cd services/api && go test ./... && pnpm test
+	cd services/api && go test ./...
+	cd services/worker && go test ./...
+	pnpm test
 lint:
-	cd services/api && go vet ./... && pnpm lint
+	cd services/api && go vet ./...
+	cd services/worker && go vet ./...
+	pnpm lint
 cli:      ## Build the public CLI for this machine
 	cd cli && go build -o ../bin/ghanageo .
 	@echo "built ./bin/ghanageo — try: ./bin/ghanageo search accra"
@@ -34,6 +38,9 @@ cli-release-verify: ## Dry-run the complete CLI release bundle locally
 check-licensed-data: ## Reject unlicensed GhanaPostGPS payloads from distributable data
 	./scripts/check-ghanapost-exclusion.test.sh
 	./scripts/check-ghanapost-exclusion.sh
+
+restore-drill: ## Prove Mongo backup and isolated scratch restoration mechanics
+	./scripts/restore-drill.sh
 
 dev: up seed api
 

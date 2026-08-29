@@ -1,0 +1,27 @@
+{
+  "name": "@ghanageo/core",
+  "version": "0.1.0",
+  "description": "Canonical TypeScript types for the GhanaGeo API",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../contracts/openapi/v1.yaml -o src/openapi.gen.ts",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo ok",
+    "prepack": "pnpm generate && pnpm build"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.10.1",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "publishConfig": { "access": "public", "provenance": true }
+}

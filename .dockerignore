@@ -1,0 +1,19 @@
+# The production image needs only the Go API module and bootstrap seed files.
+# A whitelist keeps local secrets, caches and unrelated app builds out of the
+# Docker daemon and out of every remote build context by construction.
+**
+!Dockerfile
+!services/
+!services/api/
+!services/api/**
+!services/worker/
+!services/worker/**
+!data/
+!data/seed-data/
+!data/seed-data/**
+!go.work
+!go.work.sum
+
+# Secrets remain excluded even if a future negation broadens the context.
+**/.env
+**/.env.*

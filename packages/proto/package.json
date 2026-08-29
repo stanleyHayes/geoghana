@@ -1,0 +1,29 @@
+{
+  "name": "@ghanageo/proto",
+  "version": "0.1.0",
+  "description": "Generated TypeScript descriptors and protobuf definitions for GhanaGeo gRPC v1",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "proto", "README.md"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./geography.proto": "./proto/ghanageo/v1/geography.proto"
+  },
+  "scripts": {
+    "generate": "buf generate ../../proto --template buf.gen.yaml && mkdir -p proto/ghanageo/v1 && cp ../../proto/ghanageo/v1/geography.proto proto/ghanageo/v1/geography.proto",
+    "build": "pnpm generate && tsup src/index.ts --format esm --dts --clean --external @bufbuild/protobuf",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo ok",
+    "prepack": "pnpm build"
+  },
+  "dependencies": { "@bufbuild/protobuf": "2.10.2" },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "2.10.2",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "publishConfig": { "access": "public", "provenance": true }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "@ghanageo/react",
+  "version": "0.1.0",
+  "description": "TanStack Query hooks and provider for GhanaGeo",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "examples", "README.md"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --external react --external @tanstack/react-query --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo ok",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@ghanageo/client": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.102.8",
+    "react": "^18.3.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "5.102.8",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "26.1.0",
+    "msw": "2.11.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "publishConfig": { "access": "public", "provenance": true }
+}

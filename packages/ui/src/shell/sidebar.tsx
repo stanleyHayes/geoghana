@@ -67,7 +67,7 @@ export function Sidebar({
    * A plain prefix test lights every ancestor, so `/ingest/duplicates` also
    * activated `/ingest` ("Pipeline Overview") and the rail claimed you were on
    * a page you were not. Longest-match keeps the useful half of prefix
-   * matching — a detail route like `/geography/places/gh-place-accra` still
+   * matching — a detail route like `/geography/places/01KDVDNA00N6BFFK8VF5K8YXPW` still
    * highlights "Places" — while a sibling section index never steals it.
    */
   const activeHref = useMemo(() => {

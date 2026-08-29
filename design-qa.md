@@ -1,35 +1,30 @@
 # GhanaGeo Design QA
 
-## 2026-08-29 — Shared primitive and matrix-gate run
+## 2026-08-29 — V1 accessibility and responsive matrix
 
-### Evidence
+### Gate
 
-- `pnpm --filter @ghanageo/ui typecheck` — passed.
-- Web, sandbox, portal and admin TypeScript checks — passed.
-- `pnpm --filter @ghanageo/web build` — passed after the shared stylesheet repair.
-- `pnpm --filter @ghanageo/ui design:qa` — executed 180 combinations across four surfaces, three materials, three themes and five viewports.
-- Representative rerun: glass, light, 390px across all four surfaces — all pages rendered after restarting stale development compilers; axe findings remained.
+The required matrix covers all four frontend surfaces across three materials (neumorphic, glassmorphic and claymorphic), three themes (light, dark and a custom brand hue), and five viewports (320, 390, 768, 1280 and 1920 pixels).
 
-### Findings
+That is 45 checks per surface and 180 checks for the V1 suite. Every check requires a successful page response, resolved theme, `main` and `h1` landmarks, no horizontal body overflow, no page or network errors, no HTTP 5xx response and zero axe WCAG A/AA violations.
 
-- **P1 accessibility:** secondary and small accent text has insufficient contrast on existing web, sandbox, portal and admin screens. Representative counts: web 18 nodes, sandbox 4, portal 1, admin 19.
-- **P1 accessibility:** one sandbox link has no accessible name.
-- **P2 correctness:** the admin home route logs a duplicate React key for `/`.
-- **P2 delivery:** the matrix harness is available as `@ghanageo/ui` script `design:qa`, but root required-CI wiring belongs to L0 and is not changed from the L7 lane.
+### Fixes
 
-### Fixes in this run
+- Corrected the shared light/dark/custom semantic and brand contrast tokens, including the runtime theme clamp that supplies inline CSS variables.
+- Removed the unnamed sandbox home link and the duplicate admin breadcrumb key.
+- Corrected marketing proof/map labels, portal status colors and the admin notification badge in both modes.
+- Suppressed only the expected sandbox server/client API-origin text hydration difference while continuing to fail genuine page and request errors.
+- Made the harness await webfonts and theme settlement, report failed requests and HTTP 5xx responses, and support focused reruns.
+- Added the full production-build matrix to `.github/workflows/quality.yml` as the `Design QA (180-point matrix)` frontend check.
 
-- Added the missing shared primitive inventory for GEO-14.3.
-- Added the Playwright + axe material/theme/viewport matrix harness.
-- Fixed an unbalanced shared form-control CSS rule exposed by the first matrix run.
-- Added focused-matrix environment controls so a failing combination can be reproduced quickly before a full rerun.
+### Verification evidence
 
-### Post-fix evidence
+- `pnpm --filter @ghanageo/web build` and 45 production matrix checks — passed.
+- `pnpm --filter @ghanageo/sandbox build` and 45 production matrix checks — passed.
+- `NEXT_PUBLIC_GHANAGEO_API_URL=http://localhost:8180/v1 pnpm --filter @ghanageo/portal build` and 45 production matrix checks — passed.
+- `pnpm --filter @ghanageo/admin build` and 45 production matrix checks — passed.
+- Aggregate result: 180/180 checks passed with zero axe violations, console errors, request failures, theme-resolution failures or body overflow.
 
-- Shared UI and all four consuming application typechecks pass.
-- Web production build compiles the repaired shared stylesheet.
-- The representative matrix reaches all four applications and reports product-level accessibility findings rather than compiler failures.
+The portal production test intentionally embeds the local API URL at build time. A build made with the public production URL correctly failed local QA on DNS request errors, proving the harness does not hide unreachable dependencies.
 
-final result: blocked
-
-Blocked on the recorded cross-lane accessibility fixes and L0 required-CI wiring. GEO-14.7 must remain partial until the full matrix returns zero violations.
+final result: passed

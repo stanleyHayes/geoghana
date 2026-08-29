@@ -1,10 +1,17 @@
-# `ghanageo` — Ghana's location data, from your terminal
+# `ghanageo` — Ghana's location data, from your terminal or TypeScript
 
 GhanaGeo is **free**. No account, no API key, no rate-limit upgrade to buy.
 
+The npm package also exposes the TypeScript client and offline dataset. ESM is
+preferred and a CommonJS `require` export is included for existing Node apps.
+
+```ts
+import { GhanaGeoClient, getRegions, searchOffline } from "ghanageo";
+```
+
 ```bash
 ghanageo search "tema"
-ghanageo districts --region gh-region-ashanti
+ghanageo districts --region 01KDVDNA00JR6256MY7B23EX4J
 ghanageo regions --json | jq -r '.[].capital'
 ```
 
@@ -23,6 +30,9 @@ brew install ghanageo/tap/ghanageo
 
 Or download a binary for your platform from the releases page and put it on
 your `PATH`.
+
+`ghanageo version` reports both the CLI release and the API version it targets,
+so automated environments can check compatibility before making a request.
 
 ## Commands
 

@@ -70,7 +70,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: services/api/go.sum
+          cache-dependency-path: |
+            services/api/go.sum
+            services/worker/go.sum
       - name: gofmt
         working-directory: services/api
         run: |
@@ -81,14 +83,17 @@ jobs:
             echo "These files need gofmt:"; echo "$unformatted"; exit 1
           fi
       - name: Build
-        working-directory: services/api
-        run: go build ./...
+        run: |
+          (cd services/api && go build ./...)
+          (cd services/worker && go build ./...)
       - name: Vet
-        working-directory: services/api
-        run: go vet ./...
+        run: |
+          (cd services/api && go vet ./...)
+          (cd services/worker && go vet ./...)
       - name: Test
-        working-directory: services/api
-        run: go test -race ./...
+        run: |
+          (cd services/api && go test -race ./...)
+          (cd services/worker && go test -race ./...)
 
   contracts:
     name: Contracts lint and drift
@@ -104,6 +109,9 @@ jobs:
           setup_only: true
       - name: buf lint
         run: buf lint
+      - name: Reject protobuf breaking changes
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=${{ github.event.pull_request.base.ref }}"
       - name: OpenAPI lint
         run: npx --yes @redocly/cli@latest lint contracts/openapi/v1.yaml
       - name: Generated contract artifacts are current
@@ -131,6 +139,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Generated SDK artifacts are current
+        run: |
+          pnpm --filter @ghanageo/core generate
+          pnpm --filter @ghanageo/data generate
+          pnpm --filter @ghanageo/proto generate
+          git diff --exit-code \
+            packages/core/src/openapi.gen.ts \
+            packages/data/src/data.json \
+            packages/proto/src/gen \
+            packages/proto/proto
       - run: pnpm -w typecheck
       - run: pnpm -w test
       - run: pnpm -w build
@@ -139,6 +157,87 @@ jobs:
         # shipped unreachable: it built, returned 200, and no page pointed at
         # it. A 404 is loud; an orphan is silent.
         run: node scripts/check-links.mjs
+
+  design-qa:
+    name: Design QA (180-point matrix)
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ["27117:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6679:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      typesense:
+        image: typesense/typesense:29.0
+        ports: ["8108:8108"]
+        env:
+          TYPESENSE_API_KEY: ci-local-key
+          TYPESENSE_DATA_DIR: /tmp/typesense
+        options: >-
+          --health-cmd "curl -f http://localhost:8108/health || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      MONGO_URI: mongodb://127.0.0.1:27117/ghanageo?directConnection=true
+      MONGO_DB: ghanageo
+      REDIS_URL: redis://127.0.0.1:6679/0
+      TYPESENSE_URL: http://127.0.0.1:8108
+      TYPESENSE_API_KEY: ci-local-key
+      ALLOWED_ORIGINS: http://localhost:3100,http://localhost:3101,http://localhost:3102,http://localhost:3103
+      NEXT_PUBLIC_GHANAGEO_API_URL: http://localhost:8180/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/api/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Prepare local API
+        working-directory: services/api
+        run: |
+          go run ./cmd/ghanageo-admin migrate
+          go run ./cmd/ghanageo-admin data seed --file ../../data/seed-data/manifest.json
+          go build -o /tmp/ghanageo-api ./cmd/api
+          /tmp/ghanageo-api > /tmp/ghanageo-api.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl --fail --silent http://localhost:8180/health && exit 0
+            sleep 1
+          done
+          cat /tmp/ghanageo-api.log
+          exit 1
+      - name: Build and start frontend surfaces
+        run: |
+          pnpm -w build
+          pnpm --filter @ghanageo/web start > /tmp/ghanageo-web.log 2>&1 &
+          pnpm --filter @ghanageo/sandbox start > /tmp/ghanageo-sandbox.log 2>&1 &
+          pnpm --filter @ghanageo/portal start > /tmp/ghanageo-portal.log 2>&1 &
+          pnpm --filter @ghanageo/admin start > /tmp/ghanageo-admin.log 2>&1 &
+          for port in 3100 3101 3102 3103; do
+            for _ in $(seq 1 60); do
+              curl --fail --silent "http://localhost:${port}" > /dev/null && break
+              sleep 1
+            done
+            curl --fail --silent "http://localhost:${port}" > /dev/null || {
+              cat /tmp/ghanageo-*.log
+              exit 1
+            }
+          done
+      - name: Axe and responsive material/theme matrix
+        run: pnpm --filter @ghanageo/ui design:qa
 
   indexes:
     name: Query plans use indexes

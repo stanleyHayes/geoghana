@@ -71,6 +71,7 @@ TYPESENSE_API_KEY="$(keep "$ROOT_ENV" TYPESENSE_API_KEY "$(gen 32 48)" generated
 INTERNAL_SERVICE_TOKEN="$(keep "$ROOT_ENV" INTERNAL_SERVICE_TOKEN "$(gen 32 48)" generated)"
 AUTH_SECRET="$(keep "$ROOT_ENV" AUTH_SECRET "$(gen 32 44)" generated)"
 SESSION_SECRET="$(keep "$ROOT_ENV" SESSION_SECRET "$(gen 32 44)" generated)"
+SECURITY_ALERT_WEBHOOK_SECRET="$(keep "$ROOT_ENV" SECURITY_ALERT_WEBHOOK_SECRET "$(gen 32 48)" generated)"
 
 # Connection strings. Pasted values survive re-runs; the defaults point at the
 # local Docker stack.
@@ -96,6 +97,8 @@ PROD_TYPESENSE_URL="$(keep "$PROD_ENV" TYPESENSE_URL PASTE_TYPESENSE_URL)"
 PROD_TYPESENSE_API_KEY="$(keep "$PROD_ENV" TYPESENSE_API_KEY PASTE_TYPESENSE_API_KEY)"
 PROD_SENTRY_DSN="$(keep "$PROD_ENV" SENTRY_DSN PASTE_SENTRY_DSN)"
 PROD_RESEND_API_KEY="$(keep "$PROD_ENV" RESEND_API_KEY PASTE_RESEND_API_KEY)"
+PROD_SECURITY_ALERT_WEBHOOK_URL="$(keep "$PROD_ENV" SECURITY_ALERT_WEBHOOK_URL PASTE_SECURITY_ALERT_WEBHOOK_URL)"
+PROD_SECURITY_ALERT_WEBHOOK_SECRET="$(keep "$PROD_ENV" SECURITY_ALERT_WEBHOOK_SECRET "$(gen 32 48)" generated)"
 
 echo "Generating environment files…"
 echo
@@ -171,6 +174,8 @@ write "$PROD_ENV" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\"" \
 "RESEND_API_KEY=$PROD_RESEND_API_KEY" \
 "RESEND_FROM_EMAIL=noreply@digitalghana.dev" \
+"SECURITY_ALERT_WEBHOOK_URL=$PROD_SECURITY_ALERT_WEBHOOK_URL" \
+"SECURITY_ALERT_WEBHOOK_SECRET=$PROD_SECURITY_ALERT_WEBHOOK_SECRET" \
 "" \
 "# --- Generated for production. DIFFERENT from your local values, on purpose:" \
 "# --- reusing a development secret in production turns a leaked laptop into a" \
@@ -208,7 +213,9 @@ write "$API_ENV" \
 "# CORS header at all, so the browser blocks it. Never use a wildcard." \
 "API_ALLOWED_ORIGINS=\"http://localhost:3100,http://localhost:3101,http://localhost:3102,http://localhost:3103\"" \
 "" \
-"INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN"
+"INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
+"SECURITY_ALERT_WEBHOOK_URL=" \
+"SECURITY_ALERT_WEBHOOK_SECRET=$SECURITY_ALERT_WEBHOOK_SECRET"
 
 write "services/api/.env.production" \
 "# GhanaGeo API — production. NEVER COMMIT. Load these into Render, not a file." \
@@ -234,7 +241,9 @@ write "services/api/.env.production" \
 "# ── PASTE: observability and mail ───────────────────────────────────────" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\"" \
 "RESEND_API_KEY=$PROD_RESEND_API_KEY" \
-"RESEND_FROM_EMAIL=noreply@digitalghana.dev"
+"RESEND_FROM_EMAIL=noreply@digitalghana.dev" \
+"SECURITY_ALERT_WEBHOOK_URL=$PROD_SECURITY_ALERT_WEBHOOK_URL" \
+"SECURITY_ALERT_WEBHOOK_SECRET=$PROD_SECURITY_ALERT_WEBHOOK_SECRET"
 
 # ------------------------------------------------------------ services/worker
 write "services/worker/.env" \

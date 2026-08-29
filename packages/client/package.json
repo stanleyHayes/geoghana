@@ -1,0 +1,22 @@
+{
+  "name": "@ghanageo/client",
+  "version": "0.1.0",
+  "description": "Framework-neutral REST and GraphQL client for GhanaGeo",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo ok",
+    "prepack": "pnpm build"
+  },
+  "dependencies": { "@ghanageo/core": "workspace:^" },
+  "devDependencies": { "tsup": "8.5.1", "typescript": "5.9.3", "vitest": "4.1.11" },
+  "publishConfig": { "access": "public", "provenance": true }
+}

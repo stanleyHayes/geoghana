@@ -112,7 +112,10 @@ export function clampBrand(hue: number, chroma: number, mode: Mode): ClampResult
     ? `Hue moved out of the ${reservedArcFor(hue)?.reason} range reserved for status colours.`
     : undefined;
 
-  const startL = mode === "dark" ? 0.68 : 0.545;
+  // Brand is used both as a filled-control background and as small text on
+  // tinted surfaces. Starting at the button-only threshold (0.545) passed
+  // white-on-brand while failing brand-on-surface. 0.44 clears both roles.
+  const startL = mode === "dark" ? 0.76 : 0.44;
   const step = mode === "dark" ? 0.02 : -0.02; // dark mode lightens, light darkens
 
   for (const fg of ["light", "dark"] as const) {

@@ -15,7 +15,7 @@ import {
   Trash2,
   UserPlus,
 } from "lucide-react";
-import { resolveApiBase } from "@ghanageo/ui";
+import { Checkbox, DateTimeInput, Select, resolveApiBase } from "@ghanageo/ui";
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { OrganizationAccess } from "./organization-access";
@@ -489,18 +489,13 @@ export function AccountWorkspace() {
       <div className="account-columns">
         <section>
           <span className="account-step">01 · Organization</span>
-          <select
+          <Select
             value={orgId}
-            onChange={(e) => setOrgId(e.target.value)}
-            aria-label="Organization"
-          >
-            <option value="">Choose an organization</option>
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={setOrgId}
+            ariaLabel="Organization"
+            placeholder="Choose an organization"
+            options={orgs.map((organization) => ({ value: organization.id, label: organization.name }))}
+          />
           <form onSubmit={createOrg}>
             <input
               name="name"
@@ -515,19 +510,14 @@ export function AccountWorkspace() {
         </section>
         <section>
           <span className="account-step">02 · Application</span>
-          <select
+          <Select
             value={appId}
-            onChange={(e) => setAppId(e.target.value)}
+            onValueChange={setAppId}
             disabled={!orgId}
-            aria-label="Application"
-          >
-            <option value="">Choose an application</option>
-            {apps.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+            ariaLabel="Application"
+            placeholder="Choose an application"
+            options={apps.map((application) => ({ value: application.id, label: application.name }))}
+          />
           <form onSubmit={createApp}>
             <input
               name="name"
@@ -608,25 +598,27 @@ export function AccountWorkspace() {
                 aria-label="Key label"
                 required
               />
-              <select
+              <Select
                 name="class"
                 value={keyClass}
-                onChange={(e) => setKeyClass(e.target.value as typeof keyClass)}
-                aria-label="Key class"
-              >
-                <option>TEST</option>
-                <option>BROWSER</option>
-                <option>SERVER</option>
-              </select>
-              <select
+                onValueChange={(value) => setKeyClass(value as typeof keyClass)}
+                ariaLabel="Key class"
+                options={[
+                  { value: "TEST", label: "Test", hint: "Safe development credential" },
+                  { value: "BROWSER", label: "Browser", hint: "Origin-restricted public client" },
+                  { value: "SERVER", label: "Server", hint: "Private backend credential" },
+                ]}
+              />
+              <Select
                 name="environment"
                 defaultValue="test"
                 disabled={keyClass === "TEST"}
-                aria-label="Key environment"
-              >
-                <option value="test">Test</option>
-                <option value="live">Live</option>
-              </select>
+                ariaLabel="Key environment"
+                options={[
+                  { value: "test", label: "Test environment" },
+                  { value: "live", label: "Live environment" },
+                ]}
+              />
               <fieldset>
                 <legend>Scopes</legend>
                 {[
@@ -638,9 +630,9 @@ export function AccountWorkspace() {
                   "graphql:access",
                   "grpc:access",
                 ].map((scope) => (
-                  <label key={scope}>
-                    <input
-                      type="checkbox"
+                  <Checkbox
+                      key={scope}
+                      id={`scope-${scope.replace(":", "-")}`}
                       name="scopes"
                       value={scope}
                       defaultChecked={[
@@ -650,9 +642,8 @@ export function AccountWorkspace() {
                       disabled={
                         keyClass === "BROWSER" && scope === "grpc:access"
                       }
+                      label={scope}
                     />
-                    {scope}
-                  </label>
                 ))}
               </fieldset>
               {keyClass === "BROWSER" ? (
@@ -672,10 +663,9 @@ export function AccountWorkspace() {
                 placeholder="Allowed IPs or CIDRs, comma separated"
                 aria-label="Allowed IP addresses or CIDRs"
               />
-              <input
+              <DateTimeInput
                 name="expiresAt"
-                type="datetime-local"
-                aria-label="Key expiry date and time"
+                ariaLabel="Key expiry date and time"
               />
               <button className="portal-primary">
                 <Plus size={15} /> Create key

@@ -1,0 +1,86 @@
+name: TypeScript SDK release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer without the v prefix"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: sdk-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Resolve and validate version
+        id: release
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${INPUT_VERSION}"
+          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]] || {
+            echo "invalid SemVer: $version" >&2
+            exit 1
+          }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp package versions
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          for package_dir in core client react node data proto; do
+            npm --prefix "packages/${package_dir}" version "$RELEASE_VERSION" --no-git-tag-version
+          done
+
+      - name: Verify source, tests and consumer tarballs
+        run: ./scripts/verify-sdk-release.sh "${{ steps.release.outputs.version }}"
+
+      - name: Publish in dependency order
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          npm publish --access public --provenance "release/npm/ghanageo-core-${RELEASE_VERSION}.tgz"
+          npm publish --access public --provenance "release/npm/ghanageo-client-${RELEASE_VERSION}.tgz"
+          npm publish --access public --provenance "release/npm/ghanageo-react-${RELEASE_VERSION}.tgz"
+          npm publish --access public --provenance "release/npm/ghanageo-node-${RELEASE_VERSION}.tgz"
+          npm publish --access public --provenance "release/npm/ghanageo-data-${RELEASE_VERSION}.tgz"
+          npm publish --access public --provenance "release/npm/ghanageo-proto-${RELEASE_VERSION}.tgz"
+
+      - name: Upload verified dry-run packages
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghanageo-sdk-${{ steps.release.outputs.version }}
+          path: release/npm/*.tgz

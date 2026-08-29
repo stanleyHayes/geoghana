@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Outfit } from "next/font/google";
 import { ThemeProvider, themeInitScript } from "@ghanageo/ui";
 import "./globals.css";
+import { SandboxProviders } from "./providers";
 
 // latin-ext is REQUIRED, not optional: the `latin` subset alone drops the
 // Latin Extended characters Twi, Ga and Ewe place names need. A place-names
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider><SandboxProviders>{children}</SandboxProviders></ThemeProvider>
       </body>
     </html>
   );

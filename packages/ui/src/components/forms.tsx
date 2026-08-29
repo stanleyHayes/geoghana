@@ -5,8 +5,8 @@ import * as RCheckbox from "@radix-ui/react-checkbox";
 import * as RRadio from "@radix-ui/react-radio-group";
 import * as RSwitch from "@radix-ui/react-switch";
 import * as RLabel from "@radix-ui/react-label";
-import { Check, ChevronDown, ChevronUp, Minus } from "lucide-react";
-import { forwardRef, type ReactNode } from "react";
+import { CalendarDays, Check, ChevronDown, ChevronUp, Clock3, Minus } from "lucide-react";
+import { forwardRef, useMemo, useState, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 
 /**
@@ -40,6 +40,9 @@ export function Select({
   ariaLabel,
   className,
   disabled,
+  name,
+  defaultValue,
+  required,
 }: {
   value?: string;
   onValueChange?: (v: string) => void;
@@ -48,12 +51,18 @@ export function Select({
   ariaLabel?: string;
   className?: string;
   disabled?: boolean;
+  name?: string;
+  defaultValue?: string;
+  required?: boolean;
 }) {
   return (
     <RSelect.Root
       {...(value !== undefined ? { value } : {})}
       {...(onValueChange ? { onValueChange } : {})}
       {...(disabled !== undefined ? { disabled } : {})}
+      {...(name ? { name } : {})}
+      {...(defaultValue !== undefined ? { defaultValue } : {})}
+      {...(required !== undefined ? { required } : {})}
     >
       <RSelect.Trigger className={cn("gg-select__trigger", className)} aria-label={ariaLabel}>
         <RSelect.Value placeholder={placeholder} />
@@ -107,8 +116,11 @@ export const Checkbox = forwardRef<
     label?: ReactNode;
     hint?: string;
     disabled?: boolean;
+    defaultChecked?: boolean;
+    name?: string;
+    value?: string;
   }
->(function Checkbox({ checked, onCheckedChange, id, label, hint, disabled }, ref) {
+>(function Checkbox({ checked, onCheckedChange, id, label, hint, disabled, defaultChecked, name, value }, ref) {
   return (
     <div className="gg-choice">
       <RCheckbox.Root
@@ -117,6 +129,9 @@ export const Checkbox = forwardRef<
         {...(checked !== undefined ? { checked } : {})}
         {...(onCheckedChange ? { onCheckedChange } : {})}
         {...(disabled !== undefined ? { disabled } : {})}
+        {...(defaultChecked !== undefined ? { defaultChecked } : {})}
+        {...(name ? { name } : {})}
+        {...(value ? { value } : {})}
         className="gg-checkbox"
       >
         <RCheckbox.Indicator className="gg-checkbox__indicator">
@@ -172,6 +187,65 @@ export function RadioGroup({
         </div>
       ))}
     </RRadio.Root>
+  );
+}
+
+// ---------------------------------------------------------- Date and time
+
+/** A token-native date/time field. Browser datetime popovers are operating-
+ * system UI and cannot follow the selected GhanaGeo material or brand hue. */
+export function DateTimeInput({
+  name,
+  defaultValue = "",
+  required,
+  disabled,
+  ariaLabel = "Date and time",
+}: {
+  name: string;
+  defaultValue?: string;
+  required?: boolean;
+  disabled?: boolean;
+  ariaLabel?: string;
+}) {
+  const [initialDate = "", initialTime = ""] = defaultValue.split("T");
+  const [date, setDate] = useState(initialDate);
+  const [time, setTime] = useState(initialTime.slice(0, 5));
+  const value = useMemo(
+    () => /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time) ? `${date}T${time}` : "",
+    [date, time],
+  );
+  return (
+    <div className="gg-datetime" role="group" aria-label={ariaLabel}>
+      <label className="gg-datetime__part">
+        <CalendarDays size={15} aria-hidden />
+        <span className="sr-only">Date</span>
+        <input
+          className="gg-datetime__input"
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+          placeholder="YYYY-MM-DD"
+          inputMode="numeric"
+          pattern="\d{4}-\d{2}-\d{2}"
+          disabled={disabled}
+          aria-label={`${ariaLabel} date`}
+        />
+      </label>
+      <label className="gg-datetime__part">
+        <Clock3 size={15} aria-hidden />
+        <span className="sr-only">Time</span>
+        <input
+          className="gg-datetime__input"
+          value={time}
+          onChange={(event) => setTime(event.target.value)}
+          placeholder="HH:MM"
+          inputMode="numeric"
+          pattern="([01]\d|2[0-3]):[0-5]\d"
+          disabled={disabled}
+          aria-label={`${ariaLabel} time`}
+        />
+      </label>
+      <input type="hidden" name={name} value={value} required={required} disabled={disabled} />
+    </div>
   );
 }
 

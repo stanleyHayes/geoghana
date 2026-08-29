@@ -1,0 +1,5 @@
+{
+  "extends": "../config/tsconfig.base.json",
+  "include": ["src/**/*", "tests/**/*", "tsup.config.ts"],
+  "compilerOptions": { "noEmit": true, "lib": ["ES2023", "DOM"] }
+}

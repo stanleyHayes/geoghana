@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, type PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { GhanaGeoClient, type GhanaGeoClientOptions } from "./client";
+import { GhanaGeoClient, type GhanaGeoClientOptions } from "@ghanageo/client";
 
 const ClientContext = createContext<GhanaGeoClient | null>(null);
 

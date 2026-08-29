@@ -39,6 +39,12 @@ tags:
     description: Proximity and containment queries.
   - name: Datasets
     description: Published dataset versions and downloads.
+  - name: Accounts
+    description: Developer account, session, MFA and passkey lifecycle.
+  - name: Developer
+    description: Organizations, applications, API keys and attributed usage.
+  - name: Administration
+    description: Session-authenticated steward geography operations.
 
 paths:
   /regions:
@@ -341,7 +347,7 @@ paths:
         - name: version
           in: path
           required: true
-          schema: { type: string, pattern: '^\d{4}\.\d{2}\.\d+$' }
+          schema: { type: string, pattern: '^\d{4}\.\d{2}\.\d+(?:-[a-z0-9-]+)?$' }
           example: "2026.08.1"
       responses:
         "200":
@@ -350,6 +356,324 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/DownloadList" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /roads:
+    get:
+      operationId: listRoads
+      summary: List OpenStreetMap-derived roads
+      tags: [Geography]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+
+  /pois:
+    get:
+      operationId: listPointsOfInterest
+      summary: List OpenStreetMap-derived points of interest
+      tags: [Geography]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+
+  /datasets/{version}/downloads/{entity}.{format}:
+    get:
+      operationId: downloadDatasetArtifact
+      summary: Stream one published dataset artifact
+      tags: [Datasets]
+      parameters:
+        - { name: version, in: path, required: true, schema: { type: string } }
+        - { name: entity, in: path, required: true, schema: { type: string, enum: [regions, districts, places] } }
+        - { name: format, in: path, required: true, schema: { type: string, enum: [json, csv, geojson] } }
+      responses:
+        "200": { description: The immutable artifact bytes. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /auth/register:
+    post:
+      operationId: registerAccount
+      summary: Register a developer account
+      tags: [Accounts]
+      security: []
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "201": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /auth/verify:
+    post:
+      operationId: verifyEmail
+      summary: Verify an account email address
+      tags: [Accounts]
+      security: []
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /auth/login:
+    post:
+      operationId: login
+      summary: Start a browser session
+      tags: [Accounts]
+      security: []
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/mfa/totp:
+    post:
+      operationId: completeTotpChallenge
+      summary: Complete login with a TOTP code
+      tags: [Accounts]
+      security: []
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/mfa/recover:
+    post:
+      operationId: completeRecoveryChallenge
+      summary: Complete login with a single-use recovery code
+      tags: [Accounts]
+      security: []
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/mfa/enrol:
+    post:
+      operationId: enrolTotp
+      summary: Enrol TOTP for the current account
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the current session
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      responses: { "204": { description: Session revoked. }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/logout-all:
+    post:
+      operationId: logoutAll
+      summary: Revoke every account session
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      responses: { "204": { description: Sessions revoked. }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/session:
+    get:
+      operationId: getSession
+      summary: Read the current account session
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/sessions:
+    get:
+      operationId: listSessions
+      summary: List active account sessions
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+
+  /auth/passkeys/register/begin:
+    post:
+      operationId: beginPasskeyRegistration
+      summary: Begin passkey registration
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/passkeys/register/finish:
+    post:
+      operationId: finishPasskeyRegistration
+      summary: Finish passkey registration
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /auth/passkeys/login/begin:
+    post:
+      operationId: beginPasskeyLogin
+      summary: Begin passkey login
+      tags: [Accounts]
+      security: []
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /auth/passkeys/login/finish:
+    post:
+      operationId: finishPasskeyLogin
+      summary: Finish passkey login
+      tags: [Accounts]
+      security: []
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/passkeys:
+    get:
+      operationId: listPasskeys
+      summary: List registered passkeys
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /auth/passkeys/{id}:
+    delete:
+      operationId: deletePasskey
+      summary: Remove a registered passkey
+      tags: [Accounts]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "204": { description: Passkey removed. }, "404": { $ref: "#/components/responses/NotFound" } }
+
+  /developer/organizations:
+    get:
+      operationId: listDeveloperOrganizations
+      summary: List organizations for the current member
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+    post:
+      operationId: createDeveloperOrganization
+      summary: Create an organization
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "201": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/invitations:
+    get:
+      operationId: listOrganizationInvitations
+      summary: List organization invitations
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+    post:
+      operationId: inviteOrganizationMember
+      summary: Invite an organization member
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "201": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/invitations/{inviteId}/revoke:
+    post:
+      operationId: revokeOrganizationInvitation
+      summary: Revoke a pending invitation
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/OrgId" }
+        - { name: inviteId, in: path, required: true, schema: { type: string } }
+      responses: { "204": { description: Invitation revoked. }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/transfer-ownership:
+    post:
+      operationId: transferOrganizationOwnership
+      summary: Transfer organization ownership
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/invitations/accept:
+    post:
+      operationId: acceptOrganizationInvitation
+      summary: Accept an organization invitation
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/applications:
+    get:
+      operationId: listDeveloperApplications
+      summary: List organization applications
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+    post:
+      operationId: createDeveloperApplication
+      summary: Create an application
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "201": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/applications/{appId}/keys:
+    get:
+      operationId: listApplicationKeys
+      summary: List application API keys
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }, { $ref: "#/components/parameters/AppId" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+    post:
+      operationId: createApplicationKey
+      summary: Create an API key; its secret is returned once
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }, { $ref: "#/components/parameters/AppId" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "201": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/applications/{appId}/keys/{keyId}/rotate:
+    post:
+      operationId: rotateApplicationKey
+      summary: Rotate an API key and return the new secret once
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }, { $ref: "#/components/parameters/AppId" }, { $ref: "#/components/parameters/KeyId" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/applications/{appId}/keys/{keyId}/revoke:
+    post:
+      operationId: revokeApplicationKey
+      summary: Revoke an API key immediately
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }, { $ref: "#/components/parameters/AppId" }, { $ref: "#/components/parameters/KeyId" }]
+      responses: { "204": { description: Key revoked. }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/applications/{appId}/usage:
+    get:
+      operationId: getApplicationUsage
+      summary: Read attributed application usage
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }, { $ref: "#/components/parameters/AppId" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /developer/organizations/{orgId}/applications/{appId}/requests:
+    get:
+      operationId: listApplicationRequests
+      summary: Page through secret-free application request logs
+      tags: [Developer]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrgId" }, { $ref: "#/components/parameters/AppId" }, { $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+
+  /admin/permissions:
+    get:
+      operationId: getAdminPermissions
+      summary: Read effective steward permissions
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /admin/regions/{id}:
+    patch:
+      operationId: updateAdminRegion
+      summary: Update a region as an authorized steward
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/districts/{id}:
+    patch:
+      operationId: updateAdminDistrict
+      summary: Update a district as an authorized steward
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/places/{id}:
+    patch:
+      operationId: updateAdminPlace
+      summary: Update a place as an authorized steward
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/places/{id}/deprecate:
+    post:
+      operationId: deprecateAdminPlace
+      summary: Deprecate a place into a resolvable redirect
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
 
 components:
   securitySchemes:
@@ -362,6 +686,18 @@ components:
         Keys are labelled Browser, Server or Test. Browser keys are restricted
         by origin allow-list, narrower scopes and lower quotas. A secret server
         key must never reach a client bundle.
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: ghanageo_session
+      description: Rotating HttpOnly browser session. Mutations also require an allowed Origin.
+
+  requestBodies:
+    JsonBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/JsonObject" }
 
   parameters:
     Id:
@@ -370,7 +706,22 @@ components:
       required: true
       schema: { type: string }
       description: "The stable internal identifier (ULID). Human codes are alternate identifiers, never primary keys."
-      example: gh-place-accra
+      example: 01KDVDNA00N6BFFK8VF5K8YXPW
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      schema: { type: string }
+    AppId:
+      name: appId
+      in: path
+      required: true
+      schema: { type: string }
+    KeyId:
+      name: keyId
+      in: path
+      required: true
+      schema: { type: string }
     Cursor:
       name: cursor
       in: query
@@ -399,6 +750,11 @@ components:
       schema: { type: number, format: double, minimum: -180, maximum: 180 }
 
   responses:
+    Success:
+      description: Successful operation.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/JsonObject" }
     BadRequest:
       description: The request was malformed.
       content:
@@ -423,8 +779,22 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    Unauthenticated:
+      description: No valid API key or browser session was supplied.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: The authenticated actor lacks the required permission.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    JsonObject:
+      type: object
+      additionalProperties: true
+
     Error:
       type: object
       required: [error]

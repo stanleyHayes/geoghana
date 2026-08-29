@@ -1,0 +1,286 @@
+syntax = "proto3";
+
+// GhanaGeo canonical geography, version 1.
+//
+// gRPC is a first-class public interface, not an afterthought. This service is
+// a transport adapter over the same application layer REST and GraphQL use, so
+// an equivalent query returns semantically identical results (Spec section 6).
+//
+// Package versioning is explicit: breaking changes land in ghanageo.v2, never
+// in place. `buf breaking` enforces that in CI.
+package ghanageo.v1;
+
+option go_package = "github.com/ghanageo/ghanageo/services/api/gen/ghanageo/v1;ghanageov1";
+
+// A WGS84 point. GeoJSON position order is [longitude, latitude]; these are
+// named fields precisely so that ordering cannot be got wrong.
+message Coordinate {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+// Lifecycle state of a canonical record.
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_DEPRECATED = 2;
+  STATUS_MERGED = 3;
+}
+
+// How far a record has moved toward canonical truth. Seed rows carry
+// VERIFICATION_STATUS_SEED_NEEDS_CANONICAL_RECONCILIATION and are never
+// promoted automatically.
+enum VerificationStatus {
+  VERIFICATION_STATUS_UNSPECIFIED = 0;
+  VERIFICATION_STATUS_REFERENCE = 1;
+  VERIFICATION_STATUS_SEED_NEEDS_CANONICAL_RECONCILIATION = 2;
+  VERIFICATION_STATUS_REVIEWED = 3;
+  VERIFICATION_STATUS_CANONICAL = 4;
+}
+
+// Human geography. Ghana is deliberately not modelled as country/state/city.
+enum PlaceType {
+  PLACE_TYPE_UNSPECIFIED = 0;
+  PLACE_TYPE_CITY = 1;
+  PLACE_TYPE_TOWN = 2;
+  PLACE_TYPE_VILLAGE = 3;
+  PLACE_TYPE_COMMUNITY = 4;
+  PLACE_TYPE_SUBURB = 5;
+  PLACE_TYPE_NEIGHBOURHOOD = 6;
+  PLACE_TYPE_HAMLET = 7;
+  PLACE_TYPE_SETTLEMENT = 8;
+  PLACE_TYPE_LOCALITY = 9;
+  PLACE_TYPE_REGIONAL_CAPITAL = 10;
+}
+
+// Where a record came from. A record without provenance cannot be published.
+message Provenance {
+  string source_id = 1;
+  string source_url = 2;
+  string retrieved_at = 3;
+}
+
+message Ref {
+  string id = 1;
+  string name = 2;
+}
+
+message Region {
+  string id = 1;
+  string country_code = 2;
+  string name = 3;
+  string capital = 4;
+  string code = 5;
+  Status status = 6;
+  VerificationStatus verification_status = 7;
+  optional Coordinate centroid = 8;
+  Provenance provenance = 9;
+  string dataset_version = 10;
+}
+
+message District {
+  string id = 1;
+  string name = 2;
+  string code = 3;
+  string type = 4;
+  string capital = 5;
+  Ref region = 6;
+  Status status = 7;
+  VerificationStatus verification_status = 8;
+  optional Coordinate centroid = 9;
+  Provenance provenance = 10;
+  string dataset_version = 11;
+}
+
+// An alternative name. The value preserves the true orthography, including the
+// Twi, Ga and Ewe characters that normalization folds away for matching.
+message Alias {
+  string value = 1;
+  string type = 2;
+  string language = 3;
+  bool is_preferred = 4;
+}
+
+message Place {
+  string id = 1;
+  string name = 2;
+  string normalized_name = 3;
+  PlaceType type = 4;
+  optional Ref region = 5;
+  optional Ref district = 6;
+  string parent_place_id = 7;
+  repeated Alias aliases = 8;
+  optional Coordinate centroid = 9;
+  optional int64 population = 10;
+  Status status = 11;
+  VerificationStatus verification_status = 12;
+  Provenance provenance = 13;
+  string dataset_version = 14;
+}
+
+// A search hit carries the confidence score and match explanation that
+// Spec section 10 requires every result to expose.
+message SearchResult {
+  Place place = 1;
+  double score = 2;
+  string match_reason = 3;
+}
+
+message Boundary {
+  string id = 1;
+  string name = 2;
+  // GeoJSON geometry, serialized. Protobuf has no native GeoJSON type, and a
+  // hand-rolled oneof tree would be worse than an opaque, spec-compliant blob.
+  string geojson = 3;
+  string attribution = 4;
+  string dataset_version = 5;
+}
+
+// ---- Requests and responses ----
+
+message ListRegionsRequest {
+  string cursor = 1;
+  int32 limit = 2;
+}
+message ListRegionsResponse {
+  repeated Region regions = 1;
+  string next_cursor = 2;
+  string dataset_version = 3;
+}
+
+message GetRegionRequest { string id = 1; }
+message GetRegionResponse { Region region = 1; }
+
+message ListDistrictsRequest {
+  string region_id = 1;
+  string query = 2;
+  string cursor = 3;
+  int32 limit = 4;
+}
+message ListDistrictsResponse {
+  repeated District districts = 1;
+  string next_cursor = 2;
+  string dataset_version = 3;
+}
+
+message GetDistrictRequest { string id = 1; }
+message GetDistrictResponse { District district = 1; }
+
+message ListPlacesRequest {
+  string district_id = 1;
+  string region_id = 2;
+  PlaceType type = 3;
+  string query = 4;
+  string cursor = 5;
+  int32 limit = 6;
+}
+message ListPlacesResponse {
+  repeated Place places = 1;
+  string next_cursor = 2;
+  string dataset_version = 3;
+}
+
+message GetPlaceRequest { string id = 1; }
+message GetPlaceResponse { Place place = 1; }
+
+message SearchRequest {
+  string query = 1;
+  string region_id = 2;
+  string district_id = 3;
+  PlaceType type = 4;
+  int32 limit = 5;
+}
+message SearchResponse {
+  repeated SearchResult results = 1;
+  string dataset_version = 2;
+}
+
+message AutocompleteRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+message AutocompleteResponse {
+  repeated SearchResult suggestions = 1;
+  string dataset_version = 2;
+}
+
+message GeocodeRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+message GeocodeResponse {
+  repeated SearchResult results = 1;
+  string dataset_version = 2;
+}
+
+message ReverseGeocodeRequest {
+  double latitude = 1;
+  double longitude = 2;
+}
+// Coordinates outside Ghana yield an empty result, not an error.
+message ReverseGeocodeResponse {
+  optional Ref region = 1;
+  optional Ref district = 2;
+  repeated Place nearby = 3;
+  string dataset_version = 4;
+}
+
+message NearbyRequest {
+  double latitude = 1;
+  double longitude = 2;
+  int32 radius_meters = 3;
+  int32 limit = 4;
+}
+message NearbyResponse {
+  repeated Place places = 1;
+  string dataset_version = 2;
+}
+
+message GetBoundaryRequest { string id = 1; }
+message GetBoundaryResponse { Boundary boundary = 1; }
+
+message StreamDatasetChangesRequest {
+  // Resume from a previously received cursor. Empty starts at the current tail.
+  string since_cursor = 1;
+}
+message StreamDatasetChangesResponse { DatasetChange change = 1; }
+
+message DatasetChange {
+  enum ChangeType {
+    CHANGE_TYPE_UNSPECIFIED = 0;
+    CHANGE_TYPE_ADDED = 1;
+    CHANGE_TYPE_UPDATED = 2;
+    CHANGE_TYPE_MERGED = 3;
+    CHANGE_TYPE_DEPRECATED = 4;
+  }
+  string cursor = 1;
+  ChangeType change_type = 2;
+  string entity_type = 3;
+  string entity_id = 4;
+  string merged_into = 5;
+  string dataset_version = 6;
+  string occurred_at = 7;
+}
+
+// GeographyService is the public gRPC surface.
+//
+// Every method applies the same authentication, scope, quota and rate-limit
+// accounting as REST and GraphQL. Deadlines and maximum message sizes are
+// enforced; unbounded requests are rejected.
+service GeographyService {
+  rpc ListRegions(ListRegionsRequest) returns (ListRegionsResponse);
+  rpc GetRegion(GetRegionRequest) returns (GetRegionResponse);
+  rpc ListDistricts(ListDistrictsRequest) returns (ListDistrictsResponse);
+  rpc GetDistrict(GetDistrictRequest) returns (GetDistrictResponse);
+  rpc ListPlaces(ListPlacesRequest) returns (ListPlacesResponse);
+  rpc GetPlace(GetPlaceRequest) returns (GetPlaceResponse);
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc Autocomplete(AutocompleteRequest) returns (AutocompleteResponse);
+  rpc Geocode(GeocodeRequest) returns (GeocodeResponse);
+  rpc ReverseGeocode(ReverseGeocodeRequest) returns (ReverseGeocodeResponse);
+  rpc Nearby(NearbyRequest) returns (NearbyResponse);
+  rpc GetBoundary(GetBoundaryRequest) returns (GetBoundaryResponse);
+
+  // Server streaming is enabled only where it provides material value.
+  rpc StreamDatasetChanges(StreamDatasetChangesRequest) returns (stream StreamDatasetChangesResponse);
+}

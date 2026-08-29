@@ -1,6 +1,7 @@
-go 1.26
+go 1.26.6
 
 use (
 	./cli
 	./services/api
+	./services/worker
 )

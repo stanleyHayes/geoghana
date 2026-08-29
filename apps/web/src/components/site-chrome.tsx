@@ -15,10 +15,10 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 const primary = [
+  { href: "/products", label: "Products" },
+  { href: "/coverage", label: "Coverage" },
+  { href: "/developers", label: "Developers" },
   { href: "/docs", label: "Documentation" },
-  { href: "/about", label: "About the data" },
-  { href: "/transparency", label: "Transparency" },
-  { href: "http://localhost:3102", label: "Developers" },
 ];
 
 const footerLinks = [
@@ -82,7 +82,7 @@ export function MarketingHeader({ active }: { active?: string }) {
               <span>0{index + 1}</span>{item.label}
             </a>
           ))}
-          <a href="/support"><span>05</span>Support GhanaGeo</a>
+          <a href="/support"><span>0{primary.length + 1}</span>Support GhanaGeo</a>
           <a className="marketing-mobile-nav__cta" href="http://localhost:3101">
             Open the sandbox <ArrowUpRight size={17} aria-hidden />
           </a>
@@ -130,6 +130,9 @@ export function MarketingFooter({ children }: { children?: ReactNode }) {
           </div>
           <p>GeoNames + geoBoundaries · CC BY 4.0</p>
           <nav aria-label="Footer policies">
+            <a href="/status">Status</a>
+            <a href="/changelog">Changelog</a>
+            <a href="/contact">Contact</a>
             <a href="/about"><Info size={14} aria-hidden /> About</a>
             <a href="/transparency"><ReceiptText size={14} aria-hidden /> Public ledger</a>
           </nav>

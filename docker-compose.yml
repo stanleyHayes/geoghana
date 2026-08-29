@@ -53,6 +53,78 @@ services:
       timeout: 3s
       retries: 20
 
+  api:
+    image: ghanageo-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ghanageo-api
+    environment:
+      GHANAGEO_ENV: local
+      GHANAGEO_SERVE_MODE: all
+      MONGO_URI: mongodb://mongo:27017/ghanageo?replicaSet=rs0&directConnection=true
+      MONGO_DB: ghanageo
+      REDIS_URL: redis://redis:6379
+      TYPESENSE_URL: http://typesense:8108
+      TYPESENSE_API_KEY: ghanageo_local_dev_only
+      API_HTTP_PORT: "8180"
+      API_GRPC_PORT: "9190"
+      API_EXPORT_DIR: /var/lib/ghanageo/exports
+      API_ALLOWED_ORIGINS: http://localhost:3100,http://localhost:3101,http://localhost:3102,http://localhost:3103
+      OTEL_TRACES_EXPORTER: none
+    ports:
+      - "8180:8180"
+      - "9190:9190"
+    volumes:
+      - ./data/exports:/var/lib/ghanageo/exports:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8180/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    image: ghanageo-api:local
+    container_name: ghanageo-worker
+    entrypoint: ["/ghanageo-worker"]
+    environment:
+      GHANAGEO_ENV: local
+      MONGO_URI: mongodb://mongo:27017/ghanageo?replicaSet=rs0&directConnection=true
+      MONGO_DB: ghanageo
+      REDIS_URL: redis://redis:6379
+      TYPESENSE_URL: http://typesense:8108
+      TYPESENSE_API_KEY: ghanageo_local_dev_only
+      DATASET_VERSION: 2026.08.3-ulid
+      WORKER_POLL_INTERVAL: 1s
+      WORKER_LEASE: 5m
+      WORKER_RETRY_BASE: 5s
+      WORKER_MAX_ATTEMPTS: "5"
+      WORKER_METRICS_PORT: "9091"
+      OTEL_TRACES_EXPORTER: none
+    ports:
+      - "9091:9091"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:9091/healthz"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
 volumes:
   mongo-data:
   redis-data:
