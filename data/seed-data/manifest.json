@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "2026.08.1-seed",
+  "generatedAt": "2026-08-29T00:00:00Z",
+  "files": {
+    "regions": "regions.csv",
+    "districts": "districts.csv",
+    "places": "places.csv"
+  },
+  "checksums": {
+    "regions.csv": "4f14511d7c67e11f13d90d75d47ad32c5ad520c0dbd8678746e639cfce7eed78",
+    "districts.csv": "09af2c25be0d53f783c1b910861003090437a14ce8a5b47858f11b1fb7d94ca9",
+    "places.csv": "74d15edad1d40f90c6305424906c0089934b8a7d806b871a249f3e61fb039a57"
+  },
+  "sourceRevision": "bootstrap-seed-v1",
+  "note": "Bootstrap/reference dataset. Rows marked SEED_NEEDS_CANONICAL_RECONCILIATION must not be promoted to canonical by an automated path (plan rule R5)."
+}

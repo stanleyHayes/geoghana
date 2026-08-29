@@ -1,0 +1,260 @@
+package rest
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+
+	app "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
+	"github.com/ghanageo/ghanageo/services/api/internal/ports"
+)
+
+type Handler struct {
+	geo *app.Service
+	log *slog.Logger
+}
+
+func New(geo *app.Service, log *slog.Logger) *Handler { return &Handler{geo: geo, log: log} }
+
+// Routes returns the /v1 router. Paths match contracts/openapi/v1.yaml exactly.
+func (h *Handler) Routes() http.Handler {
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Recoverer)
+	r.Use(h.accessLog)
+	r.Use(requestIDHeader)
+
+	r.Get("/health", h.health)
+
+	r.Route("/v1", func(r chi.Router) {
+		r.Get("/regions", h.listRegions)
+		r.Get("/regions/{id}", h.getRegion)
+		r.Get("/regions/{id}/districts", h.listRegionDistricts)
+
+		r.Get("/districts", h.listDistricts)
+		r.Get("/districts/{id}", h.getDistrict)
+		r.Get("/districts/{id}/places", h.listDistrictPlaces)
+
+		r.Get("/places", h.listPlaces)
+		r.Get("/places/{id}", h.getPlace)
+
+		r.Get("/nearby", h.nearby)
+	})
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		writeErr(w, r, apierr.New(apierr.NotFound, "No such endpoint."))
+	})
+	return r
+}
+
+// ---- middleware ----
+
+func requestIDHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Request-Id", middleware.GetReqID(r.Context()))
+		next.ServeHTTP(w, r)
+	})
+}
+
+// accessLog emits one structured line per request. It never logs a secret or an
+// authorization header (Spec 20, 21).
+func (h *Handler) accessLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r)
+		h.log.Info("request",
+			"request_id", middleware.GetReqID(r.Context()),
+			"protocol", "rest",
+			"operation", r.Method+" "+r.URL.Path,
+			"status", ww.Status(),
+			"latency_ms", time.Since(start).Milliseconds(),
+		)
+	})
+}
+
+// ---- responses ----
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+type errorBody struct {
+	Error struct {
+		Code      string         `json:"code"`
+		Message   string         `json:"message"`
+		RequestID string         `json:"requestId"`
+		Details   map[string]any `json:"details,omitempty"`
+		Docs      string         `json:"docs"`
+	} `json:"error"`
+}
+
+// writeErr renders the Spec 19 error envelope for every failure path.
+func writeErr(w http.ResponseWriter, r *http.Request, err error) {
+	e := apierr.From(err)
+	var body errorBody
+	body.Error.Code = string(e.Code)
+	body.Error.Message = e.Message
+	body.Error.RequestID = middleware.GetReqID(r.Context())
+	body.Error.Details = e.Details
+	body.Error.Docs = e.Code.DocsURL()
+	writeJSON(w, e.Code.HTTPStatus(), body)
+}
+
+// ---- request parsing ----
+
+func listParams(r *http.Request) ports.ListParams {
+	p := ports.ListParams{Cursor: r.URL.Query().Get("cursor")}
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			p.Limit = n
+		}
+	}
+	return p.Normalize()
+}
+
+func floatParam(r *http.Request, key string) (float64, bool) {
+	v := r.URL.Query().Get(key)
+	if v == "" {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
+}
+
+func intParam(r *http.Request, key string, def int) int {
+	v := r.URL.Query().Get(key)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
+// ---- handlers ----
+
+func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":         "ok",
+		"datasetVersion": h.geo.DatasetVersion(),
+	})
+}
+
+func (h *Handler) listRegions(w http.ResponseWriter, r *http.Request) {
+	page, err := h.geo.ListRegions(r.Context(), listParams(r))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pageOut(page, regionOut))
+}
+
+func (h *Handler) getRegion(w http.ResponseWriter, r *http.Request) {
+	out, err := h.geo.GetRegion(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, regionOut(*out))
+}
+
+func (h *Handler) listRegionDistricts(w http.ResponseWriter, r *http.Request) {
+	page, err := h.geo.ListDistrictsInRegion(r.Context(), chi.URLParam(r, "id"), listParams(r))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pageOut(page, districtOut))
+}
+
+func (h *Handler) listDistricts(w http.ResponseWriter, r *http.Request) {
+	page, err := h.geo.ListDistricts(r.Context(), ports.DistrictFilter{
+		ListParams: listParams(r),
+		RegionID:   r.URL.Query().Get("regionId"),
+		Query:      r.URL.Query().Get("q"),
+	})
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pageOut(page, districtOut))
+}
+
+func (h *Handler) getDistrict(w http.ResponseWriter, r *http.Request) {
+	out, err := h.geo.GetDistrict(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, districtOut(*out))
+}
+
+func (h *Handler) listDistrictPlaces(w http.ResponseWriter, r *http.Request) {
+	page, err := h.geo.ListPlacesInDistrict(r.Context(), chi.URLParam(r, "id"), ports.PlaceFilter{
+		ListParams: listParams(r),
+		Type:       r.URL.Query().Get("type"),
+	})
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pageOut(page, placeOut))
+}
+
+func (h *Handler) listPlaces(w http.ResponseWriter, r *http.Request) {
+	page, err := h.geo.ListPlaces(r.Context(), ports.PlaceFilter{
+		ListParams: listParams(r),
+		DistrictID: r.URL.Query().Get("districtId"),
+		RegionID:   r.URL.Query().Get("regionId"),
+		Type:       r.URL.Query().Get("type"),
+		Query:      r.URL.Query().Get("q"),
+	})
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pageOut(page, placeOut))
+}
+
+func (h *Handler) getPlace(w http.ResponseWriter, r *http.Request) {
+	out, err := h.geo.GetPlace(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, placeOut(*out))
+}
+
+func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
+	lat, okLat := floatParam(r, "lat")
+	lng, okLng := floatParam(r, "lng")
+	if !okLat || !okLng {
+		writeErr(w, r, apierr.New(apierr.InvalidArgument, "Both lat and lng are required."))
+		return
+	}
+	places, err := h.geo.Nearby(r.Context(), lat, lng, intParam(r, "radius", 5000), intParam(r, "limit", 20))
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	out := make([]placeDTO, 0, len(places))
+	for _, p := range places {
+		out = append(out, placeOut(p))
+	}
+	writeJSON(w, http.StatusOK, pageDTO[placeDTO]{Data: out, DatasetVersion: h.geo.DatasetVersion()})
+}

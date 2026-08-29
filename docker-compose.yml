@@ -1,0 +1,56 @@
+name: ghanageo
+
+services:
+  mongo:
+    image: mongo:8.0
+    container_name: ghanageo-mongo
+    # A single-node replica set: multi-document transactions require one,
+    # and the merge/redirect and release-publish paths are transactional.
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports: ["27117:27017"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Initiates the replica set on first healthy check, then reports status.
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok }
+        "
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: ghanageo-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6679:6379"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  typesense:
+    image: typesense/typesense:29.0
+    container_name: ghanageo-typesense
+    command: ["--data-dir", "/data", "--api-key", "ghanageo_local_dev_only", "--enable-cors"]
+    ports: ["8108:8108"]
+    volumes:
+      - typesense-data:/data
+    healthcheck:
+      # The Typesense image ships neither wget nor curl, but does ship bash,
+      # so probe the port with bash's /dev/tcp.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8108"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mongo-data:
+  redis-data:
+  typesense-data:
