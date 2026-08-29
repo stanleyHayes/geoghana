@@ -79,3 +79,85 @@ Hosted scanning is blocked on account state, not on code:
 
 Neither is a finding, and neither can be resolved from inside the codebase.
 Both need action on the GitHub account.
+
+## Addendum — the sandbox gRPC bridge (post-commit review)
+
+The sign-off above was written before commit `89879c4`. That commit landed
+`apps/sandbox/src/app/api/grpc/route.ts`, a bridge that lets an anonymous
+visitor drive the real gRPC service from a browser. It was verified to build
+and typecheck, **not** reviewed for logic, and a background review of the
+pushed commit then reported three findings against it. All three were real,
+and all three were reproduced against the running server before being fixed.
+
+### 1. The rate limit could be reset at will — confirmed
+
+The per-caller window was keyed on `X-Forwarded-For`, a header the caller
+supplies. Exhausting the budget and then incrementing the header produced a
+fresh one:
+
+```
+31st request as 7.7.7.7   → 429
+same attacker, new header → 200
+```
+
+Fixed by adding a **global** window (300/min) that no header can influence,
+checked before the per-caller one. The per-caller limit is retained as a
+courtesy to honest callers behind a shared IP, but it is no longer what
+bounds the endpoint. Re-tested with 320 requests, each from a different
+spoofed IP: the ceiling engaged at ~300.
+
+### 2. The 16 KiB body cap could be skipped entirely — confirmed
+
+The cap tested the `Content-Length` header. That header is optional, and a
+chunked request omits it, so `Number(null ?? 0)` evaluated to 0 and passed.
+A 200 KB body went straight through a 16 KiB limit:
+
+```
+declared content-length (200KB) → 413
+chunked, no content-length      → 200   ← bypass
+```
+
+Fixed by reading the body through its stream and counting the bytes that
+actually arrive, aborting the moment the real total exceeds the cap — so an
+oversized body is never fully buffered either. Both forms now return 413.
+
+### 3. Unbounded resource growth — confirmed, and worse than reported
+
+Three distinct problems, not one:
+
+- The rate-limit map was only ever written to, never swept. Every spoofed
+  identity added a permanent entry. Now swept per request and hard-capped;
+  past the cap, per-identity tracking is abandoned and the global ceiling
+  carries the load.
+- Streams had no time limit. A client that opened one and simply stopped
+  reading held a gRPC call open indefinitely. Now capped at 30s and at 8
+  concurrent streams; verified closing at 30.1s, and the 11th concurrent
+  stream is refused.
+- **Not in the original report:** the proto was parsed and a new gRPC channel
+  opened *per request*. `loadSync` is blocking and measured **43.9ms**, so
+  every request stalled Node's single event loop for that long — a
+  self-inflicted denial of service that needed no attacker. The parsed
+  contract and the channel are now created once and reused, as a gRPC channel
+  is designed to be. Median request time fell from tens of ms to **3ms**.
+
+### A misleading status code, found while verifying
+
+Load-testing the fix produced 171 `502`s out of 295. The upstream was not
+broken: it was the Go API's own rate limiter answering `RESOURCE_EXHAUSTED`,
+which the bridge collapsed into `502 Bad Gateway` along with every other
+non-`INVALID_ARGUMENT` code. That would send whoever is debugging after a
+failing service that is in fact working exactly as designed. gRPC statuses are
+now mapped to their HTTP equivalents; `RESOURCE_EXHAUSTED` surfaces as `429`.
+The same 200-request storm now returns 121 × 200 and 79 × 429, and no 502.
+
+### Status
+
+Fixed and verified against the running server, not by reading the diff.
+Normal operation is unchanged: valid calls return data, unknown methods 400,
+malformed JSON 400.
+
+**This qualifies the sign-off above.** "No unresolved critical or high
+findings" was true of the code reviewed at the time and false of the code in
+the commit, because that file was committed on a green build rather than a
+read. Building is not reviewing; a bridge that takes anonymous input needed
+the second thing and did not get it.
