@@ -1,0 +1,51 @@
+# gqlgen configuration.
+#
+# The schema is NOT owned here: it lives in contracts/graphql/schema.graphql and
+# is the published contract. gqlgen reads it, so the server cannot drift from
+# what consumers were promised — the contract generates the code, never the
+# other way round.
+schema:
+  - ../../contracts/graphql/schema.graphql
+
+exec:
+  layout: single-file
+  filename: internal/transport/graphql/generated/generated.go
+  package: generated
+
+model:
+  filename: internal/transport/graphql/model/models_gen.go
+  package: model
+
+resolver:
+  layout: follow-schema
+  dir: internal/transport/graphql
+  package: graphql
+  filename_template: "{name}.resolvers.go"
+
+omit_slice_element_pointers: true
+omit_getters: false
+
+models:
+  # These types have field resolvers for their nested references, so a query
+  # that does not ask for a parent never loads one.
+  District:
+    fields:
+      region: { resolver: true }
+  Place:
+    fields:
+      region: { resolver: true }
+      district: { resolver: true }
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.Int
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+  # GeoJSON is an opaque object: protobuf and Go both lack a natural GeoJSON
+  # type, and a hand-rolled union would be more code than value.
+  GeoJSON:
+    model: github.com/99designs/gqlgen/graphql.Map
+  DateTime:
+    model: github.com/99designs/gqlgen/graphql.String

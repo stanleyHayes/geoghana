@@ -113,7 +113,9 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-9.1–9.6 | EP-09 Identity | ✅ **Done** | Claude | Keys (argon2id, secret shown once), browser-key safety rules, anonymous-as-identity, Redis token bucket, cost classes, limit headers, immediate revocation. Verified live: 429 under concurrent load, 401 on revoke, no prefix enumeration. |
 | GEO-9.7–9.8 | EP-09 Identity | ⬜ Next | unassigned | Immutable audit log and security-event alerting. |
 | GEO-9.2 | EP-09 Identity | ⬜ Next | unassigned | Developer account auth: email verification, passkeys/WebAuthn, MFA for admins. |
-| GEO-10.x / 11.x | EP-10/11 GraphQL + gRPC | ⬜ Not started | unassigned | Contracts published, so these can start immediately. |
+| GEO-10.1–10.5 | EP-10 GraphQL | ✅ **Done** | Claude | gqlgen generated FROM the published contract. Resolvers over shared use cases, per-request loaders, depth and complexity budgets, error codes matching REST. |
+| GEO-5.2 | EP-05 Dedupe | ✅ **Done** | Claude | Cross-source duplicate detection. All 16 seed capitals merged with their GeoNames twins; merged ids resolve 410 with `mergedInto`. |
+| GEO-11.x | EP-11 gRPC | ⬜ Next | unassigned | Protobuf published and linting clean; the service can be implemented over the same use cases. |
 | GEO-4.4, 4.8 | EP-04 Ingestion | ✅ **Done** | Claude | Adapter port + GeoNames (CC BY). 15,925 places with coordinates, zero rejections. `/reverse` and `/nearby` now work nationwide. |
 | GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Next | unassigned | GSS boundaries and OSM. Needed for **district assignment** on imported places, boundary polygons, and the remaining golden cases. |
 

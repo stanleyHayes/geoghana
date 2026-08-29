@@ -42,6 +42,7 @@ Usage:
   ghanageo-admin data import --source geonames --file <GH.txt> [--limit N]
   ghanageo-admin data boundaries --level ADM1|ADM2 --file <geojson> [--apply]
   ghanageo-admin data assign-districts
+  ghanageo-admin data dedupe [--apply]
   ghanageo migrate
 `)
 }
@@ -77,6 +78,8 @@ func run(args []string) error {
 			return cmdBoundaries(ctx, args[2:])
 		case "assign-districts":
 			return cmdAssignDistricts(ctx)
+		case "dedupe":
+			return cmdDedupe(ctx, args[2:])
 		}
 	case "keys":
 		if len(args) < 2 {
@@ -481,6 +484,62 @@ func cmdAssignDistricts(ctx context.Context) error {
 		fmt.Printf("  %d places with coordinates still have no district.\n", unassigned)
 		fmt.Println("  Expected causes: a district whose boundary did not match, or a")
 		fmt.Println("  place sitting just outside every polygon (coastline, border).")
+	}
+	return nil
+}
+
+// cmdDedupe merges places that different sources describe independently.
+// Defaults to a dry run: a wrong merge destroys a real place.
+func cmdDedupe(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("dedupe", flag.ContinueOnError)
+	apply := fs.Bool("apply", false, "write the merges (default is a dry run)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	places := mongo.NewPlaceRepo(store)
+	d := &ingest.Deduper{
+		Places:    places,
+		Grouper:   places,
+		Redirects: mongo.NewRedirectRepo(store),
+	}
+	if !*apply {
+		fmt.Println("→ DRY RUN — nothing will be written. Re-run with --apply.")
+	}
+	res, err := d.Run(ctx, *apply)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n%s\n", res)
+
+	if len(res.Merged) > 0 {
+		fmt.Printf("\n  Merges (%d):\n", len(res.Merged))
+		for _, m := range res.Merged {
+			gains := ""
+			if m.GainsCoordinate {
+				gains += " +coordinate"
+			}
+			if m.GainsDistrict {
+				gains += " +district"
+			}
+			if m.GainsAliases > 0 {
+				gains += fmt.Sprintf(" +%d aliases", m.GainsAliases)
+			}
+			fmt.Printf("    %-24s ← %-24s %s%s\n", m.SurvivorID, m.MergedID, m.Region, gains)
+		}
+		fmt.Println("\n  The merged ids are DEPRECATED, not deleted: a caller holding one")
+		fmt.Println("  receives 410 with mergedInto rather than a bare 404.")
+	}
+	if len(res.Ambiguous) > 0 {
+		fmt.Printf("\n  Ambiguous — left alone for a steward (%d):\n", len(res.Ambiguous))
+		for _, a := range res.Ambiguous {
+			fmt.Printf("    %s\n", a)
+		}
 	}
 	return nil
 }

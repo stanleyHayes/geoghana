@@ -191,7 +191,10 @@ func (s *Service) Reverse(ctx context.Context, lat, lng float64) (*ReverseResult
 // and places are all indexed: a user typing "Tema" means a district as
 // readily as a locality.
 func (s *Service) Reindex(ctx context.Context) (int, error) {
-	if err := s.search.EnsureSchema(ctx); err != nil {
+	// A true rebuild, not an upsert pass: indexing is upsert-only, so anything
+	// merged or deleted since the last run would otherwise linger and keep
+	// appearing in results.
+	if err := s.search.Rebuild(ctx); err != nil {
 		return 0, err
 	}
 

@@ -56,6 +56,9 @@ func (s *Service) GetRegion(ctx context.Context, id string) (*domain.Region, err
 	if err != nil {
 		return nil, s.mapLookupErr(ctx, "Region", id, err)
 	}
+	if r.Status == domain.StatusMerged || r.Status == domain.StatusDeprecated {
+		return nil, s.gone(ctx, "Region", id, r.Status)
+	}
 	r.DatasetVersion = s.version
 	return r, nil
 }
@@ -87,6 +90,9 @@ func (s *Service) GetDistrict(ctx context.Context, id string) (*domain.District,
 	d, err := s.districts.Get(ctx, id)
 	if err != nil {
 		return nil, s.mapLookupErr(ctx, "District", id, err)
+	}
+	if d.Status == domain.StatusMerged || d.Status == domain.StatusDeprecated {
+		return nil, s.gone(ctx, "District", id, d.Status)
 	}
 	d.DatasetVersion = s.version
 	return d, nil
@@ -128,8 +134,31 @@ func (s *Service) GetPlace(ctx context.Context, id string) (*domain.Place, error
 	if err != nil {
 		return nil, s.mapLookupErr(ctx, "Place", id, err)
 	}
+	// A merged or deprecated record still EXISTS — dedupe deprecates rather
+	// than deletes, so old ids keep resolving (rule R7). Returning it as
+	// though it were live would hand callers a record that search no longer
+	// surfaces and that no longer receives updates. Point them at the
+	// survivor instead.
+	if p.Status == domain.StatusMerged || p.Status == domain.StatusDeprecated {
+		return nil, s.gone(ctx, "Place", id, p.Status)
+	}
 	p.DatasetVersion = s.version
 	return p, nil
+}
+
+// gone builds the 410 for a record that has been merged away, following the
+// redirect so the caller is told where the data went.
+func (s *Service) gone(ctx context.Context, kind, id string, status domain.Status) error {
+	e := apierr.
+		New(apierr.ResourceGone, kind+" was merged into another record.").
+		WithDetail("id", id).
+		WithDetail("status", string(status))
+	if s.redirects != nil {
+		if rd, err := s.redirects.Resolve(ctx, id); err == nil && rd != nil {
+			e = e.WithDetail("mergedInto", rd.NewID).WithDetail("reason", rd.Reason)
+		}
+	}
+	return e
 }
 
 // Nearby is the spatial proximity query, backed by $nearSphere.

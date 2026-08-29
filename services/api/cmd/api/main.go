@@ -19,6 +19,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
+	gqlserver "github.com/ghanageo/ghanageo/services/api/internal/transport/graphql"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/rest"
 )
 
@@ -94,9 +95,18 @@ func run(cfg config.Config, log *slog.Logger) error {
 		cfg.Env == "sandbox",
 	)
 
+	// One mux so REST and GraphQL share a port, the same authenticator and the
+	// same fair-use accounting. A separate GraphQL server would be a second
+	// place for those to drift.
+	restHandler := rest.New(geo, searchSvc, log, cfg.AllowedOrigins).
+		WithAuth(authenticator).
+		WithStore(store).
+		WithGraphQL(gqlserver.NewHandler(geo, searchSvc)).
+		Routes()
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
-		Handler:           rest.New(geo, searchSvc, log, cfg.AllowedOrigins).WithAuth(authenticator).WithStore(store).Routes(),
+		Handler:           restHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

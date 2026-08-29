@@ -28,11 +28,20 @@ type Handler struct {
 	allowedOrigins map[string]bool
 	auth           *auth.Authenticator
 	store          *mongoadapter.Store
+	graphql        http.Handler
 }
 
 // WithStore attaches the datastore for endpoints that read across collections.
 func (h *Handler) WithStore(s *mongoadapter.Store) *Handler {
 	h.store = s
+	return h
+}
+
+// WithGraphQL mounts the GraphQL endpoint on the same mux, so it inherits the
+// request id, CORS, access logging, authentication and fair-use middleware
+// rather than reimplementing them.
+func (h *Handler) WithGraphQL(g http.Handler) *Handler {
+	h.graphql = g
 	return h
 }
 
@@ -88,6 +97,12 @@ func (h *Handler) Routes() http.Handler {
 
 	r.Get("/health", h.health)
 
+	if h.graphql != nil {
+		// Outside /v1: the GraphQL schema carries its own version, and Spec
+		// §8.1 places it at /graphql.
+		r.Handle("/graphql", h.graphqlRoute())
+	}
+
 	r.Route("/v1", func(r chi.Router) {
 		if h.auth != nil {
 			// One middleware resolves the caller and charges the bucket for
@@ -122,6 +137,19 @@ func (h *Handler) Routes() http.Handler {
 		writeErr(w, r, apierr.New(apierr.NotFound, "No such endpoint."))
 	})
 	return r
+}
+
+// graphqlRoute applies the same identity and fair-use accounting REST uses.
+// A GraphQL request is charged the NORMAL cost class as a floor; per-field
+// cost is enforced separately by the complexity budget, because a single
+// GraphQL request can be worth a hundred REST calls.
+func (h *Handler) graphqlRoute() http.Handler {
+	if h.auth == nil {
+		return h.graphql
+	}
+	return h.auth.Middleware(func(*http.Request) identity.CostClass {
+		return identity.CostNormal
+	})(h.graphql)
 }
 
 // ---- middleware ----

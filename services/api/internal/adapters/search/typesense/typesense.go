@@ -80,6 +80,27 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	return nil
 }
 
+// Rebuild drops and recreates the collection.
+//
+// Import is UPSERT-ONLY, so a reindex adds and updates but never removes a
+// document whose source record has gone. After deduplication merged places
+// stayed searchable and outranked their own survivors — the index quietly
+// disagreed with the database.
+//
+// The tradeoff is a brief window with no search. That is acceptable while the
+// dataset rebuilds in seconds; at production scale the answer is to build a
+// new collection and swap an alias, so the old index serves until the new one
+// is complete.
+func (c *Client) Rebuild(ctx context.Context) error {
+	// A missing collection is the desired end state, so a 404 is success.
+	if err := c.do(ctx, http.MethodDelete, "/collections/"+Collection, nil, nil); err != nil {
+		if !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "Not Found") {
+			return fmt.Errorf("drop collection: %w", err)
+		}
+	}
+	return c.EnsureSchema(ctx)
+}
+
 // EnsureSchema creates the collection if it does not exist. Idempotent.
 func (c *Client) EnsureSchema(ctx context.Context) error {
 	schema := map[string]any{

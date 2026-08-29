@@ -86,6 +86,10 @@ type RedirectRepository interface {
 // Neither the use cases nor the transports know which is active.
 type SearchPort interface {
 	Index(ctx context.Context, docs []SearchDoc) error
+	// Rebuild discards the index and starts clean. Required because Index is
+	// an upsert: without it, a record deleted or merged in the database stays
+	// searchable forever.
+	Rebuild(ctx context.Context) error
 	Search(ctx context.Context, q SearchQuery) ([]SearchHit, error)
 	Autocomplete(ctx context.Context, prefix string, limit int) ([]SearchHit, error)
 	EnsureSchema(ctx context.Context) error

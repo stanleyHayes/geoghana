@@ -475,3 +475,42 @@ func (r *DistrictRepo) CountWithGeometry(ctx context.Context) (withGeom, total i
 	}
 	return int(w), int(t), nil
 }
+
+// GroupsByNormalizedName returns places sharing a normalized name, for
+// duplicate detection. Only groups at or above minSize are returned, so the
+// 15,000 unique names never leave the database.
+func (r *PlaceRepo) GroupsByNormalizedName(
+	ctx context.Context, minSize int,
+) (map[string][]geography.Place, error) {
+	cur, err := r.col.Aggregate(ctx, mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"status": string(geography.StatusActive)}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":  "$normalizedName",
+			"docs": bson.M{"$push": "$$ROOT"},
+			"n":    bson.M{"$sum": 1},
+		}}},
+		{{Key: "$match", Value: bson.M{"n": bson.M{"$gte": minSize}}}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var rows []struct {
+		ID   string     `bson:"_id"`
+		Docs []placeDoc `bson:"docs"`
+	}
+	if err := cur.All(ctx, &rows); err != nil {
+		return nil, err
+	}
+
+	out := make(map[string][]geography.Place, len(rows))
+	for _, row := range rows {
+		places := make([]geography.Place, 0, len(row.Docs))
+		for _, d := range row.Docs {
+			places = append(places, fromPlaceDoc(d))
+		}
+		out[row.ID] = places
+	}
+	return out, nil
+}
