@@ -31,8 +31,9 @@
 18. [Map Surfaces](#18-map-surfaces)
 19. [Data-Dense Surfaces](#19-data-dense-surfaces)
 20. [Marketing Surfaces](#20-marketing-surfaces)
-21. [Component Inventory → Plan Mapping](#21-component-inventory--plan-mapping)
-22. [Design-QA Checklist](#22-design-qa-checklist)
+21. [Non-Screen Output — Print & Email](#21-non-screen-output--print--email)
+22. [Component Inventory → Plan Mapping](#22-component-inventory--plan-mapping)
+23. [Design-QA Checklist](#23-design-qa-checklist)
 23. [Appendix — Concrete Values (copy these)](#appendix--concrete-values-copy-these)
 
 ---
@@ -255,6 +256,70 @@ Everything derives from two numbers, so a user picking a hue re-skins the produc
 
 Fixing **L** per mode and varying only **H** and **C** is what guarantees that any user-chosen hue lands at a usable lightness. See §6.3 for the contrast clamp that handles the remaining edge cases.
 
+### 4.4 Typography — rhythm, not just a size ladder
+
+A size ramp alone is not a type system. Every size pairs with a line-height, weight and tracking.
+
+| Role | Size | Line-height | Weight | Tracking |
+|---|---|---|---|---|
+| Display (marketing hero) | `--text-5xl` | 1.02 | 700 | −0.03em |
+| H1 page title | `--text-3xl` | 1.12 | 650 | −0.02em |
+| H2 section | `--text-xl` | 1.25 | 600 | −0.01em |
+| H3 card title | `--text-lg` | 1.35 | 600 | 0 |
+| Body (portal/marketing) | `--text-base` | 1.6 | 400 | 0 |
+| Body (admin) | `--text-sm` | 1.5 | 400 | 0 |
+| Table cell | `--text-sm` | 1.4 | 400 | 0 |
+| Label / eyebrow | `--text-2xs` | 1.3 | 700 | 0.10em, uppercase |
+| Code / mono | `--text-sm` | 1.55 | 400 | 0 |
+
+- **Measure:** docs and marketing prose cap at `68ch`; admin descriptions at `80ch`. Never full-bleed body text.
+- **Optical matching:** JetBrains Mono runs ~6% larger than Outfit at the same nominal size. Inline code therefore sets `font-size: 0.92em` so a code span does not visually jump out of a sentence.
+- **Numerals:** `font-variant-numeric: tabular-nums` on every table, metric, ID, coordinate and version string. Proportional numerals only in prose.
+- Headings never go below `--text-sm`; a "small heading" is a label, and labels are a different role.
+
+#### 4.4.1 Ghanaian orthography — a hard font requirement
+
+GhanaGeo stores aliases and name variants in **Twi, Ga and Ewe** (Spec §3.1 `place_aliases.language`, §10). Those orthographies require characters that sit outside Latin-1 and outside many webfont subsets:
+
+| Character | Codepoint | Block | Used in |
+|---|---|---|---|
+| `ɔ` / `Ɔ` | U+0254 / U+0186 | IPA Extensions / Latin Ext-B | Twi, Ga, Ewe |
+| `ɛ` / `Ɛ` | U+025B / U+0190 | IPA Extensions / Latin Ext-B | Twi, Ga, Ewe |
+| `ŋ` / `Ŋ` | U+014B / U+014A | Latin Extended-A | Ga, Ewe |
+| `ɖ` `ƒ` `ʋ` `ɣ` | U+0256 U+0192 U+028B U+0263 | Latin Ext-B / IPA | Ewe |
+| Combining tone marks | U+0300, U+0301, U+0303 | Combining Diacriticals | Twi, Ewe |
+
+**This is a release gate, not a nicety.** A place-names product for Ghana that renders `Ɔsu` as a tofu box is broken.
+
+Requirements:
+1. **Verify glyph coverage before locking any face.** Do not assume Outfit, Bricolage Grotesque or JetBrains Mono cover these — check the actual font binaries with `fc-query` or `hb-shape` and record the result in `packages/ui/src/styles/FONTS.md`.
+2. If a chosen face lacks coverage, either pick a sibling that has it or declare a **scoped fallback** ahead of the generic stack — `Noto Sans` has full coverage and is metric-compatible enough for a fallback role.
+3. `next/font` subsets must include `latin-ext`, **not just `latin`**. `latin` alone drops U+014B and every Latin Extended-B character.
+4. Combining marks must not clip: line-height floors at 1.3 anywhere an alias can render, and no alias field uses `overflow: hidden` without `padding-block`.
+5. **A CI fixture renders `Ɔsu · Ɛdena · Ŋmaŋ · Kwabɛnya` in every face at every weight and fails on a missing glyph.** This is cheap and it is the only way the requirement survives a font swap.
+
+Normalization for search folds these to ASCII (`ɔ→o`, `ɛ→e`, `ŋ→n`) — that is plan story GEO-5.1 — but **display always preserves the true orthography**. Folding is a search-index concern and must never reach the UI.
+
+### 4.5 Breakpoints, containers & grid
+
+```
+xs   0      single column, drawer nav, stacked panels
+sm   640    two-column forms
+md   768    tablet; sidebar still a drawer
+lg   1024   ◄ sidebar becomes a rail; the shell's defining breakpoint
+xl   1280   navbar search expands to a full input; explorer gains its third pane
+2xl  1536   inspector widens; navbar shows pipeline-stage labels
+```
+
+| Surface | Container |
+|---|---|
+| Admin content | `--shell-content-max` 1480px |
+| Portal content | 1240px |
+| Docs article | 768px prose + 240px on-page nav |
+| Marketing section | 1200px, hero full-bleed |
+
+Grid is 12-column with `--space-6` gutters at ≥lg, 4-column at <md. **Component internals use container queries** (`@container`), not viewport queries — a card in the 400px inspector must lay out the same as that card at 400px anywhere else.
+
 ---
 
 ## 5. The Three Materials
@@ -439,6 +504,46 @@ A `Card` in every material, in full:
 
 That is the whole proof of the architecture: no material name appears anywhere in it.
 
+### 5.6 Form controls — the hardest case in each material
+
+Inputs are where all three materials break, because an input must read as *enterable* **and** clear a 3:1 non-text contrast boundary.
+
+| Material | The problem | The resolution |
+|---|---|---|
+| **Neu** | The input is the same colour as the page and its only edge is an inset shadow — **it fails 3:1 by construction.** | Inset shadow *plus* a mandatory 1px `--border-strong` edge. Neumorphic inputs are the one place the material does not get to be borderless. |
+| **Glass** | A glass input inside a glass panel is glass-on-glass — the boundary vanishes. | Inputs never blur. `--input-bg: --surface-sunken` at full opacity, 1px `--mat-border-color` at raised alpha. |
+| **Clay** | The 28px radius swallows short inputs and misaligns label-to-field. | Inputs use `--mat-radius-sm`, never `--mat-radius`. |
+
+Shared across all three:
+```css
+.input {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);   /* ALWAYS, in every material */
+  border-radius: var(--mat-radius-sm);
+  box-shadow: var(--mat-shadow-inset);
+  min-height: 44px;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-color: var(--primary); }
+.input[aria-invalid="true"] { border-color: var(--danger); }
+.input:disabled { opacity: 0.55; box-shadow: none; cursor: not-allowed; }
+```
+Placeholder is `--fg-subtle` and is **never** the only label. Checkbox, radio and switch get a 1px border in every material for the same reason — a shadow-only checkbox is invisible at 16px.
+
+### 5.7 Skeletons — one keyframe is not enough
+
+A shimmer sweep over a `backdrop-filter` surface is invisible, and a tinted rectangle on a neumorphic ground has no edges at all. Each material gets its own skeleton fill:
+
+```css
+[data-material="neu"]   .skeleton { background: var(--surface); box-shadow: var(--mat-shadow-inset); }
+[data-material="glass"] .skeleton { background: var(--surface-sunken); backdrop-filter: none;
+                                     background-image: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.22), transparent);
+                                     background-size: 200% 100%; animation: shimmer 1400ms ease-in-out infinite; }
+[data-material="clay"]  .skeleton { background: var(--surface-sunken); border-radius: var(--mat-radius-sm);
+                                     box-shadow: var(--mat-shadow-inset); }
+```
+Neu and clay skeletons are **inset wells that pulse opacity**, not sweeping gradients — the sweep reads as a foreign object on an extruded surface. Glass keeps the sweep, with blur disabled. All three respect the reduced-motion kill switch, degrading to a static well.
+
 ---
 
 ## 6. The Accessibility Contract
@@ -506,6 +611,62 @@ All three materials degrade to the same honest bordered-box system. This is corr
 - Decorative layers (watermarks, gradient mesh, blobs) are `aria-hidden="true"` and never receive pointer events.
 - Every icon-only control has an `aria-label` **and** a `title`.
 - `--fg-subtle` is never used for content, only for placeholders and disabled affordances.
+
+### 6.6 The colour-collision rule — brand vs status vs diff
+
+**This is the sharpest failure mode in the whole system, and it is easy to ship by accident.**
+
+The product uses green in four independent meanings: `--success`, `--vs-canonical`, diff-added, and — by default — the brand itself (`meridian`, hue 168). A user who sets a green brand hue makes "published", "approved", "added" and "this is our accent" visually identical. Red collides the same way: `--danger`, diff-removed, and the Production environment badge.
+
+**Rule: the brand hue is excluded from two arcs of the hue circle.**
+
+```
+      SUCCESS ARC          DANGER ARC
+      130° – 165°          10° –  45°
+      (reserved)           (reserved)
+```
+
+- The picker's hue slider **skips these arcs**; dragging into one snaps to the nearest edge with the note *"Reserved for status colours."*
+- A programmatically supplied hue inside an arc is rotated to the nearest legal value, and the adjustment is logged.
+- Status and verification tokens **never** reference `--brand-h`. They are fixed primitives (§4.1).
+
+The default brand `meridian` sits at **hue 168** — deliberately 3° outside the success arc, teal rather than green. The visual identity keeps its Ghanaian green-teal character without ever colliding with "approved".
+
+**Where colour is not enough, shape carries the meaning** (§6.5):
+
+| Meaning | Colour | Non-colour carrier |
+|---|---|---|
+| Diff added / removed | `--success` / `--danger` at 12% | `+` / `−` gutter glyph |
+| Verification status | `--vs-*` | Icon + text label, always |
+| Environment | badge tint | The word, plus the navbar hairline in Production |
+| Required field | — | Asterisk on the label, never colour |
+| Chart series | categorical palette (§19.4) | Direct labels, dash patterns, distinct markers |
+
+### 6.7 Honouring the other user preferences
+
+Contrast and motion are not the only things a user can ask for.
+
+```css
+/* The user finds translucency hard to read — glass must yield. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-material="glass"] { --mat-surface-alpha: 1; --mat-blur: 0px; --mat-backdrop: none; }
+}
+/* The user wants more contrast — every material hardens. */
+@media (prefers-contrast: more) {
+  :root { --mat-border-width: 1px; --mat-border-color: var(--fg); --mat-shadow-scale: 0.4; }
+  .input, .card, .panel { border-color: var(--fg); }
+}
+```
+`prefers-reduced-transparency` is the single most important of these for this system: it is precisely a request to turn glass off, and honouring it costs one token block.
+
+**Live regions.** Async results must announce themselves: search result counts and toasts use `aria-live="polite"`; quota-exceeded and permission-denied use `aria-live="assertive"`; streaming sandbox output uses `aria-live="polite"` with `aria-atomic="false"`. A screen-reader user must never have to guess whether a request finished.
+
+### 6.8 Deliberate deferrals
+
+Stated so they are choices, not oversights:
+
+- **RTL.** English, Twi, Ga and Ewe are all left-to-right, so RTL is out of scope for V1. All spacing nonetheless uses **logical properties** (`margin-inline`, `padding-block`, `inset-inline-start`) so the shell can mirror later. One warning for whoever does it: neumorphism and claymorphism encode a **fixed top-left light source**. When the layout mirrors, the light source must **not** — mirroring the shadows makes surfaces read as dented rather than raised. Light direction is physical, not directional-locale.
+- **Cartography and WCAG 1.4.11.** Basemap tiles are exempt under the *essential* exception in SC 1.4.11 — you cannot force 3:1 on cartography without destroying the map's meaning. The exception covers the **basemap only**. Everything GhanaGeo draws on top — boundaries, markers, clusters, selection, panels — carries the full 3:1 obligation (§18.1).
 
 ---
 
@@ -1097,6 +1258,14 @@ Raster OSM tiles are fixed-colour, so dark mode uses a CSS filter on the tile pa
 ```
 Applied to the **tile pane only** — never the whole map, or markers, labels and GeoJSON overlays invert too. Overlay colours come from tokens and are chosen to survive both treatments.
 
+**The filter hack has four known failure modes; all four are handled, none is pretended away:**
+1. *Baked-in labels invert too* — OSM raster tiles carry their labels in the image, so place names come out light-on-dark. Acceptable, and in fact desirable here.
+2. *Photography breaks* — any satellite or aerial layer inverts into a negative. Such layers therefore opt out via `.leaflet-tile-pane[data-no-invert]`.
+3. *Hue rotation shifts water and green space* — `hue-rotate(180deg)` is what keeps water blue rather than orange after inversion; dropping it is what makes naive dark-map hacks look wrong.
+4. *Cost* — the filter rasterises the tile pane. It is applied once to a single pane, never per tile, and never animated.
+
+If a vector basemap is adopted later (plan story GEO-26.4), this filter is deleted in favour of a true dark style — the filter is an honest interim, not the destination.
+
 | Layer | Light | Dark |
 |---|---|---|
 | Region boundary | `--ink-700` 2px | `--ink-200` 2px |
@@ -1181,6 +1350,47 @@ Where `restrained` intensity is mandatory (§3.3). The rule: **material expresse
 - Destructive confirmations require typing the entity name.
 - Unsaved-changes guard on navigation.
 
+### 19.4 Charts & data visualisation
+
+Recharts, themed entirely from CSS variables — but with one rule that matters more than all the others:
+
+**Categorical series colours must NOT derive from `--brand-h`.** If they did, a user picking a hue near a series colour would make two series indistinguishable, and the chart would silently lie. The categorical ramp is a **fixed, colourblind-safe set of six**, chosen for even spacing around the hue circle and distinct lightness so it survives greyscale printing:
+
+```css
+--series-1: oklch(0.60 0.13 250);  /* blue    */
+--series-2: oklch(0.65 0.15  45);  /* orange  */
+--series-3: oklch(0.55 0.12 295);  /* purple  */
+--series-4: oklch(0.70 0.13 195);  /* cyan    */
+--series-5: oklch(0.62 0.14 340);  /* magenta */
+--series-6: oklch(0.68 0.10 110);  /* olive   */
+```
+Beyond six series, switch chart type — a seven-line chart is unreadable regardless of palette.
+
+- **Sequential** (quality scores, density): single-hue lightness ramp from `--brand`, 5 steps. Safe here, because sequential encodes magnitude and never needs series separation.
+- **Diverging** (version-to-version change): `--danger` → neutral → `--success`, with a fixed neutral midpoint.
+- Charts sit at `data-intensity="restrained"` — **no shadow, no blur, no material fill behind plot area**. Gridlines are `--border` at 50%.
+- Series are **directly labelled** wherever space allows; a legend is the fallback, not the default.
+- Every chart has a table equivalent reachable by keyboard, and an `aria-label` summarising the trend.
+- Axes always start at zero for bar charts; a truncated axis carries a visible break marker.
+
+### 19.5 Code syntax theming
+
+Code is primary content in this product — docs, the OpenAPI reference, the GraphQL explorer, the sandbox, generated snippets in nine languages. Syntax colour is therefore a **first-class token set**, not a copied theme:
+
+```css
+--code-bg: var(--bg-subtle);      --code-fg: var(--fg);
+--code-comment: var(--fg-subtle); --code-keyword: var(--series-3);
+--code-string:  var(--series-6);  --code-number:  var(--series-2);
+--code-fn:      var(--series-1);  --code-type:    var(--series-4);
+--code-punct:   var(--fg-muted);  --code-invalid: var(--danger);
+```
+- **Derived from the series palette, never from `--brand`** — so a keyword stays a keyword whatever hue the user picks, and the same reasoning as §19.4 applies.
+- One theme per mode, identical across all three materials. Code blocks never blur and never carry a shadow.
+- Every token pair clears 4.5:1 against `--code-bg` in both modes — verified in the QA matrix, not assumed.
+- Line numbers `--fg-subtle`, `user-select: none`, so copying code never copies the numbers.
+- Copy button on every block; the copied text excludes the prompt character on shell snippets.
+- Highlighting runs at build time for docs (zero client JS) and lazily in the sandbox.
+
 ---
 
 ## 20. Marketing Surfaces
@@ -1196,7 +1406,50 @@ Where `restrained` intensity is mandatory (§3.3). The rule: **material expresse
 
 ---
 
-## 21. Component Inventory → Plan Mapping
+## 21. Non-Screen Output — Print & Email
+
+The materials cannot reach these surfaces, and pretending otherwise produces broken artefacts. Both are in scope because the product commits to them.
+
+### 21.1 Print
+
+GhanaGeo produces printable artefacts: district and place registries, **audit-log exports** (required exportable and non-deletable, plan GEO-17.11), dataset changelogs, validation reports and map extracts.
+
+```css
+@media print {
+  :root { --mat-shadow-raised: none; --mat-shadow-lifted: none;
+          --mat-shadow-inset: none; --mat-blur: 0; --mat-backdrop: none;
+          --bg: #fff; --surface: #fff; --fg: #000; --border: #999; }
+  .app-shell-sidebar, .app-shell-navbar, .command-palette,
+  .bulk-action-bar, [data-print="hide"] { display: none !important; }
+  main { margin: 0 !important; max-width: none !important; }
+  table { break-inside: auto } tr { break-inside: avoid; break-after: auto }
+  thead { display: table-header-group }     /* header repeats on every page */
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.85em }
+}
+@page { margin: 18mm 14mm; }
+```
+
+- **All three materials collapse to the same flat, bordered print form.** Print is monochrome-first; never rely on a fill that disappears on a laser printer.
+- Every printed page carries a footer: dataset version, environment, generated-at timestamp and the exporting user — an audit export without provenance is worthless.
+- Map extracts print the visible viewport as a raster with a scale bar, north arrow and the **ODbL attribution**, which is a licence obligation, not a design choice (plan R4).
+- Table headers repeat across pages; rows never split.
+
+### 21.2 Email
+
+The plan commits to Resend for transactional mail: verification, key rotation, quota warnings, suspension notices, invitations and change-request decisions.
+
+**Email cannot use this design system.** No CSS variables, no `oklch()`, no `backdrop-filter`, no web fonts, no flexbox or grid in Outlook. So:
+
+- A **separate token mirror** in `packages/ui/src/email/tokens.ts` exporting **hex** values compiled from the light-mode defaults. It is generated from the same source, never hand-copied.
+- Table-based layout, inlined styles, 600px max width, system font stack.
+- **The brand axis does not reach email** — transactional mail uses the GhanaGeo default `meridian`, never a user's custom hue. A verification email must look like GhanaGeo, not like the recipient's theme.
+- `prefers-color-scheme` dark support where the client honours it, with a light-mode-safe fallback; never a dark-only design.
+- Every email is readable as plain text; a text part always ships.
+- No image is load-bearing — alt text carries the meaning, since images are blocked by default in many clients.
+
+---
+
+## 22. Component Inventory → Plan Mapping
 
 | Component | Package path | Plan story |
 |---|---|---|
@@ -1209,19 +1462,29 @@ Where `restrained` intensity is mandatory (§3.3). The rule: **material expresse
 | `ThemePicker` | `packages/ui/src/theme/picker/` | GEO-14.6 |
 | `DataTable`, `JsonViewer`, `DiffView`, `CodeBlock` | `packages/ui/src/data/` | GEO-14.3 |
 | `MapCanvas`, `MapPanel`, `GeoJsonLayer`, `HierarchyTree` | `packages/ui/src/map/` | GEO-17.2, GEO-15.5 |
+| `ErrorBoundary` + illustrated crash screen | `packages/ui/src/shell/error/` | GEO-14.5 |
+| Route `loading.tsx` / `error.tsx` shells | per app `app/**/` | GEO-14.5 |
+| `SkipLink` (to main content, first focusable element) | `packages/ui/src/shell/` | GEO-14.5 |
+| `SlidingIndicator` — the sub-navigation layer under the sidebar (tabs, filters, view toggles) | `packages/ui/src/components/` | GEO-14.3 |
+| `Toolbar` — search + filter + saved views + density + export | `packages/ui/src/data/` | GEO-14.3 |
+| `Pagination` + `usePagedItems` | `packages/ui/src/data/` | GEO-14.3 |
+| `EmptyState` (per-surface presets, not one generic) | `packages/ui/src/components/` | GEO-14.3 |
+| `ActivityDrawer` — per-record audit trail, lazily fetched | `packages/ui/src/data/` | GEO-17.11 |
+| `BulkImportSheet` — CSV template, client preview, per-row results | `packages/ui/src/data/` | GEO-17.5 |
+| Email token mirror (hex) + templates | `packages/ui/src/email/` | GEO-21.x |
 | Design-QA harness (axe-core + Playwright matrix) | `packages/ui/tests/` | GEO-14.7 |
 
 ---
 
-## 22. Design-QA Checklist
+## 23. Design-QA Checklist
 
 Every frontend PR runs this. It is a **required CI check** (GEO-14.7), and results append to `design-qa.md` in the house format: evidence → findings (P0–P3) → fix → post-fix evidence → a literal `final result: passed | blocked` line.
 
-### 22.1 The matrix — every surface, every point
+### 23.1 The matrix — every surface, every point
 
 Automated Playwright + axe-core across **3 materials × 3 modes (light/dark/custom-hue) × 5 viewports** (320, 390, 768, 1280, 1920).
 
-### 22.2 Gates
+### 23.2 Gates
 
 **Material**
 - [ ] Renders correctly in `neu`, `glass` and `clay`
@@ -1242,6 +1505,11 @@ Automated Playwright + axe-core across **3 materials × 3 modes (light/dark/cust
 - [ ] Colour is never the sole carrier of meaning
 - [ ] Split text carries `aria-label` on the parent and `aria-hidden` on spans
 - [ ] Decorative layers are `aria-hidden` and non-interactive
+- [ ] Skip link present and first in focus order
+- [ ] `prefers-reduced-transparency` and `prefers-contrast: more` honoured
+- [ ] Live regions announce async results, toasts and quota errors
+- [ ] Ghanaian orthography (`Ɔ ɔ Ɛ ɛ Ŋ ŋ ɖ ƒ ʋ ɣ` + combining tone marks) renders in every face and weight — no tofu, no clipping
+- [ ] Brand hue is outside both reserved status arcs; status and chart series colours do not derive from it
 
 **Motion**
 - [ ] `prefers-reduced-motion` honoured — verified by emulating it, not by reading the code
@@ -1306,8 +1574,9 @@ tabular-nums on every numeric and ID column
 comfortable row 44px · compact row 36px · min target 44px (24px inline)
 
 /* Brand presets (hue, chroma) */
-meridian 168 0.115  ·  lagoon 232 0.120  ·  clay 42 0.105
+meridian 168 0.115  ·  lagoon 232 0.120  ·  terracotta 55 0.105
 kente    118 0.130  ·  ink    268 0.090
+RESERVED — unavailable to the brand axis: 130-165 (success) · 10-45 (danger)
 ```
 
 ---
