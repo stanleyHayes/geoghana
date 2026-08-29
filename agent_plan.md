@@ -108,6 +108,8 @@ This section tracks work currently in-flight and recently completed. The active 
 | GEO-12.1–12.4 | EP-12 Search | ✅ **Done** | Claude | Typesense SearchPort; search, autocomplete, geocode, reverse. Domain relevance scoring replaced the engine's unusable score. |
 | GEO-29.1–29.4 | EP-16b Support | 🟡 Partial | Claude | SupportPanel and SponsorWall built and rendering; the public support page and transparency report need `apps/web`. |
 | GEO-12.5–12.6 | EP-12 Search | ⬜ Next | unassigned | Nearby via the search path, and the p95 load gate. Blocked on coordinates (GEO-4.6/4.7). |
+| GEO-13.8 | EP-13b Public CLI | ✅ **Done** | Claude | 9 commands, table/JSON/CSV, 7 platform binaries, npm wrapper. No API key required. |
+| GEO-13.9 | EP-13b Public CLI | ⬜ Next | unassigned | Release automation: tag → cross-compile → npm + Homebrew + checksums. |
 | GEO-9.x | EP-09 Identity | ⬜ Next | unassigned | Auth, keys, scopes, fair-use limits, audit. Gates public launch. |
 | GEO-10.x / 11.x | EP-10/11 GraphQL + gRPC | ⬜ Not started | unassigned | Contracts published, so these can start immediately. |
 | GEO-4.6–4.7 | EP-04 Ingestion | ⬜ Not started | unassigned | GSS boundaries and OSM. **Reverse geocode stays empty until these land coordinates.** |
@@ -489,6 +491,7 @@ A story is Done only when **every** line is true. This extends the Workflow Manu
 | EP-15 | Interactive Sandbox | L9 | 5 | §15 |
 | EP-16 | Developer Portal | L10 | 5 | §14 |
 | EP-16b | Support & Funding (free-forever model) | L8/L10 | 5–6 | product decision, 2026-08-29 |
+| EP-13b | **Public CLI** (`ghanageo`) | L6 | 4 | product decision, 2026-08-29 |
 | EP-17 | Admin & Data Steward Portal | L11 | 5 | §17 |
 | EP-18 | Marketing Website & Documentation Hub | L8 | 6 | §16 |
 | EP-19 | Observability, SLOs & Status | L12 | 6 | §20 |
@@ -877,6 +880,25 @@ Epics **EP-23 – EP-27** are Specification v2 and are detailed in §23. They ar
 #### GEO-13.6 — `ghanageo` umbrella npm package
 **Depends-On:** GEO-13.5 · **Spec:** §11
 **Acceptance criteria:** The public `ghanageo` package exposing the Spec §11 API surface, ESM-first with documented CJS compatibility, tree-shakeable, TypeScript-native.
+
+#### GEO-13.8 — Public CLI (`ghanageo`)
+**Depends-On:** GEO-8.2, GEO-12.1 · **Lane:** L6 · **Module:** `cli/`
+**User story:** As a Ghanaian developer, journalist, researcher or student, I want to query national geography from my terminal without signing up for anything.
+**Business value:** A CLI is the cheapest possible on-ramp for a free public dataset. It needs no account, no browser and no SDK, and it makes the data usable by people who are not building an application at all.
+**Acceptance criteria:**
+- Commands: `regions`, `districts`, `places`, `search`, `suggest`, `nearby`, `reverse`, `version`, `help`.
+- **No API key required.** Anonymous use is a first-class path, not a degraded one (§24 F1). `GHANAGEO_API_KEY` is accepted for fair-use identification and unlocks nothing.
+- Three output modes: an aligned table for humans, `--json` for `jq`, `--csv` for spreadsheets.
+- Table alignment is measured in **runes, not bytes**, so Twi, Ga and Ewe names (`Ɔsu`, `Kwabɛnya`) do not break columns.
+- Colour is suppressed when output is not a terminal, and `NO_COLOR` is honoured.
+- Distinct exit codes: `0` success, `1` local error, `2` API error. An API error prints the stable code and a docs link.
+- Static binaries for darwin/linux/windows × amd64/arm64 plus linux/arm, with `checksums.txt`. No runtime dependency.
+- Distributed three ways: `go install`, `npx ghanageo`, and Homebrew.
+- The npm wrapper forwards signals and reproduces the child's exit code, and fails with actionable advice on an unsupported platform.
+
+#### GEO-13.9 — CLI distribution and release automation
+**Depends-On:** GEO-13.8 · **Lane:** L6/L12
+**Acceptance criteria:** One tagged release cross-compiles every platform, publishes the npm package with the binaries, updates the Homebrew tap, and attaches checksums. The CLI reports the API version it targets.
 
 #### GEO-13.7 — `@ghanageo/proto`
 **Depends-On:** GEO-11.5 · **Spec:** §32.6
@@ -1442,8 +1464,8 @@ Spec §31. Source files are already in the repository and move to `data/seed-dat
 
 | Component | Local port | Owner lane | Deploy target |
 |---|---|---|---|
-| `services/api` — REST + GraphQL | 8080 | L2/L3/L4 | Render |
-| `services/api` — gRPC | 9090 | L3 | Render |
+| `services/api` — REST + GraphQL | 8180 | L2/L3/L4 | Render |
+| `services/api` — gRPC | 9190 | L3 | Render |
 | `services/api` — ConnectRPC (browser) | 8081 | L3 | Render |
 | `services/worker` | — | L1/L12 | Render |
 | MongoDB 8.3 (replica set `rs0`) | 27017 | L1 | MongoDB Atlas |
@@ -1452,8 +1474,9 @@ Spec §31. Source files are already in the repository and move to `data/seed-dat
 | `apps/web` (marketing + docs) | 3000 | L8 | Vercel |
 | `apps/sandbox` | 3001 | L9 | Vercel |
 | `apps/portal` | 3002 | L10 | Vercel |
-| `apps/admin` | 3003 | L11 | Vercel |
+| `apps/admin` | 3103 | L11 | Vercel |
 | Prism mock (OpenAPI) | 4010 | L0 | local/CI only |
+| `cli/` — public CLI binary | — | L6 | npm · Homebrew · `go install` |
 
 **Public surfaces:** `https://ghanageo.dev` (marketing/docs) · `https://api.ghanageo.dev/v1` (REST) · `https://api.ghanageo.dev/graphql` · `grpc.ghanageo.dev:443` · `https://sandbox.ghanageo.dev` · `https://console.ghanageo.dev` (portal) · `https://admin.ghanageo.dev`.
 

@@ -43,3 +43,5 @@ Thumbs.db
 # Go
 services/*/bin/
 next-env.d.ts
+cli/dist/
+bin/

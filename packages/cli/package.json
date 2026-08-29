@@ -1,0 +1,13 @@
+{
+  "name": "ghanageo",
+  "version": "0.1.0",
+  "description": "Ghana's location data, from your terminal. Free — no account, no API key.",
+  "keywords": ["ghana", "geocoding", "geography", "cli", "regions", "districts", "mmda", "africa"],
+  "license": "MIT",
+  "homepage": "https://ghanageo.dev",
+  "repository": { "type": "git", "url": "https://github.com/ghanageo/ghanageo" },
+  "bin": { "ghanageo": "bin/ghanageo.js" },
+  "files": ["bin/", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": { "typecheck": "echo ok", "lint": "echo ok", "test": "node bin/resolve.test.js" }
+}

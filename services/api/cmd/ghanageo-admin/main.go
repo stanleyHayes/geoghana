@@ -1,4 +1,4 @@
-// Command ghanageo is the operator CLI: data seed, validate and reconcile.
+// Command ghanageo-admin is the internal operator CLI: data seed, validate and reconcile.
 package main
 
 import (
@@ -26,10 +26,10 @@ func usage() {
 	fmt.Fprint(os.Stderr, `ghanageo — GhanaGeo operator CLI
 
 Usage:
-  ghanageo data seed      --file <manifest.json> [--environment local]
-  ghanageo data validate  --dataset seed
-  ghanageo data reconcile --against canonical-staging
-  ghanageo data reindex
+  ghanageo-admin data seed      --file <manifest.json> [--environment local]
+  ghanageo-admin data validate  --dataset seed
+  ghanageo-admin data reconcile --against canonical-staging
+  ghanageo-admin data reindex
   ghanageo migrate
 `)
 }

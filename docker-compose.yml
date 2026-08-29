@@ -17,10 +17,13 @@ services:
           try { rs.status().ok }
           catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok }
         "
-      interval: 5s
-      timeout: 10s
-      retries: 20
-      start_period: 10s
+      # mongosh takes several seconds to start when Docker is under memory
+      # pressure from other projects, so the probe needs room. The replica set
+      # stays healthy throughout; only the probe was timing out.
+      interval: 15s
+      timeout: 30s
+      retries: 10
+      start_period: 40s
 
   redis:
     image: redis:7-alpine
