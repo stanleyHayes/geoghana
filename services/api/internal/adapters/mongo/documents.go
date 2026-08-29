@@ -1,6 +1,8 @@
 package mongo
 
 import (
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/normalize"
 )
@@ -96,17 +98,15 @@ func coordOf(g *geoJSON) *geography.Coordinate {
 	if g == nil || g.Type != "Point" {
 		return nil
 	}
+	// The driver decodes a BSON array into bson.A, which is a NAMED type
+	// (`type A []interface{}`). A type switch on `[]any` does not match a
+	// named type, so handling only []any silently returned nil for every
+	// coordinate while the database held them correctly.
 	switch v := g.Coordinates.(type) {
+	case bson.A:
+		return coordFromSlice([]any(v))
 	case []any:
-		if len(v) < 2 {
-			return nil
-		}
-		lng, ok1 := toFloat(v[0])
-		lat, ok2 := toFloat(v[1])
-		if !ok1 || !ok2 {
-			return nil
-		}
-		return &geography.Coordinate{Latitude: lat, Longitude: lng}
+		return coordFromSlice(v)
 	case []float64:
 		if len(v) < 2 {
 			return nil
@@ -114,6 +114,19 @@ func coordOf(g *geoJSON) *geography.Coordinate {
 		return &geography.Coordinate{Latitude: v[1], Longitude: v[0]}
 	}
 	return nil
+}
+
+// coordFromSlice reads a GeoJSON position, which is [longitude, latitude].
+func coordFromSlice(v []any) *geography.Coordinate {
+	if len(v) < 2 {
+		return nil
+	}
+	lng, ok1 := toFloat(v[0])
+	lat, ok2 := toFloat(v[1])
+	if !ok1 || !ok2 {
+		return nil
+	}
+	return &geography.Coordinate{Latitude: lat, Longitude: lng}
 }
 
 func toFloat(v any) (float64, bool) {

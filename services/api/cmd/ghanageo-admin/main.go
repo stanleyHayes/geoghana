@@ -13,11 +13,15 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/adapters/ingest/geonames"
+	"github.com/ghanageo/ghanageo/services/api/internal/app/ingest"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/seed"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
 )
+
+const datasetVersion = "2026.08.1-seed"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -34,6 +38,7 @@ Usage:
   ghanageo-admin data validate  --dataset seed
   ghanageo-admin data reconcile --against canonical-staging
   ghanageo-admin data reindex
+  ghanageo-admin data import --source geonames --file <GH.txt> [--limit N]
   ghanageo migrate
 `)
 }
@@ -63,6 +68,8 @@ func run(args []string) error {
 			return cmdReconcile(ctx, args[2:])
 		case "reindex":
 			return cmdReindex(ctx)
+		case "import":
+			return cmdImport(ctx, args[2:])
 		}
 	case "keys":
 		if len(args) < 2 {
@@ -217,7 +224,7 @@ func cmdReindex(ctx context.Context) error {
 		mongo.NewRegionRepo(store),
 		mongo.NewDistrictRepo(store),
 		mongo.NewPlaceRepo(store),
-		"2026.08.1-seed",
+		datasetVersion,
 	)
 	fmt.Printf("→ reindexing into %s\n", cfg.TypesenseURL)
 	n, err := svc.Reindex(ctx)
@@ -225,6 +232,74 @@ func cmdReindex(ctx context.Context) error {
 		return err
 	}
 	fmt.Printf("✓ indexed %d documents (regions, districts and places)\n", n)
+	return nil
+}
+
+// cmdImport runs a source adapter through the ingestion pipeline.
+func cmdImport(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("import", flag.ContinueOnError)
+	source := fs.String("source", "geonames", "source adapter to run")
+	file := fs.String("file", "", "path to the source dump")
+	limit := fs.Int("limit", 0, "maximum records to import (0 = all)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *file == "" {
+		return fmt.Errorf("--file is required")
+	}
+
+	store, cfg, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+	if err := mongo.Migrate(ctx, store.DB()); err != nil {
+		return err
+	}
+
+	var adapter ingest.Adapter
+	switch *source {
+	case "geonames":
+		a := geonames.New(*file)
+		a.MaxRecords = *limit
+		adapter = a
+	default:
+		return fmt.Errorf("unknown source %q", *source)
+	}
+
+	lic := adapter.Licence()
+	fmt.Printf("→ importing %s from %s\n", adapter.Name(), *file)
+	fmt.Printf("  licence: %s (%s)\n", lic.Name, lic.SPDX)
+	fmt.Printf("  attribution: %s\n\n", lic.Attribution)
+
+	imp := &ingest.Importer{
+		Regions:        mongo.NewRegionRepo(store),
+		Districts:      mongo.NewDistrictRepo(store),
+		Places:         mongo.NewPlaceRepo(store),
+		DatasetVersion: datasetVersion,
+	}
+	res, err := imp.Run(ctx, adapter, 500)
+	if res != nil {
+		fmt.Printf("✓ fetched %d · created %d · updated %d · skipped %d · rejected %d\n",
+			res.Fetched, res.Created, res.Updated, res.Skipped, res.Rejected)
+		if len(res.RejectReasons) > 0 {
+			fmt.Println("  rejections:")
+			shown := 0
+			for reason, n := range res.RejectReasons {
+				fmt.Printf("    %5d  %s\n", n, reason)
+				if shown++; shown >= 8 {
+					fmt.Printf("    … and %d more reasons\n", len(res.RejectReasons)-shown)
+					break
+				}
+			}
+		}
+		fmt.Printf("  took %s\n", res.FinishedAt.Sub(res.StartedAt).Round(time.Millisecond))
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Println("\n  Records land as REFERENCE. A steward reconciles them against")
+	fmt.Printf("  GNHR/GSS before canonical publication. Environment: %s\n", cfg.Env)
 	return nil
 }
 
