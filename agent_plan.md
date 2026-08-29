@@ -5,7 +5,7 @@
 **Last updated:** 2026-08-29
 **Governed by:** `GhanaGeo_End_to_End_Build_Specification_v2.docx` (product/technical source of truth), `AI_Development_Workflow_Training_Manual.docx`, `AI_Native_Software_Engineering_Operations_Manual.docx`
 **Audience:** AI coding agents and engineers building GhanaGeo in parallel
-**Status:** Sprint 0 not started. Repository contains specification documents and seed data only.
+**Status:** Sprint 0 complete. Data core, REST v1 and the design system run and are verified. Contracts (EP-02) are the next critical path.
 
 > This is the single source of truth for **how the work is decomposed and sequenced**.
 > The Build Specification says **what and why** to build. This plan says **who builds it, in what order, against which contracts, and how to avoid stepping on each other.**
@@ -73,12 +73,37 @@
 
 This section tracks work currently in-flight and recently completed. The active agent updates it after every batch of work.
 
-**2026-08-29 — Planning lane.** Authored this execution plan and `DESIGN_SYSTEM.md` from the Build Specification v2, the two governing manuals, and a grounded audit of the RentOS, Xtiitch and AuraEDU admin shells. No application code exists yet. Repository currently holds: the specification `.docx`, the two manuals, `GhanaGeo_Initial_Seed_Data.xlsx`, three seed CSVs (16 regions, 261 districts, 16 places), and `GhanaGeo_React_Hooks_Starter.zip` containing a working `@ghanageo/react` skeleton (client, provider, query-key factory, typed hooks). Sprint 0 is unblocked and ready to start at `GEO-1.1`.
+**2026-08-29 — Planning lane.** Authored `agent_plan.md` and `DESIGN_SYSTEM.md` from Build Specification v2, the two governing manuals, and a grounded audit of the RentOS, Xtiitch and AuraEDU admin shells.
+
+**2026-08-29 — Build lane.** Sprint 0 complete and the data core, REST v1 and design system are running and verified against live services, not mocks. MongoDB 8.0 replica set, Redis 7 and Typesense 29 are healthy in Compose. The seed imports 16 regions / 261 districts / 16 places and is proven idempotent (a second run created nothing). JSON Schema validators reject malformed documents at the database. REST v1 serves nine endpoints with the Spec §19 error envelope; verified 404, 400 with details, 410-with-`mergedInto` for a merged id, and an empty-not-error result for coordinates outside Ghana. The tri-morphic design system renders in all six material × mode combinations with zero console errors, and the contrast clamp is proven across all 360 hues in both modes. The admin shell ships 11 groups, 66 role-gated routes, a 14-action navbar and a working command palette searching live MongoDB.
+
+**Port block.** This machine already runs other projects on 8080, 3003, 6379 and 27017, so GhanaGeo claims: Mongo `27117`, Redis `6679`, Typesense `8108`, API `8180`, gRPC `9190`, admin `3103`.
+
+**Decision taken without escalating.** Typesense is the `SearchPort` implementation for local and CI; Atlas Search remains a swappable second implementation. This removes the managed-service dependency from the critical path (RK-6).
 
 | Story | Epic | Status | Agent | Notes |
 |---|---|---|---|---|
-| — | EP-00 Planning | **Done** | Claude (planning lane) | `agent_plan.md` + `DESIGN_SYSTEM.md` authored. |
-| GEO-1.1 | EP-01 Foundation | **Ready** | unassigned | Monorepo skeleton. First story of Sprint 0. |
+| — | EP-00 Planning | ✅ **Done** | Claude | `agent_plan.md` + `DESIGN_SYSTEM.md`. |
+| GEO-1.1 | EP-01 Foundation | ✅ **Done** | Claude | Monorepo, pnpm workspace, Turborepo, `go.work`, source material relocated. |
+| GEO-1.2 | EP-01 Foundation | ✅ **Done** | Claude | `CLAUDE.md` + `AGENTS.md`. |
+| GEO-1.3 | EP-01 Foundation | ✅ **Done** | Claude | Compose stack; all three services healthy. |
+| GEO-3.1 | EP-03 Schema | ✅ **Done** | Claude | Collections, strict JSON Schema validators, 2dsphere + compound indexes. |
+| GEO-3.2 | EP-03 Schema | ✅ **Done** | Claude | Place-type, status and verification enumerations. |
+| GEO-3.3 | EP-03 Schema | ✅ **Done** | Claude | Redirects; a merged id resolves to 410 with `mergedInto`. |
+| GEO-4.1 | EP-04 Ingestion | ✅ **Done** | Claude | Seed import with checksum verification; idempotency proven. |
+| GEO-4.2 | EP-04 Ingestion | ✅ **Done** | Claude | `data validate` asserts counts and zero orphan districts. |
+| GEO-5.1 | EP-05 Matching | ✅ **Done** | Claude | Normalization: Twi/Ga/Ewe folding, Ghanaian abbreviations, determinism test. |
+| GEO-5.3 | EP-05 Matching | ✅ **Done** | Claude | Geometry validation replacing PostGIS, with a known-bad-polygon suite. |
+| GEO-7.1–7.4 | EP-07 Domain | ✅ **Done** | Claude | Entities, ports, Mongo repositories, geography use cases. |
+| GEO-8.1–8.5 | EP-08 REST | ✅ **Done** | Claude | Nine endpoints, error envelope, cursor pagination, CORS allow-list. |
+| GEO-14.1 | EP-14 Design | ✅ **Done** | Claude | Three-axis token system; 14 material tokens; verified in six combinations. |
+| GEO-14.2 | EP-14 Design | ✅ **Done** | Claude | ThemeProvider, FOUC script, contrast clamp (360 hues × 2 modes pass). |
+| GEO-14.3 | EP-14 Design | 🟡 Partial | Claude | Card, Button, Input, Badge, Skeleton, EmptyState, SkipLink. Table, Dialog, Tabs, Combobox remain. |
+| GEO-14.5 | EP-14 Design | ✅ **Done** | Claude | AppShell: sidebar, navbar, command palette. |
+| GEO-14.6 | EP-14 Design | ✅ **Done** | Claude | Theme picker with live preview; needs mounting in portal and marketing. |
+| GEO-2.1–2.5 | EP-02 Contracts | ⬜ Next | unassigned | OpenAPI, GraphQL SDL and protobuf are the critical path for L3/L6/L9/L10. |
+| GEO-9.x | EP-09 Identity | ⬜ Not started | unassigned | Auth, keys, scopes, quotas, audit. |
+| GEO-12.x | EP-12 Search | ⬜ Not started | unassigned | Typesense `SearchPort` implementation and the p95 gate. |
 
 **Legend:** ✅ Done & verified · 🟡 In progress · ⬜ Not started · 🔴 Blocked
 
