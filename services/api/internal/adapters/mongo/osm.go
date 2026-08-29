@@ -170,3 +170,60 @@ func (r *POIRepo) AssignRegions(ctx context.Context, db *mongo.Database) (int, e
 	}
 	return assigned, cur.Err()
 }
+
+// All reads every road for the bulk export.
+//
+// The whole collection is materialised because the exporter builds one
+// FeatureCollection; Ghana's named-road network is about twenty thousand
+// records, which is fine. A country where that stopped being true would need
+// the exporter to stream instead.
+func (r *RoadRepo) All(ctx context.Context) ([]geography.Road, error) {
+	cur, err := r.col().Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "name", Value: 1}}))
+	if err != nil {
+		return nil, fmt.Errorf("read roads: %w", err)
+	}
+	defer func() { _ = cur.Close(ctx) }()
+
+	var out []geography.Road
+	for cur.Next(ctx) {
+		var d roadDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, fmt.Errorf("decode road: %w", err)
+		}
+		out = append(out, geography.Road{
+			ID: d.ID, Name: d.Name, Ref: d.Ref, Class: geography.RoadClass(d.Class),
+			RegionID: d.RegionID, RegionName: d.RegionName, DistrictID: d.DistrictID,
+			Geometry: geomFrom(d.Geometry), Status: geography.Status(d.Status),
+			VerificationStatus: geography.VerificationStatus(d.VerificationStatus),
+			Provenance:         provFrom(d.Provenance),
+			Attribution:        d.Attribution, DatasetVersion: d.DatasetVersion,
+		})
+	}
+	return out, cur.Err()
+}
+
+// All reads every point of interest for the bulk export.
+func (r *POIRepo) All(ctx context.Context) ([]geography.POI, error) {
+	cur, err := r.col().Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "name", Value: 1}}))
+	if err != nil {
+		return nil, fmt.Errorf("read pois: %w", err)
+	}
+	defer func() { _ = cur.Close(ctx) }()
+
+	var out []geography.POI
+	for cur.Next(ctx) {
+		var d poiDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, fmt.Errorf("decode poi: %w", err)
+		}
+		out = append(out, geography.POI{
+			ID: d.ID, Name: d.Name, Class: geography.POIClass(d.Class), Category: d.Category,
+			RegionID: d.RegionID, RegionName: d.RegionName, DistrictID: d.DistrictID,
+			Centroid: coordOf(d.Centroid), Status: geography.Status(d.Status),
+			VerificationStatus: geography.VerificationStatus(d.VerificationStatus),
+			Provenance:         provFrom(d.Provenance),
+			Attribution:        d.Attribution, DatasetVersion: d.DatasetVersion,
+		})
+	}
+	return out, cur.Err()
+}

@@ -32,6 +32,26 @@ type Builder struct {
 	places    ports.PlaceRepository
 	repo      Repository
 	exportDir string
+
+	// Optional: OSM-derived collections. Absent, the export simply omits
+	// them rather than shipping empty files that imply the data is gone.
+	roads RoadSource
+	pois  POISource
+}
+
+// RoadSource and POISource read the OSM-derived collections for export.
+// Interfaces rather than concrete repos so the builder stays testable.
+type RoadSource interface {
+	All(ctx context.Context) ([]geo.Road, error)
+}
+type POISource interface {
+	All(ctx context.Context) ([]geo.POI, error)
+}
+
+// WithOSM attaches the OpenStreetMap-derived collections.
+func (b *Builder) WithOSM(roads RoadSource, pois POISource) *Builder {
+	b.roads, b.pois = roads, pois
+	return b
 }
 
 func NewBuilder(
@@ -151,6 +171,43 @@ func (b *Builder) BuildWithChangelog(ctx context.Context, version, generatedAt, 
 		[]string{"id", "name", "type", "regionId", "regionName", "districtId", "districtName", "latitude", "longitude", "population", "status", "verificationStatus", "source"},
 		placeRows(places))); err != nil {
 		return domain.Version{}, err
+	}
+
+	// OSM-derived artifacts. ODbL is share-alike, so these files carry the
+	// notice inside them like every other download.
+	if b.roads != nil {
+		roads, rerr := b.roads.All(ctx)
+		if rerr != nil {
+			return domain.Version{}, rerr
+		}
+		if len(roads) > 0 {
+			if err := add(b.writeGeoJSON(dir, version, generatedAt, "roads",
+				roadFeatures(roads))); err != nil {
+				return domain.Version{}, err
+			}
+			if err := add(b.writeCSV(dir, "roads",
+				[]string{"id", "name", "ref", "class", "regionId", "districtId", "source", "attribution"},
+				roadRows(roads))); err != nil {
+				return domain.Version{}, err
+			}
+		}
+	}
+	if b.pois != nil {
+		pois, perr := b.pois.All(ctx)
+		if perr != nil {
+			return domain.Version{}, perr
+		}
+		if len(pois) > 0 {
+			if err := add(b.writeGeoJSON(dir, version, generatedAt, "pois",
+				poiFeatures(pois))); err != nil {
+				return domain.Version{}, err
+			}
+			if err := add(b.writeCSV(dir, "pois",
+				[]string{"id", "name", "class", "category", "regionId", "districtId", "latitude", "longitude", "source", "attribution"},
+				poiRows(pois))); err != nil {
+				return domain.Version{}, err
+			}
+		}
 	}
 
 	v := domain.Version{
@@ -360,6 +417,69 @@ func placeFeatures(ps []geo.Place) []feature {
 			Type: "Feature", ID: p.ID,
 			Geometry:   geometryOf(p.Geometry, p.Centroid),
 			Properties: props,
+		})
+	}
+	return out
+}
+
+func roadFeatures(rs []geo.Road) []feature {
+	out := make([]feature, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, feature{
+			Type: "Feature", ID: r.ID,
+			Geometry: geometryOf(r.Geometry, nil),
+			Properties: map[string]any{
+				"name": r.Name, "ref": r.Ref, "class": string(r.Class),
+				"regionId": r.RegionID, "districtId": r.DistrictID,
+				"source": r.Provenance.SourceID, "sourceUrl": r.Provenance.SourceURL,
+				// Per-feature as well as per-file: a consumer that splits the
+				// collection keeps the licence with each record.
+				"attribution": r.Attribution,
+			},
+		})
+	}
+	return out
+}
+
+func poiFeatures(ps []geo.POI) []feature {
+	out := make([]feature, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, feature{
+			Type: "Feature", ID: p.ID,
+			Geometry: geometryOf(nil, p.Centroid),
+			Properties: map[string]any{
+				"name": p.Name, "class": string(p.Class), "category": p.Category,
+				"regionId": p.RegionID, "districtId": p.DistrictID,
+				"source": p.Provenance.SourceID, "sourceUrl": p.Provenance.SourceURL,
+				"attribution": p.Attribution,
+			},
+		})
+	}
+	return out
+}
+
+func roadRows(rs []geo.Road) [][]string {
+	out := make([][]string, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, []string{
+			r.ID, r.Name, r.Ref, string(r.Class), r.RegionID, r.DistrictID,
+			r.Provenance.SourceID, r.Attribution,
+		})
+	}
+	return out
+}
+
+func poiRows(ps []geo.POI) [][]string {
+	out := make([][]string, 0, len(ps))
+	for _, p := range ps {
+		lat, lng := "", ""
+		if p.Centroid != nil {
+			lat = strconv.FormatFloat(p.Centroid.Latitude, 'f', -1, 64)
+			lng = strconv.FormatFloat(p.Centroid.Longitude, 'f', -1, 64)
+		}
+		out = append(out, []string{
+			p.ID, p.Name, string(p.Class), p.Category, p.RegionID, p.DistrictID,
+			lat, lng, p.Provenance.SourceID, p.Attribution,
 		})
 	}
 	return out

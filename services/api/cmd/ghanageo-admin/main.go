@@ -441,7 +441,7 @@ func cmdExport(ctx context.Context, args []string) error {
 		mongo.NewPlaceRepo(store),
 		mongo.NewDatasetRepo(store),
 		target,
-	)
+	).WithOSM(mongo.NewRoadRepo(store), mongo.NewPOIRepo(store))
 
 	fmt.Printf("→ building %s into %s\n", *version, target)
 	// Stamped once so every artifact in a run shares a generation time.
