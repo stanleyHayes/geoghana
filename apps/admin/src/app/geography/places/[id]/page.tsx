@@ -142,7 +142,7 @@ function MergePanel({ place, onMerged }: { place: PlaceRecord; onMerged: () => v
           <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-4)" }}>
             <Field label="Surviving record id" htmlFor="merge-target"
                    hint="The record that keeps its identity. It must already exist.">
-              <Input id="merge-target" value={target} placeholder="gh-place-kumasi"
+              <Input id="merge-target" value={target} placeholder="01KDVDNA003BF7FQZ9WWE8VPWE"
                      onChange={(e) => setTarget(e.target.value)} required />
             </Field>
             <Field label="Reason" htmlFor="merge-reason"

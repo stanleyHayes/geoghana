@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
@@ -83,8 +84,14 @@ func (v *Validator) Run(ctx context.Context) (*Report, error) {
 
 	// Every region named in the published figures must exist, and vice versa.
 	seen := map[string]bool{}
+	metadataFailures := 0
+	recordsChecked := 0
 	for _, reg := range regions.Data {
 		seen[reg.Name] = true
+		recordsChecked++
+		if !hasCompleteMetadata(reg.ID, reg.Provenance, reg.DatasetVersion) {
+			metadataFailures++
+		}
 	}
 	var missing, unexpected []string
 	for name := range OfficialDistrictsPerRegion {
@@ -116,6 +123,10 @@ func (v *Validator) Run(ctx context.Context) (*Report, error) {
 		}
 		for _, d := range page.Data {
 			total++
+			recordsChecked++
+			if !hasCompleteMetadata(d.ID, d.Provenance, d.DatasetVersion) {
+				metadataFailures++
+			}
 			perRegion[d.RegionName]++
 			if !seen[d.RegionName] {
 				orphans++
@@ -156,6 +167,10 @@ func (v *Validator) Run(ctx context.Context) (*Report, error) {
 			return r, perr
 		}
 		for _, p := range page.Data {
+			recordsChecked++
+			if !hasCompleteMetadata(p.ID, p.Provenance, p.DatasetVersion) {
+				metadataFailures++
+			}
 			if p.Centroid == nil {
 				continue
 			}
@@ -171,8 +186,14 @@ func (v *Validator) Run(ctx context.Context) (*Report, error) {
 	}
 	r.add("coordinates fall within Ghana", badCoords == 0, true,
 		"%d of %d places have an implausible coordinate", badCoords, checked)
+	r.add("stable ids, provenance and dataset versions", metadataFailures == 0, true,
+		"%d of %d records have incomplete metadata", metadataFailures, recordsChecked)
 
 	return r, nil
+}
+
+func hasCompleteMetadata(id string, provenance geography.Provenance, datasetVersion string) bool {
+	return strings.TrimSpace(id) != "" && strings.TrimSpace(datasetVersion) != "" && provenance.Validate() == nil
 }
 
 // ValidateGeometry is a standalone check used by the ingestion gate.

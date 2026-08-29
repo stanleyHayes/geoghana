@@ -42,6 +42,9 @@ type Result struct {
 	DistrictsCreated, DistrictsUpdated int
 	PlacesCreated, PlacesUpdated       int
 	Skipped                            []string
+	// Protected records were left alone because a steward has already
+	// reviewed them. See stewardOwned.
+	Protected []string
 }
 
 func (r Result) Changed() int {
@@ -50,9 +53,25 @@ func (r Result) Changed() int {
 
 func (r Result) String() string {
 	return fmt.Sprintf(
-		"regions %d created / %d updated · districts %d created / %d updated · places %d created / %d updated · %d skipped",
+		"regions %d created / %d updated · districts %d created / %d updated · places %d created / %d updated · %d skipped · %d steward-owned, left alone",
 		r.RegionsCreated, r.RegionsUpdated, r.DistrictsCreated, r.DistrictsUpdated,
-		r.PlacesCreated, r.PlacesUpdated, len(r.Skipped))
+		r.PlacesCreated, r.PlacesUpdated, len(r.Skipped), len(r.Protected))
+}
+
+// stewardOwned reports whether a record has been advanced past the seed's
+// authority and must not be overwritten by a re-import.
+//
+// Seeding is an UPSERT, so re-running it used to rewrite every field of every
+// record — reverting a steward's correction and demoting their verification
+// status back to the CSV's, silently and with no audit row. Rule R5 says a
+// seed row is never promoted to canonical automatically; the same reasoning
+// forbids the reverse, which is worse: it destroys work a human did on
+// purpose.
+//
+// REVIEWED and CANONICAL are exactly the states only a steward can set, so
+// they are the boundary.
+func stewardOwned(v geography.VerificationStatus) bool {
+	return v.PromotableToCanonical()
 }
 
 // Importer wires the repositories the seed needs.
@@ -161,12 +180,18 @@ func readCSV(path string) ([]map[string]string, error) {
 }
 
 func provenanceFrom(row map[string]string, sourceID string) geography.Provenance {
+	payload, _ := json.Marshal(row) // encoding/json sorts string map keys.
+	sum := sha256.Sum256(payload)
+	externalID := row["id"]
 	return geography.Provenance{
-		SourceID:    sourceID,
-		SourceURL:   row["source_url"],
-		RetrievedAt: row["retrieved_at"],
-		Notes:       row["notes"],
+		SourceID: sourceID, ExternalID: externalID,
+		SourceURL: row["source_url"], RetrievedAt: row["retrieved_at"],
+		SourcePayloadHash: hex.EncodeToString(sum[:]), Notes: row["notes"],
 	}
+}
+
+func seedID(entity, legacyID string) (string, error) {
+	return geography.StableID(entity, "seed-bootstrap", legacyID)
 }
 
 func statusOf(row map[string]string) geography.Status {
@@ -189,8 +214,12 @@ func (im *Importer) importRegions(ctx context.Context, path, version string, res
 		return err
 	}
 	for _, row := range rows {
+		id, idErr := seedID("region", row["id"])
+		if idErr != nil {
+			return fmt.Errorf("region %s id: %w", row["id"], idErr)
+		}
 		r := geography.Region{
-			ID:                 row["id"],
+			ID:                 id,
 			CountryCode:        row["country_code"],
 			Name:               row["name"],
 			Capital:            row["capital"],
@@ -199,6 +228,11 @@ func (im *Importer) importRegions(ctx context.Context, path, version string, res
 			VerificationStatus: verificationOf(row),
 			Provenance:         provenanceFrom(row, "seed-bootstrap"),
 			DatasetVersion:     version,
+		}
+		if existing, gerr := im.Regions.Get(ctx, r.ID); gerr == nil &&
+			existing != nil && stewardOwned(existing.VerificationStatus) {
+			res.Protected = append(res.Protected, r.ID)
+			continue
 		}
 		created, err := im.Regions.Upsert(ctx, r)
 		if err != nil {
@@ -220,16 +254,24 @@ func (im *Importer) importDistricts(ctx context.Context, path, version string, r
 	}
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		id := row["id"]
-		if _, dup := seen[id]; dup {
-			res.Skipped = append(res.Skipped, "duplicate district id: "+id)
+		legacyID := row["id"]
+		if _, dup := seen[legacyID]; dup {
+			res.Skipped = append(res.Skipped, "duplicate district id: "+legacyID)
 			continue
 		}
-		seen[id] = struct{}{}
+		seen[legacyID] = struct{}{}
+		id, idErr := seedID("district", legacyID)
+		if idErr != nil {
+			return fmt.Errorf("district %s id: %w", legacyID, idErr)
+		}
+		regionID, idErr := seedID("region", row["region_id"])
+		if idErr != nil {
+			return fmt.Errorf("district %s region id: %w", legacyID, idErr)
+		}
 
 		d := geography.District{
 			ID:                 id,
-			RegionID:           row["region_id"],
+			RegionID:           regionID,
 			RegionName:         row["region_name"],
 			Name:               row["name"],
 			DistrictType:       row["classification_hint"],
@@ -239,6 +281,11 @@ func (im *Importer) importDistricts(ctx context.Context, path, version string, r
 			VerificationStatus: verificationOf(row),
 			Provenance:         provenanceFrom(row, "seed-bootstrap"),
 			DatasetVersion:     version,
+		}
+		if existing, gerr := im.Districts.Get(ctx, d.ID); gerr == nil &&
+			existing != nil && stewardOwned(existing.VerificationStatus) {
+			res.Protected = append(res.Protected, d.ID)
+			continue
 		}
 		created, err := im.Districts.Upsert(ctx, d)
 		if err != nil {
@@ -264,13 +311,31 @@ func (im *Importer) importPlaces(ctx context.Context, path, version string, res 
 			res.Skipped = append(res.Skipped, fmt.Sprintf("place %s: %v", row["id"], err))
 			continue
 		}
+		id, idErr := seedID("place", row["id"])
+		if idErr != nil {
+			return fmt.Errorf("place %s id: %w", row["id"], idErr)
+		}
+		regionID := ""
+		if row["region_id"] != "" {
+			regionID, idErr = seedID("region", row["region_id"])
+			if idErr != nil {
+				return fmt.Errorf("place %s region id: %w", row["id"], idErr)
+			}
+		}
+		districtID := ""
+		if row["district_id"] != "" {
+			districtID, idErr = seedID("district", row["district_id"])
+			if idErr != nil {
+				return fmt.Errorf("place %s district id: %w", row["id"], idErr)
+			}
+		}
 		p := geography.Place{
-			ID:                 row["id"],
+			ID:                 id,
 			Name:               row["name"],
 			Type:               pt,
-			RegionID:           row["region_id"],
+			RegionID:           regionID,
 			RegionName:         row["region_name"],
-			DistrictID:         row["district_id"],
+			DistrictID:         districtID,
 			DistrictName:       row["district_name"],
 			Status:             statusOf(row),
 			VerificationStatus: verificationOf(row),
@@ -286,6 +351,11 @@ func (im *Importer) importPlaces(ctx context.Context, path, version string, res 
 				continue
 			}
 			p.Centroid = c
+		}
+		if existing, gerr := im.Places.Get(ctx, p.ID); gerr == nil &&
+			existing != nil && stewardOwned(existing.VerificationStatus) {
+			res.Protected = append(res.Protected, p.ID)
+			continue
 		}
 		created, err := im.Places.Upsert(ctx, p)
 		if err != nil {
