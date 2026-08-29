@@ -4,10 +4,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 	passkeyrp "github.com/ghanageo/ghanageo/services/api/internal/platform/passkey"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
 	gqlserver "github.com/ghanageo/ghanageo/services/api/internal/transport/graphql"
@@ -51,8 +54,22 @@ func newLogger(level string) *slog.Logger {
 func run(cfg config.Config, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	serveHTTP, serveGRPC, err := enabledTransports(cfg.ServeMode)
+	if err != nil {
+		return err
+	}
 
-	store, err := mongoadapter.Connect(ctx, cfg.MongoURI, cfg.MongoDB)
+	telemetry, err := observability.New(ctx, "ghanageo-api", cfg.DatasetVersion, log)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = telemetry.Shutdown(shutdownCtx)
+	}()
+
+	store, err := mongoadapter.Connect(ctx, cfg.MongoURI, cfg.MongoDB, telemetry.MongoMonitor())
 	if err != nil {
 		return err
 	}
@@ -66,27 +83,25 @@ func run(cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
-	const datasetVersion = "2026.08.1-seed"
-
 	geo := appgeo.NewService(
 		mongoadapter.NewRegionRepo(store),
 		mongoadapter.NewDistrictRepo(store),
 		mongoadapter.NewPlaceRepo(store),
 		mongoadapter.NewRedirectRepo(store),
-		datasetVersion,
+		cfg.DatasetVersion,
 	)
 
 	searchSvc := appsearch.NewService(
-		typesense.New(cfg.TypesenseURL, cfg.TypesenseKey),
+		typesense.New(cfg.TypesenseURL, cfg.TypesenseKey, telemetry),
 		mongoadapter.NewRegionRepo(store),
 		mongoadapter.NewDistrictRepo(store),
 		mongoadapter.NewPlaceRepo(store),
-		datasetVersion,
+		cfg.DatasetVersion,
 	)
 
 	// Fair-use limiting. Read APIs fail OPEN: a limiter outage must not take
 	// down a free public service (agent_plan.md §24).
-	limiter, err := redisadapter.NewLimiter(cfg.RedisURL, true)
+	limiter, err := redisadapter.NewLimiter(cfg.RedisURL, true, telemetry)
 	if err != nil {
 		return err
 	}
@@ -147,11 +162,12 @@ func run(cfg config.Config, log *slog.Logger) error {
 	restHandler := rest.New(geo, searchSvc, log, cfg.AllowedOrigins).
 		WithAuth(authenticator).
 		WithStore(store).
-		WithGraphQL(gqlserver.NewHandler(geo, searchSvc)).
+		WithGraphQL(gqlserver.NewHandlerWithTelemetry(geo, searchSvc, datasetSvc, telemetry)).
 		WithDatasets(datasetSvc).
 		WithAccounts(accountSvc).
 		WithDeveloper(developerSvc).
 		WithUsage(usageRepo).
+		WithTelemetry(telemetry).
 		Routes()
 
 	srv := &http.Server{
@@ -164,23 +180,28 @@ func run(cfg config.Config, log *slog.Logger) error {
 		MaxHeaderBytes:    1 << 20, // request-size limit (Spec 12.4)
 	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", srv.Addr, "env", cfg.Env)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-	}()
+	errCh := make(chan error, 2)
+	if serveHTTP {
+		go func() {
+			log.Info("listening", "transport", "http", "addr", srv.Addr, "env", cfg.Env)
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- err
+			}
+		}()
+	}
 
 	// gRPC on its own port, over the SAME application services. It is a third
 	// transport, not a second implementation — the published contract in
 	// proto/ has been claimed on the marketing site, so it has to be real.
-	grpcSrv := grpcserver.NewServer(geo, searchSvc, store, log)
-	go func() {
-		if err := grpcserver.Serve(ctx, ":"+cfg.GRPCPort, grpcSrv, authenticator, log, usageRepo); err != nil {
-			errCh <- err
-		}
-	}()
+	if serveGRPC {
+		grpcSrv := grpcserver.NewServer(geo, searchSvc, store, log)
+		go func() {
+			log.Info("listening", "transport", "grpc", "addr", ":"+cfg.GRPCPort, "env", cfg.Env)
+			if err := grpcserver.Serve(ctx, ":"+cfg.GRPCPort, grpcSrv, authenticator, log, usageRepo, telemetry); err != nil {
+				errCh <- err
+			}
+		}()
+	}
 
 	select {
 	case err := <-errCh:
@@ -190,6 +211,19 @@ func run(cfg config.Config, log *slog.Logger) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
+	}
+}
+
+func enabledTransports(mode string) (httpEnabled, grpcEnabled bool, err error) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "all", "":
+		return true, true, nil
+	case "http":
+		return true, false, nil
+	case "grpc":
+		return false, true, nil
+	default:
+		return false, false, fmt.Errorf("unsupported GHANAGEO_SERVE_MODE %q (want all, http or grpc)", mode)
 	}
 }
 

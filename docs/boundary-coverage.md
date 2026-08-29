@@ -1,83 +1,77 @@
 # District boundary coverage
 
-**248 of 261 districts have boundary geometry. All 16 regions do.**
+**261 of 261 districts have boundary geometry. All 16 regions do.**
 
-This is not a bug in the matcher and it is not fixable by improving name
-matching. It is a real gap between Ghana's current administrative structure
-and the best openly-licensed boundary data available, and this page records
-exactly which districts are affected and why, so nobody re-investigates it
-from scratch.
+This page previously recorded a 13-district gap and argued it could not be
+closed without an official Ghana Statistical Service release. That was half
+right: geoBoundaries genuinely cannot supply those districts, but
+OpenStreetMap can, and it did.
 
-## The source
+## Two sources, in order
 
-geoBoundaries `gbOpen/GHA/ADM2`, CC BY 4.0, representing **2019**. 260
-features. Ghana currently has **261** MMDAs.
+| Source | Licence | Represents | Supplies |
+|---|---|---|---|
+| geoBoundaries `gbOpen/GHA/ADM2` | CC BY 4.0 | **2019** | 248 districts, 16 regions |
+| OpenStreetMap `admin_level=6` | ODbL 1.0 | current | the remaining 13 |
 
-The year is the whole story. Ghana reorganised its districts after this data
-was published: districts were created, split and renamed. Matching 2026
-records against 2019 shapes therefore leaves genuine residue.
+geoBoundaries is used first because it is a curated administrative release.
+OSM fills only what is missing — a district that already has a boundary is
+never overwritten, because the existing one has been through the region-gated
+matcher and possibly a steward, and a second source arriving is not grounds to
+replace it (rule R8).
 
-## The 13 districts without geometry
+## Why OSM had what geoBoundaries did not
 
-### Absent from the source entirely (6)
+The source year is the whole story. Ghana reorganised its districts after 2019:
 
-No shape exists to attach. Nothing can fix these except newer data.
+- **Guan District** was inaugurated on **8 October 2021**, two years after the
+  geoBoundaries release. No amount of matching could have found it there.
+- **Atwima Nwabiagya** appears in the 2019 data split as North and South;
+  our record is the un-split Municipal, so neither half could be attached
+  without making the other silently wrong.
+- Several districts were renamed (`Adansi Akrofuom` → `Akrofuom`,
+  `Lower Manya` → `Lower Manya Krobo Municipal`).
 
-| District | Region | Note |
-|---|---|---|
-| Guan | Oti | Inaugurated **8 October 2021**, two years after the source |
-| Dormaa Central | Bono | Not present under any name |
-| Assin Central Municipal | Central | Not present under any name |
-| Akuapim North Municipal | Eastern | Not present under any name |
-| Akuapim South | Eastern | Not present under any name |
-| Akyemansa | Eastern | Not present under any name |
+All 13 matched OSM at an exact score of 1.00 once names were compared with
+administrative suffixes normalised on both sides.
 
-### Split or merged since 2019 — deliberately not auto-resolved (3)
+## Region gating, and a bug it hid
 
-The source shape does not correspond one-to-one with our record. Attaching
-either half would make the other silently wrong.
+Boundary names are only compared within the region the shape sits inside. A
+national comparison lets `Bolgatanga East` (Upper East) score against
+`Ga East` (Greater Accra) — two districts about 700km apart whose names differ
+by one word.
 
-| District | Source shapes | Why not matched |
-|---|---|---|
-| Atwima Nwabiagya Municipal | `Atwima Nwabiagya North`, `Atwima Nwabiagya South` | Two plausible candidates. Spec §4.2 says never resolve this automatically |
-| Sekyere Afram Plains | `Sekyere Afram Plains North` | Only the northern half exists in the source |
-| Awutu Senya West | `Awutu Senya` | The source predates the East/West split |
+The first implementation resolved that region with `$geoIntersects` against
+the district's **own polygon**. A district boundary shares edges with its
+neighbours, so the query matched several regions and returned an arbitrary
+one; two districts were gated into the wrong region and then matched nothing
+there. Containment now uses an **area-weighted interior point**, which belongs
+to exactly one region. That took the fill from 11 of 13 to 13 of 13.
 
-### Renamed — ranked correctly, held for review (4)
+## Downstream effects
 
-The right shape is identifiable and ranks first, but scores below the
-auto-apply threshold. Rule **R8**: a source does not overwrite canonical data
-merely because it arrived. A steward applies these.
+With complete coverage:
 
-| District | Source shape | Score |
-|---|---|---|
-| Akrofuom | `Adansi Akrofuom` | 0.53 |
-| Lower Manya Krobo Municipal | `Lower Manya` | below threshold |
-| Upper Manya Krobo | `Upper Manya` | below threshold |
-| Bolgatanga East | — | see below |
+- **Reverse geocoding** resolves by polygon containment everywhere, rather
+  than falling back to nearest-locality proximity in 13 districts.
+- **99.6% of points of interest** (19,601 of 19,686) and **99.5% of roads**
+  (19,627 of 19,728) resolve to a district. The remainder sit just outside
+  every polygon — offshore, or across a land border — and are left unassigned
+  rather than snapped to the nearest district.
+- **Bulk downloads** carry geometry for every district.
 
-## Why matching is gated on region
+## Attribution
 
-`Bolgatanga East` is in Upper East. The closest national name match in the
-source is **`Ga East`**, in Greater Accra — about 700km away, differing by one
-word. A national name comparison can reach it.
+Both licences require it, and ODbL is share-alike, so attribution is carried
+on the records themselves rather than in a footer: the domain validators
+refuse an unattributed row, the Mongo schema requires one, every API response
+includes the notice, and every export file carries it at file and feature
+level.
 
-Candidates are therefore filtered to the region the boundary's own shape sits
-inside before any name comparison happens. The guard is geometric, not
-textual, so a cross-region match is structurally impossible rather than merely
-improbable. `InRegion` in `internal/app/ingest/boundaries.go`.
+Rebuild coverage with:
 
-## What this affects
-
-- **Reverse geocoding** falls back to nearest-locality proximity in these 13
-  districts rather than polygon containment.
-- **`/boundaries/{id}`** returns a documented "no geometry yet" error naming
-  the record, not a 404 — the district exists, its shape does not.
-- **Bulk GeoJSON downloads** carry `"geometry": null` for these features,
-  which is valid GeoJSON and honest. Inventing a shape would be worse.
-
-## Closing the gap
-
-Needs a source newer than 2019 — the Ghana Statistical Service ADM2 release
-(GEO-4.6) or an OpenStreetMap extract (GEO-4.7). Until one is ingested, 248 is
-the correct number and `ghanageo-admin data validate` asserts it.
+```bash
+ghanageo-admin data boundaries --level ADM2 --file <geoBoundaries.geojson> --apply
+ghanageo-admin data osm-boundaries --file <ghana-latest.osm.pbf> --apply
+```

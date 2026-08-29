@@ -8,6 +8,7 @@ package graphql
 import (
 	"context"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/dataset"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/graphql/generated"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/graphql/model"
@@ -225,17 +226,53 @@ func (r *queryResolver) Nearby(ctx context.Context, latitude float64, longitude 
 
 // DatasetVersion is the resolver for the datasetVersion field.
 func (r *queryResolver) DatasetVersion(ctx context.Context) (*model.DatasetVersion, error) {
-	return &model.DatasetVersion{
-		Version: r.GeoSvc.DatasetVersion(),
-		Status:  "published",
-	}, nil
+	if r.DatasetSvc == nil {
+		return &model.DatasetVersion{Version: r.GeoSvc.DatasetVersion(), Status: "published"}, nil
+	}
+	versions, err := r.DatasetSvc.List(ctx)
+	if err != nil || len(versions) == 0 {
+		return nil, err
+	}
+	return datasetVersionModel(versions[0]), nil
 }
 
 // DatasetVersions is the resolver for the datasetVersions field.
 func (r *queryResolver) DatasetVersions(ctx context.Context, first *int, after *string) ([]model.DatasetVersion, error) {
-	// A dataset-version registry lands with GEO-6.1. Returning the version
-	// actually being served is truthful; inventing a history would not be.
-	return []model.DatasetVersion{{Version: r.GeoSvc.DatasetVersion(), Status: "published"}}, nil
+	if r.DatasetSvc == nil {
+		return []model.DatasetVersion{{Version: r.GeoSvc.DatasetVersion(), Status: "published"}}, nil
+	}
+	versions, err := r.DatasetSvc.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	limit := 20
+	if first != nil && *first >= 0 && *first < limit {
+		limit = *first
+	}
+	out := make([]model.DatasetVersion, 0, limit)
+	started := after == nil || *after == ""
+	for _, version := range versions {
+		if !started {
+			started = version.Version == *after
+			continue
+		}
+		if len(out) == limit {
+			break
+		}
+		out = append(out, *datasetVersionModel(version))
+	}
+	return out, nil
+}
+
+func datasetVersionModel(v dataset.Version) *model.DatasetVersion {
+	publishedAt := v.PublishedAt
+	var changelog *string
+	if v.Changelog != "" {
+		changelog = &v.Changelog
+	}
+	return &model.DatasetVersion{
+		Version: v.Version, Status: string(v.Status), PublishedAt: &publishedAt, Changelog: changelog,
+	}
 }
 
 // District returns generated.DistrictResolver implementation.

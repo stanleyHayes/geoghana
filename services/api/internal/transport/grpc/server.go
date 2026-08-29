@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -25,10 +26,13 @@ import (
 	mongoadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/mongo"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	usageDomain "github.com/ghanageo/ghanageo/services/api/internal/domain/usage"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 
 const (
@@ -42,6 +46,7 @@ type Server struct {
 	geo    *appgeo.Service
 	search *appsearch.Service
 	store  *mongoadapter.Store
+	audit  *mongoadapter.AuditRepo
 	log    *slog.Logger
 }
 
@@ -49,7 +54,11 @@ func NewServer(
 	geo *appgeo.Service, search *appsearch.Service,
 	store *mongoadapter.Store, log *slog.Logger,
 ) *Server {
-	return &Server{geo: geo, search: search, store: store, log: log}
+	server := &Server{geo: geo, search: search, store: store, log: log}
+	if store != nil {
+		server.audit = mongoadapter.NewAuditRepo(store)
+	}
+	return server
 }
 
 // grpcCode maps the shared error catalog onto gRPC status codes, using the
@@ -313,17 +322,52 @@ func (s *Server) GetBoundary(
 	}}, nil
 }
 
-// StreamDatasetChanges is declared in the published contract but has no
-// backing change feed yet (GEO-8.3).
-//
-// It returns UNIMPLEMENTED rather than an empty stream that never yields:
-// a client cannot tell "no changes" from "not built", and a silent stream
-// would have them waiting forever on a feature that does not exist.
 func (s *Server) StreamDatasetChanges(
-	_ *pb.StreamDatasetChangesRequest, _ pb.GeographyService_StreamDatasetChangesServer,
+	req *pb.StreamDatasetChangesRequest, stream pb.GeographyService_StreamDatasetChangesServer,
 ) error {
-	return status.Error(codes.Unimplemented,
-		"StreamDatasetChanges is not implemented yet — it needs the dataset change feed (GEO-8.3).")
+	if s.audit == nil {
+		return status.Error(codes.Unavailable, "dataset change feed is not configured")
+	}
+	cursor := req.GetSinceCursor()
+	if cursor == "" {
+		var err error
+		cursor, err = s.audit.LatestChangeCursor(stream.Context())
+		if err != nil {
+			return s.toStatus(stream.Context(), "StreamDatasetChanges", err)
+		}
+	}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		changes, err := s.audit.ChangesAfter(stream.Context(), cursor, 100)
+		if err != nil {
+			return s.toStatus(stream.Context(), "StreamDatasetChanges", err)
+		}
+		for _, entry := range changes {
+			changeType := pb.DatasetChange_CHANGE_TYPE_UPDATED
+			if entry.Action == audit.ActionRecordDeprecated {
+				changeType = pb.DatasetChange_CHANGE_TYPE_DEPRECATED
+			}
+			mergedInto, _ := entry.After["mergedInto"].(string)
+			if mergedInto != "" {
+				changeType = pb.DatasetChange_CHANGE_TYPE_MERGED
+			}
+			datasetVersion, _ := entry.After["datasetVersion"].(string)
+			if err := stream.Send(&pb.StreamDatasetChangesResponse{Change: &pb.DatasetChange{
+				Cursor: entry.ID, ChangeType: changeType, EntityType: entry.Target.Kind,
+				EntityId: entry.Target.ID, MergedInto: mergedInto,
+				DatasetVersion: datasetVersion, OccurredAt: entry.At.UTC().Format(time.RFC3339Nano),
+			}}); err != nil {
+				return err
+			}
+			cursor = entry.ID
+		}
+		select {
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func hitsToPB(hits []ports.SearchHit) []*pb.SearchResult {
@@ -335,22 +379,13 @@ func hitsToPB(hits []ports.SearchHit) []*pb.SearchResult {
 }
 
 // Serve starts the gRPC server on addr and blocks until ctx is cancelled.
-func Serve(ctx context.Context, addr string, s *Server, authenticator *auth.Authenticator, log *slog.Logger, usageRepository ...usageDomain.Repository) error {
-	var repository usageDomain.Repository
-	if len(usageRepository) > 0 {
-		repository = usageRepository[0]
-	}
+func Serve(ctx context.Context, addr string, s *Server, authenticator *auth.Authenticator, log *slog.Logger, repository usageDomain.Repository, telemetry *observability.Telemetry) error {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("grpc listen %s: %w", addr, err)
 	}
 
-	srv := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(unaryMiddleware(authenticator, log, repository)),
-		grpc.ChainStreamInterceptor(streamMiddleware(authenticator, log, repository)),
-		grpc.MaxRecvMsgSize(maxMessage),
-		grpc.MaxSendMsgSize(maxMessage),
-	)
+	srv := grpc.NewServer(serverOptions(authenticator, log, repository, telemetry)...)
 	pb.RegisterGeographyServiceServer(srv, s)
 
 	// Health and reflection: reflection is what lets grpcurl and Postman
@@ -371,4 +406,18 @@ func Serve(ctx context.Context, addr string, s *Server, authenticator *auth.Auth
 		return fmt.Errorf("grpc serve: %w", err)
 	}
 	return nil
+}
+
+func serverOptions(authenticator *auth.Authenticator, log *slog.Logger, repository usageDomain.Repository, telemetry ...*observability.Telemetry) []grpc.ServerOption {
+	var observed *observability.Telemetry
+	if len(telemetry) > 0 {
+		observed = telemetry[0]
+	}
+	return []grpc.ServerOption{
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(unaryMiddlewareObserved(authenticator, log, repository, observed)),
+		grpc.ChainStreamInterceptor(streamMiddlewareObserved(authenticator, log, repository, observed)),
+		grpc.MaxRecvMsgSize(maxMessage),
+		grpc.MaxSendMsgSize(maxMessage),
+	}
 }

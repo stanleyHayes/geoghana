@@ -171,6 +171,80 @@ func (r *POIRepo) AssignRegions(ctx context.Context, db *mongo.Database) (int, e
 	return assigned, cur.Err()
 }
 
+// AssignRegions fills in the district a road runs through.
+//
+// A road is assigned by the district containing its MIDPOINT, not by every
+// district it touches. A long trunk road genuinely crosses several, and
+// $geoIntersects would return an arbitrary one of them; a midpoint is
+// deterministic and re-running the import gives the same answer. The
+// consequence — that the N1 is recorded under one district while physically
+// spanning many — is a real limitation, and callers who need the full set
+// should query by geometry rather than trust this field.
+func (r *RoadRepo) AssignRegions(ctx context.Context, db *mongo.Database) (int, error) {
+	cur, err := r.col().Find(ctx,
+		bson.M{"districtId": bson.M{"$in": bson.A{nil, ""}}, "geometry": bson.M{"$ne": nil}},
+		options.Find().SetProjection(bson.M{"_id": 1, "geometry": 1}))
+	if err != nil {
+		return 0, fmt.Errorf("list unassigned roads: %w", err)
+	}
+	defer func() { _ = cur.Close(ctx) }()
+
+	type pending struct {
+		id  string
+		lon float64
+		lat float64
+	}
+	var todo []pending
+	for cur.Next(ctx) {
+		var d struct {
+			ID       string `bson:"_id"`
+			Geometry *struct {
+				Coordinates [][]float64 `bson:"coordinates"`
+			} `bson:"geometry"`
+		}
+		if err := cur.Decode(&d); err != nil {
+			continue
+		}
+		if d.Geometry == nil || len(d.Geometry.Coordinates) == 0 {
+			continue
+		}
+		mid := d.Geometry.Coordinates[len(d.Geometry.Coordinates)/2]
+		if len(mid) != 2 {
+			continue
+		}
+		todo = append(todo, pending{id: d.ID, lon: mid[0], lat: mid[1]})
+	}
+	if err := cur.Err(); err != nil {
+		return 0, err
+	}
+
+	assigned := 0
+	for _, t := range todo {
+		var reg struct {
+			ID         string `bson:"_id"`
+			RegionID   string `bson:"regionId"`
+			RegionName string `bson:"regionName"`
+		}
+		err := db.Collection(ColDistricts).FindOne(ctx, bson.M{
+			"geometry": bson.M{"$geoIntersects": bson.M{"$geometry": bson.M{
+				"type": "Point", "coordinates": []float64{t.lon, t.lat},
+			}}},
+		}, options.FindOne().SetProjection(bson.M{"_id": 1, "regionId": 1, "regionName": 1})).Decode(&reg)
+		if err != nil {
+			// A midpoint just offshore or across a border matches nothing.
+			// Left unassigned rather than snapped to the nearest district.
+			continue
+		}
+		if _, uerr := r.col().UpdateOne(ctx, bson.M{"_id": t.id}, bson.M{"$set": bson.M{
+			"districtId": reg.ID, "regionId": reg.RegionID, "regionName": reg.RegionName,
+		}}); uerr != nil {
+			return assigned, uerr
+		}
+		assigned++
+	}
+	return assigned, nil
+}
+
 // All reads every road for the bulk export.
 //
 // The whole collection is materialised because the exporter builds one
@@ -226,4 +300,56 @@ func (r *POIRepo) All(ctx context.Context) ([]geography.POI, error) {
 		})
 	}
 	return out, cur.Err()
+}
+
+// WithoutGeometry lists district ids that have no boundary polygon.
+//
+// Used to fill gaps only: a district that already has a boundary has been
+// through the region-gated matcher and possibly a steward, and a second
+// source arriving is not grounds to overwrite it (R8).
+func (r *DistrictRepo) WithoutGeometry(ctx context.Context) ([]string, error) {
+	cur, err := r.col.Find(ctx,
+		bson.M{"$or": bson.A{bson.M{"geometry": nil}, bson.M{"geometry": bson.M{"$exists": false}}}},
+		options.Find().SetProjection(bson.M{"_id": 1}))
+	if err != nil {
+		return nil, fmt.Errorf("list districts without geometry: %w", err)
+	}
+	defer func() { _ = cur.Close(ctx) }()
+
+	var out []string
+	for cur.Next(ctx) {
+		var d struct {
+			ID string `bson:"_id"`
+		}
+		if err := cur.Decode(&d); err != nil {
+			return nil, err
+		}
+		out = append(out, d.ID)
+	}
+	return out, cur.Err()
+}
+
+// ContainingRegion finds which region a POINT falls inside.
+//
+// It takes a point, not the district's own polygon. A district boundary shares
+// edges with its neighbours, so $geoIntersects on the polygon matches several
+// regions and returns an arbitrary one — which put two districts in the wrong
+// region and left them matching nothing there. An interior point belongs to
+// exactly one region.
+func (r *RegionRepo) ContainingRegion(ctx context.Context, c *geography.Coordinate) (string, error) {
+	if c == nil {
+		return "", nil
+	}
+	var d struct {
+		ID string `bson:"_id"`
+	}
+	err := r.col.FindOne(ctx, bson.M{
+		"geometry": bson.M{"$geoIntersects": bson.M{"$geometry": bson.M{
+			"type": "Point", "coordinates": []float64{c.Longitude, c.Latitude},
+		}}},
+	}, options.FindOne().SetProjection(bson.M{"_id": 1})).Decode(&d)
+	if err != nil {
+		return "", err
+	}
+	return d.ID, nil
 }

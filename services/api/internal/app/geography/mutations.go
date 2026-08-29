@@ -83,6 +83,7 @@ func regionState(r domain.Region) map[string]any {
 	return map[string]any{
 		"name": r.Name, "capital": r.Capital, "code": r.OfficialCode,
 		"status": string(r.Status), "verificationStatus": string(r.VerificationStatus),
+		"datasetVersion": r.DatasetVersion,
 	}
 }
 
@@ -91,6 +92,7 @@ func districtState(d domain.District) map[string]any {
 		"name": d.Name, "regionId": d.RegionID, "type": d.DistrictType,
 		"code": d.OfficialCode, "capital": d.Capital,
 		"status": string(d.Status), "verificationStatus": string(d.VerificationStatus),
+		"datasetVersion": d.DatasetVersion,
 	}
 }
 
@@ -99,6 +101,7 @@ func placeState(p domain.Place) map[string]any {
 		"name": p.Name, "type": string(p.Type), "regionId": p.RegionID,
 		"districtId": p.DistrictID, "status": string(p.Status),
 		"verificationStatus": string(p.VerificationStatus),
+		"datasetVersion":     p.DatasetVersion,
 	}
 }
 

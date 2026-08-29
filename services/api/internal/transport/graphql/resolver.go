@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 )
@@ -15,6 +16,7 @@ import (
 // otherwise shadow a field named Search through the embedded *Resolver, and
 // r.Search inside that method would resolve to the method itself.
 type Resolver struct {
-	GeoSvc    *appgeo.Service
-	SearchSvc *appsearch.Service
+	GeoSvc     *appgeo.Service
+	SearchSvc  *appsearch.Service
+	DatasetSvc *appdataset.Service
 }

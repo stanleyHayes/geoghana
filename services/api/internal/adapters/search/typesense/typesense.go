@@ -19,27 +19,43 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/normalize"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
 )
 
 const Collection = "ghanageo_places"
 
 type Client struct {
-	baseURL string
-	apiKey  string
-	http    *http.Client
+	baseURL   string
+	apiKey    string
+	http      *http.Client
+	telemetry *observability.Telemetry
 }
 
-func New(baseURL, apiKey string) *Client {
+func New(baseURL, apiKey string, telemetry ...*observability.Telemetry) *Client {
+	var observed *observability.Telemetry
+	if len(telemetry) > 0 {
+		observed = telemetry[0]
+	}
 	return &Client{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		apiKey:  apiKey,
-		http:    &http.Client{Timeout: 10 * time.Second},
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		apiKey:    apiKey,
+		http:      &http.Client{Timeout: 10 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)},
+		telemetry: observed,
 	}
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body any, out any) error {
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		if c.telemetry != nil {
+			c.telemetry.ObserveDependency("typesense", operationOf(path), result, time.Since(started))
+		}
+	}()
 	var rdr io.Reader
 	if body != nil {
 		switch v := body.(type) {
@@ -48,6 +64,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		default:
 			b, err := json.Marshal(v)
 			if err != nil {
+				result = "error"
 				return err
 			}
 			rdr = bytes.NewReader(b)
@@ -55,6 +72,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, rdr)
 	if err != nil {
+		result = "error"
 		return err
 	}
 	req.Header.Set("X-TYPESENSE-API-KEY", c.apiKey)
@@ -63,6 +81,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	}
 	res, err := c.http.Do(req)
 	if err != nil {
+		result = "error"
 		return fmt.Errorf("typesense %s %s: %w", method, path, err)
 	}
 	defer res.Body.Close()
@@ -72,6 +91,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		return err
 	}
 	if res.StatusCode >= 300 {
+		result = "error"
 		return fmt.Errorf("typesense %s %s: %d: %s", method, path, res.StatusCode, strings.TrimSpace(string(raw)))
 	}
 	if out != nil {
@@ -208,14 +228,23 @@ func (c *Client) Index(ctx context.Context, docs []ports.SearchDoc) error {
 // doRaw performs a request and returns the body unparsed, for endpoints whose
 // response is not a single JSON value.
 func (c *Client) doRaw(ctx context.Context, method, path, body string) ([]byte, error) {
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		if c.telemetry != nil {
+			c.telemetry.ObserveDependency("typesense", operationOf(path), result, time.Since(started))
+		}
+	}()
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, strings.NewReader(body))
 	if err != nil {
+		result = "error"
 		return nil, err
 	}
 	req.Header.Set("X-TYPESENSE-API-KEY", c.apiKey)
 	req.Header.Set("Content-Type", "text/plain")
 	res, err := c.http.Do(req)
 	if err != nil {
+		result = "error"
 		return nil, fmt.Errorf("typesense %s %s: %w", method, path, err)
 	}
 	defer res.Body.Close()
@@ -224,9 +253,23 @@ func (c *Client) doRaw(ctx context.Context, method, path, body string) ([]byte, 
 		return nil, err
 	}
 	if res.StatusCode >= 300 {
+		result = "error"
 		return nil, fmt.Errorf("typesense %s %s: %d: %s", method, path, res.StatusCode, strings.TrimSpace(string(raw)))
 	}
 	return raw, nil
+}
+
+func operationOf(path string) string {
+	if strings.Contains(path, "/documents/import") {
+		return "import"
+	}
+	if strings.Contains(path, "/documents/search") {
+		return "search"
+	}
+	if strings.HasPrefix(path, "/collections") {
+		return "collection"
+	}
+	return "request"
 }
 
 type tsHit struct {

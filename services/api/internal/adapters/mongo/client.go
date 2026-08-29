@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -17,11 +18,15 @@ type Store struct {
 	db     *mongo.Database
 }
 
-func Connect(ctx context.Context, uri, dbName string) (*Store, error) {
+func Connect(ctx context.Context, uri, dbName string, monitors ...*event.CommandMonitor) (*Store, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(options.Client().ApplyURI(uri))
+	clientOptions := options.Client().ApplyURI(uri)
+	if len(monitors) > 0 && monitors[0] != nil {
+		clientOptions.SetMonitor(monitors[0])
+	}
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("connect mongo: %w", err)
 	}
@@ -53,4 +58,5 @@ const (
 	ColRoads          = "roads"
 	ColPOIs           = "pois"
 	ColUsageEvents    = "usage_events"
+	ColOutbox         = "outbox"
 )

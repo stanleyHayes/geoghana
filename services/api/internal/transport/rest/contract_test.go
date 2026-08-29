@@ -21,11 +21,22 @@ func TestRoutesMatchOpenAPIContract(t *testing.T) {
 		t.Skipf("contract not readable from this working directory: %v", err)
 	}
 
-	// Top-level keys under `paths:` are two-space indented and start with "/".
-	re := regexp.MustCompile(`(?m)^  (/[^:\s]*):`)
+	// Parse path + method rather than path alone: several account and developer
+	// resources intentionally support both GET and POST.
+	pathRE := regexp.MustCompile(`^  (/[^:\s]*):\s*$`)
+	methodRE := regexp.MustCompile(`^    (get|post|patch|put|delete):\s*$`)
+	currentPath := ""
 	var documented []string
-	for _, m := range re.FindAllStringSubmatch(string(raw), -1) {
-		documented = append(documented, normalizePath(m[1]))
+	for _, line := range strings.Split(string(raw), "\n") {
+		if match := pathRE.FindStringSubmatch(line); match != nil {
+			currentPath = normalizePath(match[1])
+			continue
+		}
+		if currentPath != "" {
+			if match := methodRE.FindStringSubmatch(line); match != nil {
+				documented = append(documented, strings.ToUpper(match[1])+" "+currentPath)
+			}
+		}
 	}
 	sort.Strings(documented)
 
@@ -33,42 +44,48 @@ func TestRoutesMatchOpenAPIContract(t *testing.T) {
 		t.Fatal("no paths parsed from the OpenAPI contract")
 	}
 
-	implemented := map[string]bool{
-		"/regions": true, "/regions/{}": true, "/regions/{}/districts": true,
-		"/districts": true, "/districts/{}": true, "/districts/{}/places": true,
-		"/places": true, "/places/{}": true,
-		"/nearby": true, "/search": true, "/autocomplete": true,
-		"/geocode": true, "/reverse": true, "/boundaries/{}": true,
-		"/datasets": true, "/datasets/{}/downloads": true,
-	}
-	// Documented but not yet implemented. Each entry is a promise with a story
-	// behind it; the list must shrink, never grow silently.
-	notYetImplemented := map[string]string{
-		"/search":        "GEO-12.1",
-		"/autocomplete":  "GEO-12.2",
-		"/geocode":       "GEO-12.3",
-		"/reverse":       "GEO-12.4",
-		"/boundaries/{}": "GEO-8.2",
+	implemented := map[string]bool{}
+	for _, route := range []string{
+		"POST /auth/register", "POST /auth/verify", "POST /auth/login",
+		"POST /auth/mfa/totp", "POST /auth/mfa/recover", "POST /auth/mfa/enrol",
+		"POST /auth/logout", "POST /auth/logout-all", "GET /auth/session", "GET /auth/sessions",
+		"POST /auth/passkeys/register/begin", "POST /auth/passkeys/register/finish",
+		"POST /auth/passkeys/login/begin", "POST /auth/passkeys/login/finish",
+		"GET /auth/passkeys", "DELETE /auth/passkeys/{}",
+		"GET /developer/organizations", "POST /developer/organizations",
+		"GET /developer/organizations/{}/invitations", "POST /developer/organizations/{}/invitations",
+		"POST /developer/organizations/{}/invitations/{}/revoke",
+		"POST /developer/organizations/{}/transfer-ownership", "POST /developer/invitations/accept",
+		"GET /developer/organizations/{}/applications", "POST /developer/organizations/{}/applications",
+		"GET /developer/organizations/{}/applications/{}/keys", "POST /developer/organizations/{}/applications/{}/keys",
+		"POST /developer/organizations/{}/applications/{}/keys/{}/rotate",
+		"POST /developer/organizations/{}/applications/{}/keys/{}/revoke",
+		"GET /developer/organizations/{}/applications/{}/usage",
+		"GET /developer/organizations/{}/applications/{}/requests",
+		"GET /regions", "GET /regions/{}", "GET /regions/{}/districts",
+		"GET /districts", "GET /districts/{}", "GET /districts/{}/places",
+		"GET /places", "GET /places/{}", "GET /nearby", "GET /roads", "GET /pois",
+		"GET /search", "GET /autocomplete", "GET /geocode", "GET /reverse", "GET /boundaries/{}",
+		"GET /datasets", "GET /datasets/{}/downloads", "GET /datasets/{}/downloads/{}.{}",
+		"GET /admin/permissions", "PATCH /admin/regions/{}", "PATCH /admin/districts/{}",
+		"PATCH /admin/places/{}", "POST /admin/places/{}/deprecate",
+	} {
+		implemented[route] = true
 	}
 
-	for _, p := range documented {
-		if implemented[p] {
-			continue
+	for _, route := range documented {
+		if !implemented[route] {
+			t.Errorf("%s is documented but not registered by the V1 router", route)
 		}
-		if story, ok := notYetImplemented[p]; ok {
-			t.Logf("documented, pending %s: %s", story, p)
-			continue
-		}
-		t.Errorf("%s is in the OpenAPI contract but is neither implemented nor listed as pending", p)
 	}
 
 	docSet := map[string]bool{}
-	for _, p := range documented {
-		docSet[p] = true
+	for _, route := range documented {
+		docSet[route] = true
 	}
-	for p := range implemented {
-		if !docSet[p] {
-			t.Errorf("%s is served but missing from the OpenAPI contract", p)
+	for route := range implemented {
+		if !docSet[route] {
+			t.Errorf("%s is served but missing from the OpenAPI contract", route)
 		}
 	}
 }
@@ -139,5 +156,38 @@ func TestCORSAllowList(t *testing.T) {
 		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != tc.want {
 			t.Errorf("origin %s: Access-Control-Allow-Origin = %q, want %q", tc.origin, got, tc.want)
 		}
+	}
+}
+
+func TestCSRFDeniesCrossOriginSessionMutationsBeforeHandler(t *testing.T) {
+	h := New(nil, nil, discardLogger(), []string{"https://portal.ghanageo.dev"})
+	router := h.Routes()
+
+	for _, tc := range []struct {
+		name      string
+		method    string
+		origin    string
+		fetchSite string
+		want      int
+	}{
+		{name: "allowed portal", method: http.MethodPost, origin: "https://portal.ghanageo.dev", want: http.StatusNotFound},
+		{name: "foreign origin", method: http.MethodPost, origin: "https://evil.example", want: http.StatusForbidden},
+		{name: "cross site signal without origin", method: http.MethodDelete, fetchSite: "cross-site", want: http.StatusForbidden},
+		{name: "safe reads are unaffected", method: http.MethodGet, origin: "https://evil.example", want: http.StatusNotFound},
+		{name: "non browser mutation without cookie", method: http.MethodPost, origin: "https://evil.example", want: http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, "/v1/not-a-route", nil)
+			req.Header.Set("Origin", tc.origin)
+			req.Header.Set("Sec-Fetch-Site", tc.fetchSite)
+			if tc.name != "non browser mutation without cookie" {
+				req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "session-secret"})
+			}
+			router.ServeHTTP(rec, req)
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tc.want, rec.Body.String())
+			}
+		})
 	}
 }

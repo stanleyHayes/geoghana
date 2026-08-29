@@ -214,6 +214,57 @@ func (r *AuditRepo) List(ctx context.Context, f AuditFilter) ([]audit.Entry, err
 	return out, cur.Err()
 }
 
+// ChangesAfter returns successful geography mutations in chronological order.
+// Audit ids are time ordered, so the last delivered id is a durable resume
+// cursor without introducing a second mutable event store.
+func (r *AuditRepo) ChangesAfter(ctx context.Context, cursor string, limit int) ([]audit.Entry, error) {
+	q := bson.M{
+		"outcome": string(audit.OutcomeSucceeded),
+		"action": bson.M{"$in": bson.A{
+			string(audit.ActionRecordUpdated), string(audit.ActionRecordDeprecated),
+		}},
+	}
+	if cursor != "" {
+		q["_id"] = bson.M{"$gt": cursor}
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	cur, err := r.col().Find(ctx, q, options.Find().
+		SetSort(bson.D{{Key: "_id", Value: 1}}).SetLimit(int64(limit)))
+	if err != nil {
+		return nil, fmt.Errorf("read audit change feed: %w", err)
+	}
+	defer func() { _ = cur.Close(ctx) }()
+	var out []audit.Entry
+	for cur.Next(ctx) {
+		var d auditDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, fmt.Errorf("decode audit change feed: %w", err)
+		}
+		out = append(out, d.toDomain())
+	}
+	return out, cur.Err()
+}
+
+// LatestChangeCursor returns the current tail of the public change feed.
+func (r *AuditRepo) LatestChangeCursor(ctx context.Context) (string, error) {
+	var d auditDoc
+	err := r.col().FindOne(ctx, bson.M{
+		"outcome": string(audit.OutcomeSucceeded),
+		"action": bson.M{"$in": bson.A{
+			string(audit.ActionRecordUpdated), string(audit.ActionRecordDeprecated),
+		}},
+	}, options.FindOne().SetSort(bson.D{{Key: "_id", Value: -1}})).Decode(&d)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read audit change-feed tail: %w", err)
+	}
+	return d.ID, nil
+}
+
 // newAuditID is time-ordered so the natural _id sort matches chronological
 // order, and random-suffixed so two entries written in the same nanosecond
 // cannot collide — a collision would surface as an InsertOne duplicate-key

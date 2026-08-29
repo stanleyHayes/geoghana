@@ -20,13 +20,16 @@ const (
 )
 
 var (
-	ErrEmptyID          = errors.New("id must not be empty")
-	ErrEmptyName        = errors.New("name must not be empty")
-	ErrMissingRegion    = errors.New("district must reference a region")
-	ErrLatOutOfRange    = errors.New("latitude out of valid range")
-	ErrLngOutOfRange    = errors.New("longitude out of valid range")
-	ErrNotInGhana       = errors.New("coordinate is outside Ghana's bounding box")
-	ErrUnknownPlaceType = errors.New("unknown place type")
+	ErrEmptyID               = errors.New("id must not be empty")
+	ErrInvalidID             = errors.New("id must be a ULID")
+	ErrEmptyName             = errors.New("name must not be empty")
+	ErrMissingRegion         = errors.New("district must reference a region")
+	ErrLatOutOfRange         = errors.New("latitude out of valid range")
+	ErrLngOutOfRange         = errors.New("longitude out of valid range")
+	ErrNotInGhana            = errors.New("coordinate is outside Ghana's bounding box")
+	ErrUnknownPlaceType      = errors.New("unknown place type")
+	ErrMissingProvenance     = errors.New("source provenance is incomplete")
+	ErrMissingDatasetVersion = errors.New("dataset version must not be empty")
 )
 
 // Status is the lifecycle state of a canonical record.
@@ -120,6 +123,33 @@ type Provenance struct {
 	Notes             string
 }
 
+func (p Provenance) Validate() error {
+	missing := make([]string, 0, 4)
+	fields := []struct{ name, value string }{
+		{"sourceId", p.SourceID}, {"externalId", p.ExternalID},
+		{"retrievedAt", p.RetrievedAt}, {"sourcePayloadHash", p.SourcePayloadHash},
+	}
+	for _, field := range fields {
+		if strings.TrimSpace(field.value) == "" {
+			missing = append(missing, field.name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: %s", ErrMissingProvenance, strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func validateMetadata(provenance Provenance, datasetVersion string) error {
+	if err := provenance.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(datasetVersion) == "" {
+		return ErrMissingDatasetVersion
+	}
+	return nil
+}
+
 // Region is a first-level administrative area. Ghana has 16.
 type Region struct {
 	ID                 string
@@ -139,8 +169,14 @@ func (r Region) Validate() error {
 	if strings.TrimSpace(r.ID) == "" {
 		return ErrEmptyID
 	}
+	if !IsULID(r.ID) {
+		return ErrInvalidID
+	}
 	if strings.TrimSpace(r.Name) == "" {
 		return ErrEmptyName
+	}
+	if err := validateMetadata(r.Provenance, r.DatasetVersion); err != nil {
+		return fmt.Errorf("region %s: %w", r.ID, err)
 	}
 	if r.Centroid != nil {
 		if err := r.Centroid.Validate(); err != nil {
@@ -171,11 +207,17 @@ func (d District) Validate() error {
 	if strings.TrimSpace(d.ID) == "" {
 		return ErrEmptyID
 	}
+	if !IsULID(d.ID) {
+		return ErrInvalidID
+	}
 	if strings.TrimSpace(d.Name) == "" {
 		return ErrEmptyName
 	}
 	if strings.TrimSpace(d.RegionID) == "" {
 		return fmt.Errorf("%w: district %s", ErrMissingRegion, d.ID)
+	}
+	if err := validateMetadata(d.Provenance, d.DatasetVersion); err != nil {
+		return fmt.Errorf("district %s: %w", d.ID, err)
 	}
 	if d.Centroid != nil {
 		if err := d.Centroid.Validate(); err != nil {
@@ -220,11 +262,17 @@ func (p Place) Validate() error {
 	if strings.TrimSpace(p.ID) == "" {
 		return ErrEmptyID
 	}
+	if !IsULID(p.ID) {
+		return ErrInvalidID
+	}
 	if strings.TrimSpace(p.Name) == "" {
 		return ErrEmptyName
 	}
 	if _, ok := validPlaceTypes[p.Type]; !ok {
 		return fmt.Errorf("%w: place %s has %q", ErrUnknownPlaceType, p.ID, p.Type)
+	}
+	if err := validateMetadata(p.Provenance, p.DatasetVersion); err != nil {
+		return fmt.Errorf("place %s: %w", p.ID, err)
 	}
 	if p.Centroid != nil {
 		if err := p.Centroid.Validate(); err != nil {

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/dataset"
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/outbox"
 )
 
 // datasetDoc is the persistence shape. Domain types carry no bson tags
@@ -166,6 +168,47 @@ func (r *DatasetRepo) Upsert(ctx context.Context, v dataset.Version) error {
 	_, err := r.col().ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, options.Replace().SetUpsert(true))
 	if err != nil {
 		return fmt.Errorf("upsert dataset version %s: %w", v.Version, err)
+	}
+	return nil
+}
+
+// Activate atomically demotes the previous release, promotes the next one and
+// records durable work for the background worker. Consumers can therefore
+// never observe a published version whose search rebuild event was lost.
+func (r *DatasetRepo) Activate(ctx context.Context, previous []dataset.Version, next dataset.Version) error {
+	for _, version := range append(append([]dataset.Version{}, previous...), next) {
+		for _, artifact := range version.Artifacts {
+			if err := artifact.SafeFilename(); err != nil {
+				return err
+			}
+		}
+	}
+	session, err := r.s.client.StartSession()
+	if err != nil {
+		return fmt.Errorf("start dataset activation transaction: %w", err)
+	}
+	defer session.EndSession(ctx)
+	now := time.Now().UTC()
+	_, err = session.WithTransaction(ctx, func(tx context.Context) (any, error) {
+		for _, version := range previous {
+			doc := fromDomain(version)
+			if _, replaceErr := r.col().ReplaceOne(tx, bson.M{"_id": doc.ID}, doc); replaceErr != nil {
+				return nil, fmt.Errorf("demote dataset version %s: %w", version.Version, replaceErr)
+			}
+		}
+		doc := fromDomain(next)
+		if _, replaceErr := r.col().ReplaceOne(tx, bson.M{"_id": doc.ID}, doc); replaceErr != nil {
+			return nil, fmt.Errorf("activate dataset version %s: %w", next.Version, replaceErr)
+		}
+		if enqueueErr := enqueueOutbox(tx, r.s.db, outbox.TopicDatasetPublished, map[string]any{
+			"version": next.Version, "publishedAt": next.PublishedAt,
+		}, now); enqueueErr != nil {
+			return nil, enqueueErr
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return fmt.Errorf("activate dataset version %s: %w", next.Version, err)
 	}
 	return nil
 }

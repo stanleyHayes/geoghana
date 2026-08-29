@@ -15,8 +15,14 @@ type Config struct {
 	RedisURL     string
 	TypesenseURL string
 	TypesenseKey string
-	HTTPPort     string
-	GRPCPort     string
+	// ServeMode is all for local development, http for the public REST/GraphQL
+	// process, or grpc for a separately deployed HTTP/2-native process.
+	ServeMode string
+	HTTPPort  string
+	GRPCPort  string
+	// DatasetVersion is the canonical geography release exposed by every
+	// transport and used when rebuilding the search index.
+	DatasetVersion string
 	// ExportDir is where dataset download artifacts are written and served
 	// from. Relative to the process working directory.
 	ExportDir string
@@ -34,17 +40,32 @@ type Config struct {
 }
 
 func Load() Config {
+	serveMode := env("GHANAGEO_SERVE_MODE", "all")
+	httpPort := env("API_HTTP_PORT", "8180")
+	grpcPort := env("API_GRPC_PORT", "9190")
+	// Managed hosts expose one assigned public port. Split deployments bind
+	// the selected transport to it; local all-in-one mode keeps distinct ports.
+	if platformPort := os.Getenv("PORT"); platformPort != "" {
+		switch strings.ToLower(serveMode) {
+		case "http":
+			httpPort = platformPort
+		case "grpc":
+			grpcPort = platformPort
+		}
+	}
 	return Config{
-		Env:          env("GHANAGEO_ENV", "local"),
-		MongoURI:     env("MONGO_URI", "mongodb://localhost:27117/ghanageo?replicaSet=rs0&directConnection=true"),
-		MongoDB:      env("MONGO_DB", "ghanageo"),
-		RedisURL:     env("REDIS_URL", "redis://localhost:6679"),
-		TypesenseURL: env("TYPESENSE_URL", "http://localhost:8108"),
-		TypesenseKey: env("TYPESENSE_API_KEY", "ghanageo_local_dev_only"),
-		HTTPPort:     env("API_HTTP_PORT", "8180"),
-		GRPCPort:     env("API_GRPC_PORT", "9190"),
-		ExportDir:    env("API_EXPORT_DIR", "../../data/exports"),
-		PasskeyRPID:  env("API_PASSKEY_RPID", "localhost"),
+		Env:            env("GHANAGEO_ENV", "local"),
+		MongoURI:       env("MONGO_URI", "mongodb://localhost:27117/ghanageo?replicaSet=rs0&directConnection=true"),
+		MongoDB:        env("MONGO_DB", "ghanageo"),
+		RedisURL:       env("REDIS_URL", "redis://localhost:6679"),
+		TypesenseURL:   env("TYPESENSE_URL", "http://localhost:8108"),
+		TypesenseKey:   env("TYPESENSE_API_KEY", "ghanageo_local_dev_only"),
+		ServeMode:      serveMode,
+		HTTPPort:       httpPort,
+		GRPCPort:       grpcPort,
+		DatasetVersion: env("DATASET_VERSION", "2026.08.3-ulid"),
+		ExportDir:      env("API_EXPORT_DIR", "../../data/exports"),
+		PasskeyRPID:    env("API_PASSKEY_RPID", "localhost"),
 		PasskeyOrigins: strings.Split(env("API_PASSKEY_ORIGINS",
 			"http://localhost:3100,http://localhost:3102,http://localhost:3103,http://localhost:8180"), ","),
 		LogLevel:                   env("API_LOG_LEVEL", "info"),

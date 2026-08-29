@@ -2,6 +2,7 @@ package geography
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -152,8 +153,40 @@ func TestPlaceTypeParsing(t *testing.T) {
 }
 
 func TestDistrictRequiresRegion(t *testing.T) {
-	d := District{ID: "gh-district-x", Name: "X"}
+	id, _ := StableID("district", "test", "x")
+	d := District{ID: id, Name: "X"}
 	if err := d.Validate(); !errors.Is(err, ErrMissingRegion) {
 		t.Fatalf("expected ErrMissingRegion, got %v", err)
+	}
+}
+
+func TestCanonicalRecordsRequireCompleteMetadata(t *testing.T) {
+	complete := Provenance{
+		SourceID: "source", ExternalID: "row-1", RetrievedAt: "2026-08-29",
+		SourcePayloadHash: strings.Repeat("a", 64),
+	}
+	id, _ := StableID("region", "test", "x")
+	base := Region{ID: id, Name: "X", Provenance: complete, DatasetVersion: "2026.08.1"}
+	if err := base.Validate(); err != nil {
+		t.Fatalf("complete metadata rejected: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name string
+		edit func(*Region)
+	}{
+		{name: "source", edit: func(r *Region) { r.Provenance.SourceID = "" }},
+		{name: "external id", edit: func(r *Region) { r.Provenance.ExternalID = "" }},
+		{name: "retrieved at", edit: func(r *Region) { r.Provenance.RetrievedAt = "" }},
+		{name: "payload hash", edit: func(r *Region) { r.Provenance.SourcePayloadHash = "" }},
+		{name: "dataset version", edit: func(r *Region) { r.DatasetVersion = "" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			record := base
+			tc.edit(&record)
+			if err := record.Validate(); err == nil {
+				t.Fatal("incomplete metadata was accepted")
+			}
+		})
 	}
 }

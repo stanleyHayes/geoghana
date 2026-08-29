@@ -15,6 +15,8 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	usageDomain "github.com/ghanageo/ghanageo/services/api/internal/domain/usage"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
 	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
@@ -37,12 +39,18 @@ type Handler struct {
 	accounts       *appaccount.Service
 	developer      *appdeveloper.Service
 	usage          usageDomain.Repository
+	telemetry      *observability.Telemetry
 }
 
 func (h *Handler) WithDeveloper(a *appdeveloper.Service) *Handler { h.developer = a; return h }
 
 func (h *Handler) WithUsage(repository usageDomain.Repository) *Handler {
 	h.usage = repository
+	return h
+}
+
+func (h *Handler) WithTelemetry(telemetry *observability.Telemetry) *Handler {
+	h.telemetry = telemetry
 	return h
 }
 
@@ -126,6 +134,9 @@ func (h *Handler) Routes() http.Handler {
 	r.Use(h.csrf)
 
 	r.Get("/health", h.health)
+	if h.telemetry != nil {
+		r.Handle("/metrics", h.telemetry.Handler())
+	}
 
 	if h.graphql != nil {
 		// Outside /v1: the GraphQL schema carries its own version, and Spec
@@ -236,6 +247,9 @@ func (h *Handler) Routes() http.Handler {
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, apierr.New(apierr.NotFound, "No such endpoint."))
 	})
+	if h.telemetry != nil {
+		return otelhttp.NewHandler(r, "http.request")
+	}
 	return r
 }
 
@@ -328,14 +342,34 @@ func (h *Handler) accessLog(next http.Handler) http.Handler {
 		start := time.Now()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 		next.ServeHTTP(ww, r)
+		statusCode := ww.Status()
+		if statusCode == 0 {
+			statusCode = http.StatusOK
+		}
+		operation := r.Method + " " + chi.RouteContext(r.Context()).RoutePattern()
+		if strings.TrimSpace(operation) == r.Method {
+			operation = r.Method + " unmatched"
+		}
+		elapsed := time.Since(start)
+		caller := auth.FromContext(r.Context())
+		appID, keyPrefix := "", ""
+		if caller.Key != nil {
+			appID, keyPrefix = caller.Key.ApplicationID, caller.Key.Prefix
+		}
+		if h.telemetry != nil {
+			h.telemetry.ObserveRequest("http", operation, strconv.Itoa(statusCode), elapsed)
+		}
 		h.log.Info("request",
 			"request_id", middleware.GetReqID(r.Context()),
 			"protocol", "rest",
-			"operation", r.Method+" "+r.URL.Path,
-			"status", ww.Status(),
-			"latency_ms", time.Since(start).Milliseconds(),
+			"trace_id", observability.TraceID(r.Context()),
+			"app_id", appID,
+			"key_prefix", keyPrefix,
+			"operation", operation,
+			"status", statusCode,
+			"latency_ms", elapsed.Milliseconds(),
 			// The rate key is a public prefix or an IP — never a secret.
-			"caller", auth.FromContext(r.Context()).RateKey,
+			"caller", caller.RateKey,
 		)
 	})
 }

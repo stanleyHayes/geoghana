@@ -50,6 +50,7 @@ Usage:
   ghanageo-admin data dedupe [--apply]
   ghanageo-admin data export [--version <v>] [--dir <path>]
   ghanageo-admin data osm --file <ghana-latest.osm.pbf> [--apply]
+  ghanageo-admin data osm-boundaries --file <ghana-latest.osm.pbf> [--apply]
   ghanageo-admin audit list [--actor <id>] [--action <a>] [--target <id>] [--limit N]
   ghanageo-admin audit verify
   ghanageo-admin dataset history
@@ -96,6 +97,8 @@ func run(args []string) error {
 			return cmdExport(ctx, args[2:])
 		case "osm":
 			return cmdOSM(ctx, args[2:])
+		case "osm-boundaries":
+			return cmdOSMBoundaries(ctx, args[2:])
 		}
 	case "dataset":
 		if len(args) < 2 {
@@ -400,13 +403,115 @@ func cmdOSM(ctx context.Context, args []string) error {
 	}
 	fmt.Printf("✓ assigned %d POIs to a district by containment\n", assigned)
 
+	roadsAssigned, err := mongo.NewRoadRepo(store).AssignRegions(ctx, store.DB())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✓ assigned %d roads to a district by midpoint containment\n", roadsAssigned)
+
 	recordAudit(ctx, store, audit.ActionSourceImported,
 		audit.Target{Kind: "source", ID: "openstreetmap", Label: lic.Name},
 		nil,
 		map[string]any{
-			"roads": roads, "pois": pois, "districtAssigned": assigned,
+			"roads": roads, "pois": pois,
+			"poisAssigned": assigned, "roadsAssigned": roadsAssigned,
 			"licence": lic.SPDX, "shareAlike": lic.ShareAlike,
 		}, nil)
+	return nil
+}
+
+// cmdOSMBoundaries fills district boundaries that geoBoundaries cannot supply.
+//
+// geoBoundaries represents 2019 and Ghana has reorganised since; OSM carries
+// the current administrative relations. This ONLY fills gaps — a district that
+// already has geometry is left alone, because an existing boundary has been
+// through the region-gated matcher and possibly a steward, and a second source
+// arriving is not grounds to overwrite it (R8).
+func cmdOSMBoundaries(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("osm-boundaries", flag.ContinueOnError)
+	file := fs.String("file", "", "path to a .osm.pbf extract")
+	apply := fs.Bool("apply", false, "write the matches (default is a dry run)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *file == "" {
+		return fmt.Errorf("--file is required")
+	}
+
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+
+	fmt.Printf("→ reading administrative relations from %s\n", *file)
+	areas, err := osmadapter.ScanDistrictBoundaries(ctx, *file)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  %d admin_level=6 areas with geometry\n", len(areas))
+
+	districts := mongo.NewDistrictRepo(store)
+	candidates, err := ingest.DistrictCandidates(ctx, districts)
+	if err != nil {
+		return err
+	}
+
+	// Only districts that currently have no boundary are eligible.
+	gaps, err := mongo.NewDistrictRepo(store).WithoutGeometry(ctx)
+	if err != nil {
+		return err
+	}
+	eligible := map[string]bool{}
+	for _, id := range gaps {
+		eligible[id] = true
+	}
+	fmt.Printf("  %d districts currently have no boundary\n", len(eligible))
+
+	var applied, invalid, unmatched, matched int
+	for _, a := range areas {
+		// Region gating, as with geoBoundaries: a name match that crosses a
+		// region is how "Bolgatanga East" reaches "Ga East", 700km away.
+		regionID, rerr := mongo.NewRegionRepo(store).ContainingRegion(ctx, a.Centroid)
+		if rerr != nil {
+			regionID = ""
+		}
+		m := ingest.MatchByName(a.Name, ingest.InRegion(candidates, regionID))
+		if m.TargetID == "" || !eligible[m.TargetID] {
+			if m.TargetID == "" {
+				unmatched++
+			}
+			continue
+		}
+		if verr := a.Geometry.Validate(); verr != nil {
+			// MongoDB accepts a self-intersecting polygon and then returns
+			// silently wrong $geoIntersects results, so validity is a
+			// blocking gate here rather than a warning.
+			fmt.Printf("  ✗ %-34s invalid geometry: %v\n", a.Name, verr)
+			invalid++
+			continue
+		}
+		matched++
+		fmt.Printf("  ✓ %-34s → %s (%.2f, %s)\n", a.Name, m.TargetName, m.Score, m.Reason)
+		if *apply {
+			if werr := districts.SetGeometry(ctx, m.TargetID, a.Geometry); werr != nil {
+				return werr
+			}
+			applied++
+		}
+	}
+
+	if !*apply {
+		// Report what actually MATCHED, not the size of the gap. The first
+		// version printed the gap count and claimed 13 fills from 0 matches.
+		fmt.Printf("\ndry run — %d of %d gaps would be filled (%d invalid geometry, %d unmatched). Re-run with --apply.\n",
+			matched, len(eligible), invalid, unmatched)
+		return nil
+	}
+	fmt.Printf("\n✓ filled %d district boundaries from OpenStreetMap\n", applied)
+	recordAudit(ctx, store, audit.ActionBoundariesLoaded,
+		audit.Target{Kind: "dataset", ID: datasetVersion, Label: "district boundaries"},
+		nil, map[string]any{"filled": applied, "source": "openstreetmap", "licence": "ODbL-1.0"}, nil)
 	return nil
 }
 

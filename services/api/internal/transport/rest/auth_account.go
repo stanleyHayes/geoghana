@@ -15,8 +15,8 @@ import (
 //
 // The session token travels in a cookie rather than a JSON body so that
 // browser JavaScript cannot read it: an XSS bug then cannot exfiltrate a live
-// session. That choice brings CSRF into scope, which SameSite=Lax handles for
-// the state-changing routes here — all of which are POST.
+// session. That choice brings CSRF into scope; SameSite=Lax and the router's
+// explicit origin check protect every cookie-authenticated mutation.
 
 const sessionCookie = "gg_session"
 

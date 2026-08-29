@@ -68,6 +68,34 @@ func TestAnonymousCallerKeepsPublicReadScopes(t *testing.T) {
 	}
 }
 
+func TestResolveRejectsExpiredAndRevokedKeysAtTheTransportBoundary(t *testing.T) {
+	generated, err := identity.Generate(identity.EnvLive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+	past := now.Add(-time.Minute)
+
+	for _, tc := range []struct {
+		name string
+		key  identity.APIKey
+	}{
+		{name: "expired", key: identity.APIKey{ExpiresAt: &past}},
+		{name: "revoked", key: identity.APIKey{RevokedAt: &past}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			key := tc.key
+			key.Prefix = generated.Prefix
+			key.SecretHash = generated.SecretHash
+			a := New(authTestKeys{key: &key}, authTestLimiter{}, false)
+			a.now = func() time.Time { return now }
+			if _, err := a.Resolve(context.Background(), "Bearer "+generated.Full, "203.0.113.4", ""); err == nil {
+				t.Fatalf("%s key was accepted", tc.name)
+			}
+		})
+	}
+}
+
 func TestDisallowedBrowserOriginRaisesUnusualUsageAlert(t *testing.T) {
 	generated, err := identity.Generate(identity.EnvLive)
 	if err != nil {

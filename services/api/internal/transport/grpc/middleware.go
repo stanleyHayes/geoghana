@@ -14,6 +14,7 @@ import (
 	usageDomain "github.com/ghanageo/ghanageo/services/api/internal/domain/usage"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -129,6 +130,10 @@ func unaryMiddleware(a *auth.Authenticator, log *slog.Logger, usageRepository ..
 	if len(usageRepository) > 0 {
 		repository = usageRepository[0]
 	}
+	return unaryMiddlewareObserved(a, log, repository, nil)
+}
+
+func unaryMiddlewareObserved(a *auth.Authenticator, log *slog.Logger, repository usageDomain.Repository, observed *observability.Telemetry) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		started := time.Now()
 		requestID := grpcRequestID()
@@ -146,8 +151,15 @@ func unaryMiddleware(a *auth.Authenticator, log *slog.Logger, usageRepository ..
 			ctx = resolved
 			response, err = handler(ctx, req)
 		}
-		log.Info("request", "request_id", requestID, "protocol", "grpc", "operation", info.FullMethod,
-			"status", status.Code(err).String(), "latency_ms", time.Since(started).Milliseconds(),
+		elapsed := time.Since(started)
+		result := status.Code(err).String()
+		caller := auth.FromContext(ctx)
+		appID, keyPrefix := callerFields(caller)
+		if observed != nil {
+			observed.ObserveRequest("grpc", info.FullMethod, result, elapsed)
+		}
+		log.Info("request", "request_id", requestID, "trace_id", observability.TraceID(ctx), "app_id", appID, "key_prefix", keyPrefix, "protocol", "grpc", "operation", info.FullMethod,
+			"status", result, "latency_ms", elapsed.Milliseconds(),
 			"caller", auth.FromContext(ctx).RateKey)
 		recordUsage(resolved, repository, requestID, "grpc", info.FullMethod, status.Code(err).String(), "", time.Since(started), decision, grpcCost(info.FullMethod))
 		return response, err
@@ -168,11 +180,30 @@ type contextStream struct {
 
 func (s *contextStream) Context() context.Context { return s.ctx }
 
+// chargingStream accounts for every delivered stream message in addition to
+// the connection charge applied by streamMiddleware. A long-lived consumer
+// must not bypass the same fair-use budget paid by equivalent unary reads.
+type chargingStream struct {
+	*contextStream
+	a *auth.Authenticator
+}
+
+func (s *chargingStream) SendMsg(message any) error {
+	if _, _, err := authenticate(s.Context(), s.a, "/ghanageo.v1.GeographyService/ListRegions"); err != nil {
+		return err
+	}
+	return s.ServerStream.SendMsg(message)
+}
+
 func streamMiddleware(a *auth.Authenticator, log *slog.Logger, usageRepository ...usageDomain.Repository) grpc.StreamServerInterceptor {
 	var repository usageDomain.Repository
 	if len(usageRepository) > 0 {
 		repository = usageRepository[0]
 	}
+	return streamMiddlewareObserved(a, log, repository, nil)
+}
+
+func streamMiddlewareObserved(a *auth.Authenticator, log *slog.Logger, repository usageDomain.Repository, observed *observability.Telemetry) grpc.StreamServerInterceptor {
 	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		started := time.Now()
 		ctx, cancel := context.WithTimeout(stream.Context(), streamTimeout)
@@ -184,13 +215,32 @@ func streamMiddleware(a *auth.Authenticator, log *slog.Logger, usageRepository .
 			resolved, decision, err = authenticate(ctx, a, info.FullMethod)
 		}
 		if err == nil {
-			err = handler(srv, &contextStream{ServerStream: stream, ctx: resolved})
+			wrapped := &contextStream{ServerStream: stream, ctx: resolved}
+			if strings.HasSuffix(info.FullMethod, "/StreamDatasetChanges") {
+				err = handler(srv, &chargingStream{contextStream: wrapped, a: a})
+			} else {
+				err = handler(srv, wrapped)
+			}
 		}
 		requestID := grpcRequestID()
-		log.Info("request", "request_id", requestID, "protocol", "grpc",
-			"operation", info.FullMethod, "status", status.Code(err).String(), "latency_ms", time.Since(started).Milliseconds(),
+		elapsed := time.Since(started)
+		result := status.Code(err).String()
+		caller := auth.FromContext(resolved)
+		appID, keyPrefix := callerFields(caller)
+		if observed != nil {
+			observed.ObserveRequest("grpc", info.FullMethod, result, elapsed)
+		}
+		log.Info("request", "request_id", requestID, "trace_id", observability.TraceID(resolved), "app_id", appID, "key_prefix", keyPrefix, "protocol", "grpc",
+			"operation", info.FullMethod, "status", result, "latency_ms", elapsed.Milliseconds(),
 			"caller", auth.FromContext(resolved).RateKey)
 		recordUsage(resolved, repository, requestID, "grpc", info.FullMethod, status.Code(err).String(), "", time.Since(started), decision, grpcCost(info.FullMethod))
 		return err
 	}
+}
+
+func callerFields(caller identity.Identity) (string, string) {
+	if caller.Key == nil {
+		return "", ""
+	}
+	return caller.Key.ApplicationID, caller.Key.Prefix
 }

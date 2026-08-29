@@ -124,7 +124,10 @@ func (r *RegionRepo) Upsert(ctx context.Context, in geography.Region) (bool, err
 	if err != nil {
 		return false, err
 	}
-	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{"$set": set}, options.UpdateOne().SetUpsert(true))
+	delete(set, "datasetVersion")
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{
+		"$set": set, "$setOnInsert": bson.M{"datasetVersion": doc.DatasetVersion},
+	}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return false, err
 	}
@@ -182,7 +185,10 @@ func (r *DistrictRepo) Upsert(ctx context.Context, in geography.District) (bool,
 	if err != nil {
 		return false, err
 	}
-	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{"$set": set}, options.UpdateOne().SetUpsert(true))
+	delete(set, "datasetVersion")
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{
+		"$set": set, "$setOnInsert": bson.M{"datasetVersion": doc.DatasetVersion},
+	}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return false, err
 	}
@@ -271,7 +277,10 @@ func (r *PlaceRepo) Upsert(ctx context.Context, in geography.Place) (bool, error
 	if err != nil {
 		return false, err
 	}
-	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{"$set": set}, options.UpdateOne().SetUpsert(true))
+	delete(set, "datasetVersion")
+	res, err := r.col.UpdateOne(ctx, bson.M{"_id": doc.ID}, bson.M{
+		"$set": set, "$setOnInsert": bson.M{"datasetVersion": doc.DatasetVersion},
+	}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return false, err
 	}

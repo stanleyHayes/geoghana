@@ -129,11 +129,15 @@ func (im *Importer) toPlace(
 		prov.Notes = licence.Attribution
 	}
 
+	id, err := geography.StableID("place", prov.SourceID, rec.ExternalID)
+	if err != nil {
+		return geography.Place{}, fmt.Errorf("stable id: %w", err)
+	}
 	p := geography.Place{
 		// Deterministic and traceable: the same GeoNames record always
 		// produces the same id, which is what makes reimports idempotent and
 		// lets anyone trace a record back to its source row.
-		ID:             deterministicID(prov.SourceID, rec.ExternalID),
+		ID:             id,
 		Name:           rec.Name,
 		NormalizedName: normalize.Name(rec.Name),
 		Type:           rec.Type,
@@ -152,21 +156,4 @@ func (im *Importer) toPlace(
 		return geography.Place{}, err
 	}
 	return p, nil
-}
-
-func deterministicID(source, externalID string) string {
-	return fmt.Sprintf("gh-place-%s-%s", shortSource(source), externalID)
-}
-
-func shortSource(s string) string {
-	switch s {
-	case "geonames":
-		return "gn"
-	case "openstreetmap", "osm":
-		return "osm"
-	case "gss":
-		return "gss"
-	default:
-		return s
-	}
 }

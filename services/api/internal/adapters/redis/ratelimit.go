@@ -11,9 +11,11 @@ import (
 	"math"
 	"time"
 
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 )
 
 // tokenBucket refills lazily from the elapsed time, so no background job is
@@ -65,15 +67,26 @@ type Limiter struct {
 	// failOpen decides behaviour when Redis is unreachable. Read APIs fail
 	// OPEN: a limiter outage must not take down a free public service that
 	// people may depend on. Abuse is handled by the WAF in that window.
-	failOpen bool
+	failOpen  bool
+	telemetry *observability.Telemetry
 }
 
-func NewLimiter(redisURL string, failOpen bool) (*Limiter, error) {
+func NewLimiter(redisURL string, failOpen bool, telemetry ...*observability.Telemetry) (*Limiter, error) {
 	opt, err := goredis.ParseURL(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse redis url: %w", err)
 	}
-	return &Limiter{client: goredis.NewClient(opt), failOpen: failOpen}, nil
+	client := goredis.NewClient(opt)
+	// Redis commands include rate keys and script arguments, so traces record
+	// timings and peer information only—not command text.
+	if err := redisotel.InstrumentTracing(client, redisotel.WithDBStatement(false)); err != nil {
+		return nil, fmt.Errorf("instrument redis tracing: %w", err)
+	}
+	var observed *observability.Telemetry
+	if len(telemetry) > 0 {
+		observed = telemetry[0]
+	}
+	return &Limiter{client: client, failOpen: failOpen, telemetry: observed}, nil
 }
 
 func (l *Limiter) Close() error { return l.client.Close() }
@@ -95,6 +108,7 @@ type Decision struct {
 func (l *Limiter) Allow(
 	ctx context.Context, id identity.Identity, a identity.Allowance, cost identity.CostClass,
 ) (Decision, error) {
+	started := time.Now()
 	key := "rl:" + id.RateKey
 	ttl := int(math.Max(60, a.Window.Seconds()))
 
@@ -103,13 +117,30 @@ func (l *Limiter) Allow(
 		a.BurstUnits, a.RefillPerSecond, time.Now().UnixMilli(), cost.Units(), ttl,
 	).Int64Slice()
 	if err != nil {
+		if l.telemetry != nil {
+			l.telemetry.ObserveDependency("redis", "rate_limit", "error", time.Since(started))
+		}
 		if l.failOpen {
+			if l.telemetry != nil {
+				l.telemetry.ObserveRateLimit("degraded")
+			}
 			return Decision{Allowed: true, Limit: a.BurstUnits, Degraded: true}, nil
 		}
 		return Decision{}, fmt.Errorf("rate limit check: %w", err)
 	}
 	if len(res) != 3 {
+		if l.telemetry != nil {
+			l.telemetry.ObserveDependency("redis", "rate_limit", "error", time.Since(started))
+		}
 		return Decision{}, fmt.Errorf("rate limit script returned %d values, want 3", len(res))
+	}
+	if l.telemetry != nil {
+		l.telemetry.ObserveDependency("redis", "rate_limit", "ok", time.Since(started))
+		if res[0] == 1 {
+			l.telemetry.ObserveRateLimit("allowed")
+		} else {
+			l.telemetry.ObserveRateLimit("rejected")
+		}
 	}
 	return Decision{
 		Allowed:    res[0] == 1,

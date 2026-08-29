@@ -20,6 +20,7 @@ type Repository interface {
 	ListAll(ctx context.Context) ([]domain.Version, error)
 	Get(ctx context.Context, version string) (*domain.Version, error)
 	Upsert(ctx context.Context, v domain.Version) error
+	Activate(ctx context.Context, previous []domain.Version, next domain.Version) error
 }
 
 // Service reads the dataset catalogue and opens artifact files.
@@ -154,19 +155,18 @@ func (s *Service) Publish(ctx context.Context, version, at string) (domain.Versi
 	if err != nil {
 		return domain.Version{}, apierr.Wrap(apierr.Internal, "Could not read the catalogue.", err)
 	}
+	previous := make([]domain.Version, 0, len(live))
 	for _, c := range live {
 		if c.Version == version {
 			continue
 		}
 		c.Status = domain.StatusRolledBack
-		if err := s.repo.Upsert(ctx, c); err != nil {
-			return domain.Version{}, apierr.Wrap(apierr.Internal, "Could not demote the previous version.", err)
-		}
+		previous = append(previous, c)
 	}
 
 	v.Status = domain.StatusPublished
 	v.PublishedAt = at
-	if err := s.repo.Upsert(ctx, *v); err != nil {
+	if err := s.repo.Activate(ctx, previous, *v); err != nil {
 		return domain.Version{}, apierr.Wrap(apierr.Internal, "Could not publish.", err)
 	}
 	return *v, nil
@@ -206,17 +206,16 @@ func (s *Service) Rollback(ctx context.Context, to, at string) (from, restored d
 	// which a consumer can detect; promoting first could leave TWO published
 	// versions, which they cannot.
 	var previous domain.Version
+	demoted := make([]domain.Version, 0, len(current))
 	for _, c := range current {
 		c.Status = domain.StatusRolledBack
-		if err := s.repo.Upsert(ctx, c); err != nil {
-			return domain.Version{}, domain.Version{}, apierr.Wrap(apierr.Internal, "Could not roll back.", err)
-		}
+		demoted = append(demoted, c)
 		previous = c
 	}
 
 	target.Status = domain.StatusPublished
 	target.PublishedAt = at
-	if err := s.repo.Upsert(ctx, *target); err != nil {
+	if err := s.repo.Activate(ctx, demoted, *target); err != nil {
 		return domain.Version{}, domain.Version{}, apierr.Wrap(apierr.Internal, "Could not roll back.", err)
 	}
 	return previous, *target, nil

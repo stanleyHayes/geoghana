@@ -203,6 +203,14 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 				{Keys: bson.D{{Key: "status", Value: 1}, {Key: "publishedAt", Value: -1}}},
 			},
 		},
+		{
+			name:      ColOutbox,
+			validator: outboxSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "status", Value: 1}, {Key: "availableAt", Value: 1}, {Key: "createdAt", Value: 1}}},
+				{Keys: bson.D{{Key: "completedAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(int32((30 * 24 * time.Hour).Seconds()))},
+			},
+		},
 	}
 
 	existing, err := db.ListCollectionNames(ctx, bson.M{})
@@ -927,6 +935,26 @@ func auditSchema() bson.M {
 			// The tamper-evident chain. Present on every row by construction.
 			"hash":     bson.M{"bsonType": "string"},
 			"prevHash": bson.M{"bsonType": "string"},
+		},
+	}}
+}
+
+func outboxSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "topic", "payload", "status", "attempts", "availableAt", "createdAt"},
+		"properties": bson.M{
+			"_id":         bson.M{"bsonType": "string"},
+			"topic":       bson.M{"bsonType": "string"},
+			"payload":     bson.M{"bsonType": "object"},
+			"status":      bson.M{"enum": []string{"pending", "processing", "completed", "dead"}},
+			"attempts":    bson.M{"bsonType": []string{"int", "long"}, "minimum": 0},
+			"availableAt": bson.M{"bsonType": "date"},
+			"createdAt":   bson.M{"bsonType": "date"},
+			"lockedAt":    bson.M{"bsonType": []string{"date", "null"}},
+			"lockedBy":    bson.M{"bsonType": []string{"string", "null"}},
+			"lastError":   bson.M{"bsonType": []string{"string", "null"}},
+			"completedAt": bson.M{"bsonType": []string{"date", "null"}},
 		},
 	}}
 }

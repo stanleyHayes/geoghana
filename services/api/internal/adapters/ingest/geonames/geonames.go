@@ -13,13 +13,16 @@ import (
 	"bufio"
 	"compress/flate"
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/app/ingest"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
@@ -89,9 +92,17 @@ type Adapter struct {
 	Path string
 	// MaxRecords caps a run. Zero means no cap.
 	MaxRecords int
+	// RetrievedAt identifies the exact local source snapshot consumed.
+	RetrievedAt string
 }
 
-func New(path string) *Adapter { return &Adapter{Path: path} }
+func New(path string) *Adapter {
+	retrievedAt := time.Now().UTC().Format(time.RFC3339)
+	if info, err := os.Stat(path); err == nil {
+		retrievedAt = info.ModTime().UTC().Format(time.RFC3339)
+	}
+	return &Adapter{Path: path, RetrievedAt: retrievedAt}
+}
 
 func (a *Adapter) Name() string { return "geonames" }
 
@@ -210,6 +221,11 @@ func (a *Adapter) toRecord(row []string) (ingest.SourceRecord, bool) {
 		}
 	}
 
+	payloadHash := sha256.Sum256([]byte(strings.Join(row, "\t")))
+	retrievedAt := a.RetrievedAt
+	if retrievedAt == "" {
+		retrievedAt = time.Now().UTC().Format(time.RFC3339)
+	}
 	return ingest.SourceRecord{
 		ExternalID: row[colGeonameID],
 		Name:       name,
@@ -219,10 +235,10 @@ func (a *Adapter) toRecord(row []string) (ingest.SourceRecord, bool) {
 		Population: population,
 		RegionHint: region,
 		Provenance: geography.Provenance{
-			SourceID:   "geonames",
-			ExternalID: row[colGeonameID],
-			SourceURL:  "https://www.geonames.org/" + row[colGeonameID],
-			Notes:      "CC BY 4.0 — GeoNames",
+			SourceID: "geonames", ExternalID: row[colGeonameID],
+			SourceURL:   "https://www.geonames.org/" + row[colGeonameID],
+			RetrievedAt: retrievedAt, SourcePayloadHash: hex.EncodeToString(payloadHash[:]),
+			Notes: "CC BY 4.0 — GeoNames",
 		},
 	}, true
 }

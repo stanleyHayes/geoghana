@@ -13,9 +13,11 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/graphql/generated"
 	"github.com/ghanageo/ghanageo/services/api/internal/transport/graphql/model"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -43,8 +45,20 @@ const (
 )
 
 // NewHandler builds the /graphql endpoint.
-func NewHandler(geo *appgeo.Service, search *appsearch.Service) http.Handler {
-	cfg := generated.Config{Resolvers: &Resolver{GeoSvc: geo, SearchSvc: search}}
+func NewHandler(geo *appgeo.Service, search *appsearch.Service, datasets ...*appdataset.Service) http.Handler {
+	var datasetSvc *appdataset.Service
+	if len(datasets) > 0 {
+		datasetSvc = datasets[0]
+	}
+	return newHandler(geo, search, datasetSvc, nil)
+}
+
+func NewHandlerWithTelemetry(geo *appgeo.Service, search *appsearch.Service, datasetSvc *appdataset.Service, telemetry *observability.Telemetry) http.Handler {
+	return newHandler(geo, search, datasetSvc, telemetry)
+}
+
+func newHandler(geo *appgeo.Service, search *appsearch.Service, datasetSvc *appdataset.Service, telemetry *observability.Telemetry) http.Handler {
+	cfg := generated.Config{Resolvers: &Resolver{GeoSvc: geo, SearchSvc: search, DatasetSvc: datasetSvc}}
 
 	// Per-field cost. Without these every field costs 1 and the complexity
 	// budget would treat a boundary fetch the same as reading a name.
@@ -76,9 +90,16 @@ func NewHandler(geo *appgeo.Service, search *appsearch.Service) http.Handler {
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.Options{})
 
-	srv.SetQueryCache(lru.New[*ast.QueryDocument](200))
+	queryCache := graphql.Cache[*ast.QueryDocument](lru.New[*ast.QueryDocument](200))
+	persistedCache := graphql.Cache[string](lru.New[string](200))
+	if telemetry != nil {
+		queryCache = observedCache[*ast.QueryDocument]{name: "graphql_query", next: queryCache, telemetry: telemetry}
+		persistedCache = observedCache[string]{name: "graphql_apq", next: persistedCache, telemetry: telemetry}
+	}
+	srv.SetQueryCache(queryCache)
 	srv.Use(extension.Introspection{})
-	srv.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](200)})
+	srv.Use(extension.AutomaticPersistedQuery{Cache: persistedCache})
+	srv.Use(depthLimit{max: MaxDepth})
 	srv.Use(extension.FixedComplexityLimit(MaxComplexity))
 
 	// Errors carry the same stable codes REST returns, so a client can branch
@@ -109,4 +130,24 @@ func NewHandler(geo *appgeo.Service, search *appsearch.Service) http.Handler {
 	// Loaders are attached per request; sharing them across requests would
 	// serve stale data after a dataset release.
 	return http.TimeoutHandler(LoaderMiddleware(geo, srv), QueryTimeout, `{"errors":[{"message":"Query timed out.","extensions":{"code":"DEADLINE_EXCEEDED"}}]}`)
+}
+
+type observedCache[T any] struct {
+	name      string
+	next      graphql.Cache[T]
+	telemetry *observability.Telemetry
+}
+
+func (c observedCache[T]) Get(ctx context.Context, key string) (T, bool) {
+	value, ok := c.next.Get(ctx, key)
+	if ok {
+		c.telemetry.ObserveCache(c.name, "hit")
+	} else {
+		c.telemetry.ObserveCache(c.name, "miss")
+	}
+	return value, ok
+}
+
+func (c observedCache[T]) Add(ctx context.Context, key string, value T) {
+	c.next.Add(ctx, key, value)
 }
