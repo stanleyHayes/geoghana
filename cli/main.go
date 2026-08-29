@@ -165,10 +165,15 @@ func parseFlags(args []string) (options, []string, error) {
 
 	// Positional arguments may appear before flags, which Go's flag package
 	// does not handle. Split them out first so `search accra --json` works.
+	//
+	// A leading "-" does NOT necessarily mean a flag: Ghana lies almost
+	// entirely west of the prime meridian, so nearly every longitude in the
+	// country is negative. Treating "-0.182" as a flag broke `nearby` and
+	// `reverse` for practically the whole country.
 	var positional []string
 	var flagArgs []string
 	for i := 0; i < len(args); i++ {
-		if strings.HasPrefix(args[i], "-") {
+		if strings.HasPrefix(args[i], "-") && !isNegativeNumber(args[i]) {
 			flagArgs = append(flagArgs, args[i:]...)
 			break
 		}
@@ -189,6 +194,16 @@ func parseFlags(args []string) (options, []string, error) {
 		o.format = render.FormatCSV
 	}
 	return o, positional, nil
+}
+
+// isNegativeNumber reports whether an argument is a negative number rather
+// than a flag. Without this, every Ghanaian longitude looks like a flag.
+func isNegativeNumber(s string) bool {
+	if !strings.HasPrefix(s, "-") || len(s) < 2 {
+		return false
+	}
+	_, err := strconv.ParseFloat(s, 64)
+	return err == nil
 }
 
 func envOr(key, def string) string {

@@ -79,3 +79,49 @@ func TestDashPlaceholders(t *testing.T) {
 		t.Error("a real value must pass through unchanged")
 	}
 }
+
+// Ghana lies almost entirely west of the prime meridian, so nearly every
+// longitude in the country is negative. Treating a leading "-" as a flag
+// marker broke `nearby` and `reverse` for practically the whole country:
+//
+//	ghanageo nearby 5.556 -0.182
+//	  → flag provided but not defined: -0.182
+func TestNegativeCoordinatesAreNotMistakenForFlags(t *testing.T) {
+	_, pos, err := parseFlags([]string{"5.556", "-0.182"})
+	if err != nil {
+		t.Fatalf("a negative longitude must parse: %v", err)
+	}
+	if len(pos) != 2 || pos[0] != "5.556" || pos[1] != "-0.182" {
+		t.Fatalf("positional = %v, want [5.556 -0.182]", pos)
+	}
+	lat, lng, err := parseLatLng(pos)
+	if err != nil || lat != 5.556 || lng != -0.182 {
+		t.Fatalf("parseLatLng gave %v,%v err=%v", lat, lng, err)
+	}
+}
+
+func TestNegativeCoordinatesMixWithFlags(t *testing.T) {
+	o, pos, err := parseFlags([]string{"6.688", "-1.624", "--radius", "10000", "--json"})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(pos) != 2 || pos[1] != "-1.624" {
+		t.Fatalf("positional = %v", pos)
+	}
+	if o.radius != 10000 {
+		t.Errorf("radius = %d, want 10000", o.radius)
+	}
+	if o.format != render.FormatJSON {
+		t.Error("--json after a negative coordinate was dropped")
+	}
+}
+
+func TestRealFlagsAreStillFlags(t *testing.T) {
+	// A real flag must not be mistaken for a number.
+	if isNegativeNumber("--json") || isNegativeNumber("-limit") || isNegativeNumber("-") {
+		t.Error("a flag was misread as a negative number")
+	}
+	if !isNegativeNumber("-0.182") || !isNegativeNumber("-1") || !isNegativeNumber("-1.5e2") {
+		t.Error("a negative number was misread as a flag")
+	}
+}
