@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Badge, Card } from "@ghanageo/ui";
+import {
+  Badge,
+  Card,
+  DateTimeInput,
+  EmptyState,
+  Field,
+  Select,
+} from "@ghanageo/ui";
 import {
   Archive,
   Copy,
@@ -141,15 +148,15 @@ export function GeographyCreatePanel({
                 required
               />
             </label>
-            <label>
-              Retrieved at
-              <input
-                type="datetime-local"
+            <Field label="Retrieved at">
+              <DateTimeInput
+                name="retrievedAt"
                 value={retrievedAt}
-                onChange={(e) => setRetrievedAt(e.target.value)}
+                onValueChange={setRetrievedAt}
                 required
+                ariaLabel="Source retrieved at"
               />
-            </label>
+            </Field>
             <label>
               Source payload SHA-256
               <input
@@ -337,27 +344,36 @@ export function GeometryWorkspace() {
         </div>
       </Card>
       <form
-        className="admin-filter-bar"
+        className="admin-geometry-loader"
         onSubmit={(e) => {
           e.preventDefault();
           if (id.trim()) setSelection({ kind, id: id.trim() });
         }}
       >
-        <label>
-          Boundary kind
-          <select
+        <Field label="Boundary kind">
+          <Select
             value={kind}
-            onChange={(e) => setKind(e.target.value as "region" | "district")}
-          >
-            <option value="region">Region</option>
-            <option value="district">District</option>
-          </select>
-        </label>
-        <label>
-          Canonical record ID
+            onValueChange={(value) => setKind(value as "region" | "district")}
+            ariaLabel="Boundary kind"
+            options={[
+              {
+                value: "region",
+                label: "Region",
+                hint: "National administrative boundary",
+              },
+              {
+                value: "district",
+                label: "District",
+                hint: "MMDA boundary within a region",
+              },
+            ]}
+          />
+        </Field>
+        <label className="admin-geometry-loader__id">
+          <span>Canonical record ID</span>
           <input value={id} onChange={(e) => setId(e.target.value)} required />
         </label>
-        <button className="gg-button gg-button--primary gg-button--sm">
+        <button className="gg-button gg-button--primary admin-geometry-loader__submit">
           <MapPinned size={15} /> Load boundary
         </button>
       </form>
@@ -367,7 +383,10 @@ export function GeometryWorkspace() {
           {...selection}
         />
       ) : (
-        <Card>Select a region or district to begin.</Card>
+        <EmptyState
+          title="No boundary loaded"
+          description="Choose a boundary kind and enter its canonical record ID to open the geometry editor."
+        />
       )}
     </>
   );
@@ -528,15 +547,15 @@ export function OSMCreatePanel({
                   required
                 />
               </label>
-              <label>
-                Retrieved at
-                <input
-                  type="datetime-local"
+              <Field label="Retrieved at">
+                <DateTimeInput
+                  name="retrievedAt"
                   value={retrievedAt}
-                  onChange={(e) => setRetrievedAt(e.target.value)}
+                  onValueChange={setRetrievedAt}
                   required
+                  ariaLabel="Source retrieved at"
                 />
-              </label>
+              </Field>
               <label>
                 Payload SHA-256
                 <input
@@ -785,7 +804,11 @@ export function AliasWorkspace({
           onChanged={() => setRefreshKey((v) => v + 1)}
         />
       ) : (
-        <Card>Select a place to inspect its aliases.</Card>
+        <EmptyState
+          icon={<Tags />}
+          title="No place selected"
+          description="Enter a canonical place ID to inspect its alternate names and alias history."
+        />
       )}
     </>
   );
@@ -921,7 +944,11 @@ function AliasList({
               </table>
             </Card>
           ) : (
-            <Card>No aliases are recorded for this place.</Card>
+            <EmptyState
+              icon={<Tags />}
+              title="No aliases recorded"
+              description="This place has no alternate names yet. Add one when a verified name variant is available."
+            />
           )
         }
       </AsyncState>
@@ -1017,7 +1044,11 @@ export function RedirectsWorkspace() {
               </nav>
             </>
           ) : (
-            <Card>No geography redirects are recorded.</Card>
+            <EmptyState
+              icon={<GitMerge />}
+              title="No redirects recorded"
+              description="Merged and retired identifiers will appear here with their canonical successors."
+            />
           )
         }
       </AsyncState>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Card } from "@ghanageo/ui";
+import { Badge, Card, EmptyState } from "@ghanageo/ui";
 import {
   Archive,
   CircleAlert,
@@ -227,18 +227,11 @@ function RunEvidence({
               </div>
             </Card>
           ) : !page.data.length ? (
-            <Card className="admin-unavailable">
-              <FileSearch size={18} />
-              <div>
-                <strong>
-                  No {kind === "records" ? "records" : kind} recorded
-                </strong>
-                <p>
-                  The durable evidence store returned no entries for this
-                  filter.
-                </p>
-              </div>
-            </Card>
+            <EmptyState
+              icon={<FileSearch />}
+              title={`No ${kind === "records" ? "records" : kind} recorded`}
+              description="The durable evidence store returned no entries for this filter."
+            />
           ) : (
             <>
               <Card style={{ padding: 0, overflow: "hidden" }}>

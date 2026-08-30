@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Badge, Card, Skeleton, verificationTone } from "@ghanageo/ui";
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Skeleton,
+  verificationTone,
+} from "@ghanageo/ui";
 import { AlertTriangle, SearchX } from "lucide-react";
 import { ApiError } from "@/lib/api";
 
@@ -145,12 +151,11 @@ export function AsyncState<T>({
   const d = state.data;
   if (d == null || (Array.isArray(d) && d.length === 0)) {
     return (
-      <Card data-intensity="restrained">
-        <div className="gg-stack-row" style={{ color: "var(--fg-muted)" }}>
-          <SearchX size={16} aria-hidden />
-          <span>{empty ?? "Nothing to show."}</span>
-        </div>
-      </Card>
+      <EmptyState
+        icon={<SearchX />}
+        title={empty ?? "Nothing here yet"}
+        description="Adjust the current filters or return after new records have been added."
+      />
     );
   }
   return <>{children(d)}</>;

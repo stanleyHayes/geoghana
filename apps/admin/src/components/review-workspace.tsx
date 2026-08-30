@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Card } from "@ghanageo/ui";
+import { Badge, Card, EmptyState, Field, Select } from "@ghanageo/ui";
 import {
   FileDiff,
   Eye,
@@ -53,7 +53,7 @@ export function ReviewWorkspace({ mode = "queue" }: { mode?: Mode }) {
   const [cursor, setCursor] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [stateFilter, setStateFilter] = useState(
-    mode === "drafts" ? "changes_requested" : "",
+    mode === "drafts" ? "changes_requested" : "all",
   );
   const [refreshKey, setRefreshKey] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -63,7 +63,7 @@ export function ReviewWorkspace({ mode = "queue" }: { mode?: Mode }) {
         {
           cursor,
           limit: 20,
-          state: stateFilter,
+          state: stateFilter === "all" ? "" : stateFilter,
           ...(mode === "submissions" && session?.accountId
             ? { submitterId: session.accountId }
             : {}),
@@ -105,24 +105,25 @@ export function ReviewWorkspace({ mode = "queue" }: { mode?: Mode }) {
         />
       ) : null}
       <div className="admin-filter-bar">
-        <label>
-          Workflow state
-          <select
+        <Field label="Workflow state">
+          <Select
             value={stateFilter}
-            onChange={(e) => {
-              setStateFilter(e.target.value);
+            ariaLabel="Workflow state"
+            onValueChange={(value) => {
+              setStateFilter(value);
               setCursor("");
               setHistory([]);
             }}
-          >
-            <option value="">All accessible</option>
-            <option value="submitted">Submitted</option>
-            <option value="in_review">In review</option>
-            <option value="changes_requested">Changes requested</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </label>
+            options={[
+              { value: "all", label: "All accessible" },
+              { value: "submitted", label: "Submitted" },
+              { value: "in_review", label: "In review" },
+              { value: "changes_requested", label: "Changes requested" },
+              { value: "approved", label: "Approved" },
+              { value: "rejected", label: "Rejected" },
+            ]}
+          />
+        </Field>
       </div>
       <AsyncState state={state} empty="No change requests were returned.">
         {(page) =>
@@ -222,7 +223,10 @@ export function ReviewWorkspace({ mode = "queue" }: { mode?: Mode }) {
               </nav>
             </>
           ) : (
-            <Card>No change requests match this view.</Card>
+            <EmptyState
+              title="No change requests"
+              description="No proposals match this workflow view. Change the state filter or create a new proposal."
+            />
           )
         }
       </AsyncState>
@@ -653,7 +657,10 @@ function ReviewTimeline({ request }: { request: AdminChangeRequest }) {
             ))}
           </ol>
         ) : (
-          <p>No transition history recorded.</p>
+          <EmptyState
+            title="No state history"
+            description="Workflow transitions will appear here as this request moves through review."
+          />
         )}
       </Card>
       <Card>
@@ -669,7 +676,10 @@ function ReviewTimeline({ request }: { request: AdminChangeRequest }) {
             ))}
           </ol>
         ) : (
-          <p>No reviewer comments recorded.</p>
+          <EmptyState
+            title="No reviewer comments"
+            description="Comments from reviewers will appear here when the discussion begins."
+          />
         )}
       </Card>
     </div>

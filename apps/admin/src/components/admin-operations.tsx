@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Badge, Card, Select } from "@ghanageo/ui";
+import { Badge, Card, EmptyState, Select } from "@ghanageo/ui";
 import {
   CircleAlert,
   Download,
@@ -106,7 +106,10 @@ export function ActivityFeed() {
               </ol>
             </Card>
           ) : (
-            <Card>No recent activity is recorded.</Card>
+            <EmptyState
+              title="No recent activity"
+              description="Privileged operator actions will appear here after they are recorded in the audit trail."
+            />
           )
         }
       </AsyncState>

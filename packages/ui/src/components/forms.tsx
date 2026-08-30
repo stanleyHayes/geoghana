@@ -5,14 +5,27 @@ import * as RCheckbox from "@radix-ui/react-checkbox";
 import * as RRadio from "@radix-ui/react-radio-group";
 import * as RSwitch from "@radix-ui/react-switch";
 import * as RLabel from "@radix-ui/react-label";
-import { CalendarDays, Check, ChevronDown, ChevronUp, Clock3, Minus } from "lucide-react";
-import { forwardRef, useMemo, useState, type ReactNode } from "react";
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  Minus,
+} from "lucide-react";
+import {
+  forwardRef,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { cn } from "../lib/utils";
 
 /**
  * Branded form controls.
  *
- * A native <select> renders in the OPERATING SYSTEM's chrome, not ours: on
+ * A native select element renders in the operating system's chrome, not ours: on
  * macOS it is a dark grey panel with system typography that ignores every token
  * in this design system, and there is no CSS that can restyle it. The same is
  * true of native checkboxes, radios and the switch we would otherwise fake.
@@ -64,7 +77,10 @@ export function Select({
       {...(defaultValue !== undefined ? { defaultValue } : {})}
       {...(required !== undefined ? { required } : {})}
     >
-      <RSelect.Trigger className={cn("gg-select__trigger", className)} aria-label={ariaLabel}>
+      <RSelect.Trigger
+        className={cn("gg-select__trigger", className)}
+        aria-label={ariaLabel}
+      >
         <RSelect.Value placeholder={placeholder} />
         <RSelect.Icon className="gg-select__icon">
           <ChevronDown size={15} aria-hidden />
@@ -72,7 +88,11 @@ export function Select({
       </RSelect.Trigger>
 
       <RSelect.Portal>
-        <RSelect.Content className="gg-select__content" position="popper" sideOffset={6}>
+        <RSelect.Content
+          className="gg-select__content"
+          position="popper"
+          sideOffset={6}
+        >
           <RSelect.ScrollUpButton className="gg-select__scroll">
             <ChevronUp size={14} aria-hidden />
           </RSelect.ScrollUpButton>
@@ -91,7 +111,9 @@ export function Select({
                 </span>
                 <span className="gg-select__labels">
                   <RSelect.ItemText>{o.label}</RSelect.ItemText>
-                  {o.hint ? <span className="gg-select__hint">{o.hint}</span> : null}
+                  {o.hint ? (
+                    <span className="gg-select__hint">{o.hint}</span>
+                  ) : null}
                 </span>
               </RSelect.Item>
             ))}
@@ -120,7 +142,20 @@ export const Checkbox = forwardRef<
     name?: string;
     value?: string;
   }
->(function Checkbox({ checked, onCheckedChange, id, label, hint, disabled, defaultChecked, name, value }, ref) {
+>(function Checkbox(
+  {
+    checked,
+    onCheckedChange,
+    id,
+    label,
+    hint,
+    disabled,
+    defaultChecked,
+    name,
+    value,
+  },
+  ref,
+) {
   return (
     <div className="gg-choice">
       <RCheckbox.Root
@@ -135,11 +170,18 @@ export const Checkbox = forwardRef<
         className="gg-checkbox"
       >
         <RCheckbox.Indicator className="gg-checkbox__indicator">
-          {checked === "indeterminate" ? <Minus size={12} aria-hidden /> : <Check size={12} aria-hidden />}
+          {checked === "indeterminate" ? (
+            <Minus size={12} aria-hidden />
+          ) : (
+            <Check size={12} aria-hidden />
+          )}
         </RCheckbox.Indicator>
       </RCheckbox.Root>
       {label ? (
-        <RLabel.Root {...(id ? { htmlFor: id } : {})} className="gg-choice__label">
+        <RLabel.Root
+          {...(id ? { htmlFor: id } : {})}
+          className="gg-choice__label"
+        >
           {label}
           {hint ? <span className="gg-choice__hint">{hint}</span> : null}
         </RLabel.Root>
@@ -168,7 +210,10 @@ export function RadioGroup({
       {...(value !== undefined ? { value } : {})}
       {...(onValueChange ? { onValueChange } : {})}
       {...(ariaLabel ? { "aria-label": ariaLabel } : {})}
-      className={cn("gg-radiogroup", orientation === "horizontal" && "gg-radiogroup--horizontal")}
+      className={cn(
+        "gg-radiogroup",
+        orientation === "horizontal" && "gg-radiogroup--horizontal",
+      )}
     >
       {options.map((o) => (
         <div key={o.value} className="gg-choice">
@@ -197,21 +242,35 @@ export function RadioGroup({
 export function DateTimeInput({
   name,
   defaultValue = "",
+  value: controlledValue,
+  onValueChange,
   required,
   disabled,
   ariaLabel = "Date and time",
 }: {
   name: string;
   defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
   required?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
 }) {
-  const [initialDate = "", initialTime = ""] = defaultValue.split("T");
+  const sourceValue = controlledValue ?? defaultValue;
+  const [initialDate = "", initialTime = ""] = sourceValue.split("T");
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime.slice(0, 5));
+  useEffect(() => {
+    if (controlledValue === undefined) return;
+    const [nextDate = "", nextTime = ""] = controlledValue.split("T");
+    setDate(nextDate);
+    setTime(nextTime.slice(0, 5));
+  }, [controlledValue]);
   const value = useMemo(
-    () => /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time) ? `${date}T${time}` : "",
+    () =>
+      /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time)
+        ? `${date}T${time}`
+        : "",
     [date, time],
   );
   return (
@@ -222,7 +281,13 @@ export function DateTimeInput({
         <input
           className="gg-datetime__input"
           value={date}
-          onChange={(event) => setDate(event.target.value)}
+          onChange={(event) => {
+            const nextDate = event.target.value;
+            setDate(nextDate);
+            onValueChange?.(
+              /^\d{2}:\d{2}$/.test(time) ? `${nextDate}T${time}` : "",
+            );
+          }}
           placeholder="YYYY-MM-DD"
           inputMode="numeric"
           pattern="\d{4}-\d{2}-\d{2}"
@@ -236,7 +301,13 @@ export function DateTimeInput({
         <input
           className="gg-datetime__input"
           value={time}
-          onChange={(event) => setTime(event.target.value)}
+          onChange={(event) => {
+            const nextTime = event.target.value;
+            setTime(nextTime);
+            onValueChange?.(
+              /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T${nextTime}` : "",
+            );
+          }}
           placeholder="HH:MM"
           inputMode="numeric"
           pattern="([01]\d|2[0-3]):[0-5]\d"
@@ -244,7 +315,13 @@ export function DateTimeInput({
           aria-label={`${ariaLabel} time`}
         />
       </label>
-      <input type="hidden" name={name} value={value} required={required} disabled={disabled} />
+      <input
+        type="hidden"
+        name={name}
+        value={value}
+        required={required}
+        disabled={disabled}
+      />
     </div>
   );
 }
@@ -278,7 +355,10 @@ export function Switch({
         <RSwitch.Thumb className="gg-switch__thumb" />
       </RSwitch.Root>
       {label ? (
-        <RLabel.Root {...(id ? { htmlFor: id } : {})} className="gg-choice__label">
+        <RLabel.Root
+          {...(id ? { htmlFor: id } : {})}
+          className="gg-choice__label"
+        >
           {label}
           {hint ? <span className="gg-choice__hint">{hint}</span> : null}
         </RLabel.Root>
@@ -306,12 +386,17 @@ export function Field({
 }) {
   return (
     <div className="gg-field">
-      <RLabel.Root {...(htmlFor ? { htmlFor } : {})} className="gg-field__label">
+      <RLabel.Root
+        {...(htmlFor ? { htmlFor } : {})}
+        className="gg-field__label"
+      >
         {label}
       </RLabel.Root>
       {children}
       {error ? (
-        <p className="gg-field__error" role="alert">{error}</p>
+        <p className="gg-field__error" role="alert">
+          {error}
+        </p>
       ) : hint ? (
         <p className="gg-field__hint">{hint}</p>
       ) : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Card } from "@ghanageo/ui";
+import { Badge, Card, EmptyState, Field, Select } from "@ghanageo/ui";
 import {
   Activity,
   Copy,
@@ -54,7 +54,7 @@ export function DeveloperDirectory({ resource }: { resource: Directory }) {
   const [query, setQuery] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [applicationId, setApplicationId] = useState("");
-  const [keyState, setKeyState] = useState("");
+  const [keyState, setKeyState] = useState("all");
   const [cursor, setCursor] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -139,21 +139,22 @@ export function DeveloperDirectory({ resource }: { resource: Directory }) {
                 }}
               />
             </label>
-            <label>
-              Key state
-              <select
+            <Field label="Key state">
+              <Select
                 value={keyState}
-                onChange={(e) => {
-                  setKeyState(e.target.value);
+                ariaLabel="Key state"
+                onValueChange={(value) => {
+                  setKeyState(value);
                   resetPage();
                 }}
-              >
-                <option value="">All</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="revoked">Revoked</option>
-              </select>
-            </label>
+                options={[
+                  { value: "all", label: "All states" },
+                  { value: "active", label: "Active" },
+                  { value: "suspended", label: "Suspended" },
+                  { value: "revoked", label: "Revoked" },
+                ]}
+              />
+            </Field>
           </>
         ) : null}
         <button className="gg-button gg-button--primary gg-button--sm">
@@ -202,7 +203,10 @@ export function DeveloperDirectory({ resource }: { resource: Directory }) {
               </nav>
             </>
           ) : (
-            <Card>No records match these filters.</Card>
+            <EmptyState
+              title="No developer records"
+              description="No records match the current search and access filters."
+            />
           )
         }
       </AsyncState>
@@ -251,7 +255,7 @@ async function loadDirectory(
       ...base,
       organizationId: filters.organizationId,
       applicationId: filters.applicationId,
-      state: filters.state,
+      state: filters.state === "all" ? "" : filters.state,
     },
     signal,
   );
@@ -570,18 +574,27 @@ function KeyAction({
           </div>
         </div>
         <div className="admin-form-grid">
-          <label>
-            Action
-            <select
+          <Field label="Action">
+            <Select
               value={action}
-              onChange={(e) =>
-                setAction(e.target.value as "suspend" | "revoke")
+              ariaLabel="Key lifecycle action"
+              onValueChange={(value) =>
+                setAction(value as "suspend" | "revoke")
               }
-            >
-              <option value="suspend">Suspend temporarily</option>
-              <option value="revoke">Revoke permanently</option>
-            </select>
-          </label>
+              options={[
+                {
+                  value: "suspend",
+                  label: "Suspend temporarily",
+                  hint: "Can be restored later",
+                },
+                {
+                  value: "revoke",
+                  label: "Revoke permanently",
+                  hint: "Cannot be undone",
+                },
+              ]}
+            />
+          </Field>
           <label>
             Exact key ID
             <input value={keyRecord.id} disabled />
@@ -861,9 +874,10 @@ function Telemetry({
               </nav>
             </>
           ) : (
-            <Card>
-              No requests are recorded for this application and window.
-            </Card>
+            <EmptyState
+              title="No request activity"
+              description="No API requests were recorded for this application during the selected window."
+            />
           )
         }
       </AsyncState>
