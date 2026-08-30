@@ -7,6 +7,13 @@
 keeps every credential as a dashboard-supplied secret. Sync the Blueprint only
 after the quality/security checks pass and all `sync: false` values are ready.
 
+The Blueprint also provisions `ghanageo-redis` as a private, persistent Render
+Key Value service in Frankfurt. API and worker `REDIS_URL` values reference its
+internal `connectionString` directly, so operators must not copy a Redis URL
+into either service. Public access is disabled, the eviction policy is
+`noeviction`, and journal-plus-snapshot persistence protects queues and security
+counters from ordinary restarts.
+
 CI may lint the Blueprint without deployment credentials using the explicitly
 limited mode below. This is not a production deployment gate:
 

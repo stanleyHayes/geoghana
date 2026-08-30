@@ -18,7 +18,10 @@ services:
       - key: MONGO_DB
         value: ghanageo
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: ghanageo-redis
+          type: keyvalue
+          property: connectionString
       - key: TYPESENSE_URL
         sync: false
       - key: TYPESENSE_API_KEY
@@ -83,7 +86,10 @@ services:
       - key: MONGO_DB
         value: ghanageo
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: ghanageo-redis
+          type: keyvalue
+          property: connectionString
       - key: TYPESENSE_URL
         sync: false
       - key: TYPESENSE_API_KEY
@@ -108,3 +114,11 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+
+  - type: keyvalue
+    name: ghanageo-redis
+    plan: starter
+    region: frankfurt
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot

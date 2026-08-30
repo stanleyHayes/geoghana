@@ -103,10 +103,28 @@ required_values.each do |service_name, expected_values|
     entry = env_by_key[key]
     if entry.nil?
       errors << "#{service_name} is missing secret declaration #{key}"
+    elsif key == "REDIS_URL"
+      expected_reference = {
+        "name" => "ghanageo-redis",
+        "type" => "keyvalue",
+        "property" => "connectionString"
+      }
+      errors << "#{service_name} REDIS_URL must reference the managed ghanageo-redis connectionString" unless entry["fromService"] == expected_reference && !entry.key?("value") && !entry.key?("sync")
     elsif entry["sync"] != false || entry.key?("value")
       errors << "#{service_name} secret #{key} must use sync: false and must not contain a value"
     end
   end
+end
+
+redis = service_by_name["ghanageo-redis"]
+if redis.nil?
+  errors << "missing Render Key Value service: ghanageo-redis"
+else
+  errors << "ghanageo-redis must use type=keyvalue" unless redis["type"] == "keyvalue"
+  errors << "ghanageo-redis must run in frankfurt with the API and worker" unless redis["region"] == "frankfurt"
+  errors << "ghanageo-redis must deny public network access" unless redis["ipAllowList"] == []
+  errors << "ghanageo-redis must use noeviction for queues and security counters" unless redis["maxmemoryPolicy"] == "noeviction"
+  errors << "ghanageo-redis must enable journal-snapshot persistence" unless redis["persistenceMode"] == "journal-snapshot"
 end
 
 placeholder = /(?:paste_|replace[_-]?me|change[_-]?me|your[_-]|example|todo|localhost)/i
@@ -147,7 +165,10 @@ options[:env_files].each do |spec|
   end
 
   required_dotenv = if required_secrets.key?(service_name)
-                      required_secrets.fetch(service_name) + required_values.fetch(service_name).keys
+                      # REDIS_URL is supplied by the validated Render Key Value
+                      # fromService reference, so it must not be copied into a
+                      # dotenv file or handled as a user-managed credential.
+                      required_secrets.fetch(service_name).reject { |key| key == "REDIS_URL" } + required_values.fetch(service_name).keys
                     else
                       frontend_required
                     end
