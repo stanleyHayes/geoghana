@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/dataset"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 )
 
@@ -71,10 +72,25 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			indexes:   []mongo.IndexModel{{Keys: bson.D{{Key: "newId", Value: 1}}}},
 		},
 		{
+			name:      ColAliases,
+			validator: aliasSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "placeId", Value: 1}, {Key: "status", Value: 1}}},
+				{Keys: bson.D{{Key: "placeId", Value: 1}, {Key: "normalizedValue", Value: 1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "normalizedValue", Value: 1}}},
+			},
+		},
+		{
+			name:      ColAdminMutationKeys,
+			validator: adminMutationKeySchema(),
+			indexes:   []mongo.IndexModel{{Keys: bson.D{{Key: "createdAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(86400)}},
+		},
+		{
 			name:      ColOrganizations,
 			validator: organizationSchema(),
 			indexes: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "ownerId", Value: 1}, {Key: "createdAt", Value: 1}}},
+				{Keys: bson.D{{Key: "members.accountId", Value: 1}, {Key: "createdAt", Value: 1}}},
 			},
 		},
 		{
@@ -101,6 +117,7 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 				{Keys: bson.D{{Key: "prefix", Value: 1}}, Options: options.Index().SetUnique(true)},
 				{Keys: bson.D{{Key: "organizationId", Value: 1}, {Key: "createdAt", Value: -1}}},
 				{Keys: bson.D{{Key: "applicationId", Value: 1}}},
+				{Keys: bson.D{{Key: "revokedAt", Value: 1}, {Key: "suspendedAt", Value: 1}, {Key: "_id", Value: 1}}},
 			},
 		},
 		{
@@ -182,9 +199,43 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			validator: auditSchema(),
 			indexes: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "at", Value: -1}}},
+				// A valid hash chain has exactly one child for every previous
+				// hash. This database-level invariant prevents forks across API
+				// replicas; the process-local mutex is only a contention aid.
+				{Keys: bson.D{{Key: "prevHash", Value: 1}}, Options: options.Index().SetUnique(true)},
 				{Keys: bson.D{{Key: "actorId", Value: 1}, {Key: "at", Value: -1}}},
 				{Keys: bson.D{{Key: "action", Value: 1}, {Key: "at", Value: -1}}},
 				{Keys: bson.D{{Key: "targetId", Value: 1}, {Key: "at", Value: -1}}},
+			},
+		},
+		{
+			name:      ColChangeRequests,
+			validator: changeRequestSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "requestId", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)},
+				{Keys: bson.D{{Key: "state", Value: 1}, {Key: "_id", Value: 1}}},
+				{Keys: bson.D{{Key: "target.kind", Value: 1}, {Key: "target.id", Value: 1}, {Key: "_id", Value: 1}}},
+				{Keys: bson.D{{Key: "submitterId", Value: 1}, {Key: "_id", Value: 1}}},
+				{Keys: bson.D{{Key: "reviewerId", Value: 1}, {Key: "state", Value: 1}, {Key: "_id", Value: 1}}},
+			},
+		},
+		{
+			name:      ColSourceRuns,
+			validator: sourceRunSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "sourceId", Value: 1}, {Key: "queuedAt", Value: -1}}},
+				{Keys: bson.D{{Key: "status", Value: 1}, {Key: "queuedAt", Value: -1}}},
+				{Keys: bson.D{{Key: "requestId", Value: 1}}, Options: options.Index().SetSparse(true)},
+				{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)},
+			},
+		},
+		{
+			name:      ColSourceRecords,
+			validator: sourceRecordSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "runId", Value: 1}, {Key: "processedAt", Value: 1}}},
+				{Keys: bson.D{{Key: "sourceId", Value: 1}, {Key: "externalRef", Value: 1}}},
+				{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)},
 			},
 		},
 		{
@@ -201,6 +252,10 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			validator: datasetVersionSchema(),
 			indexes: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "status", Value: 1}, {Key: "publishedAt", Value: -1}}},
+				// Even concurrent publishers on different API replicas can never
+				// leave two live catalogues. One transaction wins; the other
+				// fails closed on this partial unique invariant.
+				{Keys: bson.D{{Key: "status", Value: 1}}, Options: options.Index().SetUnique(true).SetPartialFilterExpression(bson.M{"status": string(dataset.StatusPublished)})},
 			},
 		},
 		{
@@ -209,6 +264,22 @@ func Migrate(ctx context.Context, db *mongo.Database) error {
 			indexes: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "status", Value: 1}, {Key: "availableAt", Value: 1}, {Key: "createdAt", Value: 1}}},
 				{Keys: bson.D{{Key: "completedAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(int32((30 * 24 * time.Hour).Seconds()))},
+			},
+		},
+		{
+			name:      ColFairUsePolicies,
+			validator: fairUsePolicySchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "policyId", Value: 1}, {Key: "revision", Value: -1}}, Options: options.Index().SetUnique(true)},
+				{Keys: bson.D{{Key: "effectiveFrom", Value: -1}, {Key: "revision", Value: -1}}},
+			},
+		},
+		{
+			name:      ColFairUseOverrides,
+			validator: fairUseOverrideSchema(),
+			indexes: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "applicationId", Value: 1}, {Key: "createdAt", Value: -1}}},
+				{Keys: bson.D{{Key: "expiresAt", Value: 1}}},
 			},
 		},
 	}
@@ -749,11 +820,35 @@ func redirectSchema() bson.M {
 		"required": []string{"_id", "newId"},
 		"properties": bson.M{
 			"_id":      bson.M{"bsonType": "string"},
+			"kind":     bson.M{"enum": []string{"region", "district", "place", "road", "poi"}},
 			"newId":    bson.M{"bsonType": "string", "pattern": ulidPattern},
 			"reason":   bson.M{"bsonType": []string{"string", "null"}},
 			"mergedAt": bson.M{"bsonType": []string{"string", "null"}},
 		},
 	}}
+}
+
+func aliasSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{"_id", "placeId", "value", "normalizedValue", "status"},
+		"properties": bson.M{
+			"_id":             bson.M{"bsonType": "string", "pattern": ulidPattern},
+			"placeId":         bson.M{"bsonType": "string", "pattern": ulidPattern},
+			"value":           bson.M{"bsonType": "string", "minLength": 1},
+			"normalizedValue": bson.M{"bsonType": "string", "minLength": 1},
+			"aliasType":       bson.M{"bsonType": []string{"string", "null"}},
+			"language":        bson.M{"bsonType": []string{"string", "null"}},
+			"isPreferred":     bson.M{"bsonType": "bool"},
+			"status":          bson.M{"enum": statusEnum},
+		},
+	}}
+}
+
+func adminMutationKeySchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{"bsonType": "object", "required": []string{"_id", "fingerprint", "targetKind", "targetId", "createdAt"}, "properties": bson.M{
+		"_id": bson.M{"bsonType": "string"}, "fingerprint": bson.M{"bsonType": "string", "pattern": "^[a-f0-9]{64}$"}, "targetKind": bson.M{"bsonType": "string"}, "targetId": bson.M{"bsonType": "string"}, "createdAt": bson.M{"bsonType": "date"},
+	}}}
 }
 
 func apiKeySchema() bson.M {
@@ -769,16 +864,19 @@ func apiKeySchema() bson.M {
 			"environment":    bson.M{"enum": []string{"live", "test"}},
 			"prefix":         bson.M{"bsonType": "string"},
 			// The database schema itself records that only a digest is stored.
-			"secretHash":     bson.M{"bsonType": "string"},
-			"scopes":         bson.M{"bsonType": "array", "items": bson.M{"bsonType": "string"}},
-			"allowedOrigins": bson.M{"bsonType": []string{"array", "null"}},
-			"allowedIps":     bson.M{"bsonType": []string{"array", "null"}},
-			"createdAt":      bson.M{"bsonType": []string{"date", "null"}},
-			"expiresAt":      bson.M{"bsonType": []string{"date", "null"}},
-			"lastUsedAt":     bson.M{"bsonType": []string{"date", "null"}},
-			"revokedAt":      bson.M{"bsonType": []string{"date", "null"}},
-			"elevated":       bson.M{"bsonType": []string{"bool", "null"}},
-			"elevatedReason": bson.M{"bsonType": []string{"string", "null"}},
+			"secretHash":      bson.M{"bsonType": "string"},
+			"scopes":          bson.M{"bsonType": "array", "items": bson.M{"bsonType": "string"}},
+			"allowedOrigins":  bson.M{"bsonType": []string{"array", "null"}},
+			"allowedIps":      bson.M{"bsonType": []string{"array", "null"}},
+			"createdAt":       bson.M{"bsonType": []string{"date", "null"}},
+			"expiresAt":       bson.M{"bsonType": []string{"date", "null"}},
+			"lastUsedAt":      bson.M{"bsonType": []string{"date", "null"}},
+			"revokedAt":       bson.M{"bsonType": []string{"date", "null"}},
+			"revokedReason":   bson.M{"bsonType": []string{"string", "null"}},
+			"suspendedAt":     bson.M{"bsonType": []string{"date", "null"}},
+			"suspendedReason": bson.M{"bsonType": []string{"string", "null"}},
+			"elevated":        bson.M{"bsonType": []string{"bool", "null"}},
+			"elevatedReason":  bson.M{"bsonType": []string{"string", "null"}},
 		},
 	}}
 }
@@ -939,6 +1037,49 @@ func auditSchema() bson.M {
 	}}
 }
 
+func sourceRunSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType":             "object",
+		"additionalProperties": false,
+		"required":             bson.A{"_id", "sourceId", "status", "queuedAt", "durationMs", "recordsProcessed", "errors", "reconciliationConflicts", "duplicateCandidates", "expiresAt"},
+		"properties": bson.M{
+			"_id":         bson.M{"bsonType": "string", "pattern": "^run_[a-f0-9]{24}$"},
+			"sourceId":    bson.M{"bsonType": "string", "minLength": 1},
+			"status":      bson.M{"enum": bson.A{"queued", "running", "succeeded", "failed"}},
+			"payloadHash": bson.M{"bsonType": "string", "pattern": "^([a-f0-9]{64})?$"},
+			"requestId":   bson.M{"bsonType": "string"},
+			"queuedAt":    bson.M{"bsonType": "date"}, "startedAt": bson.M{"bsonType": "date"},
+			"finishedAt": bson.M{"bsonType": "date"}, "expiresAt": bson.M{"bsonType": "date"},
+			"durationMs":              bson.M{"bsonType": bson.A{"long", "int"}, "minimum": 0},
+			"recordsProcessed":        bson.M{"bsonType": bson.A{"long", "int"}, "minimum": 0},
+			"reconciliationConflicts": bson.M{"bsonType": bson.A{"long", "int"}, "minimum": 0},
+			"duplicateCandidates":     bson.M{"bsonType": bson.A{"long", "int"}, "minimum": 0},
+			"errors": bson.M{"bsonType": "array", "maxItems": 100, "items": bson.M{"bsonType": "object", "additionalProperties": false, "required": bson.A{"code", "message", "at"}, "properties": bson.M{
+				"code": bson.M{"bsonType": "string"}, "message": bson.M{"bsonType": "string"},
+				"recordRef": bson.M{"bsonType": "string"}, "at": bson.M{"bsonType": "date"},
+			}}},
+		},
+	}}
+}
+
+func sourceRecordSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType":             "object",
+		"additionalProperties": false,
+		"required":             bson.A{"_id", "runId", "sourceId", "externalRef", "payloadHash", "outcome", "processedAt", "expiresAt"},
+		"properties": bson.M{
+			"_id":         bson.M{"bsonType": "string", "pattern": "^src_[a-f0-9]{32}$"},
+			"runId":       bson.M{"bsonType": "string", "pattern": "^run_[a-f0-9]{24}$"},
+			"sourceId":    bson.M{"bsonType": "string", "minLength": 1},
+			"externalRef": bson.M{"bsonType": "string", "minLength": 1},
+			"payloadHash": bson.M{"bsonType": "string", "pattern": "^[a-f0-9]{64}$"},
+			"outcome":     bson.M{"enum": bson.A{"created", "updated", "skipped", "rejected"}},
+			"reasonCode":  bson.M{"bsonType": "string"},
+			"processedAt": bson.M{"bsonType": "date"}, "expiresAt": bson.M{"bsonType": "date"},
+		},
+	}}
+}
+
 func outboxSchema() bson.M {
 	return bson.M{"$jsonSchema": bson.M{
 		"bsonType": "object",
@@ -955,6 +1096,58 @@ func outboxSchema() bson.M {
 			"lockedBy":    bson.M{"bsonType": []string{"string", "null"}},
 			"lastError":   bson.M{"bsonType": []string{"string", "null"}},
 			"completedAt": bson.M{"bsonType": []string{"date", "null"}},
+		},
+	}}
+}
+
+func fairUseAllowanceSchema() bson.M {
+	return bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"burstUnits", "refillPerSecond", "windowSeconds"},
+		"properties": bson.M{
+			"burstUnits":      bson.M{"bsonType": bson.A{"int", "long"}, "minimum": 0},
+			"refillPerSecond": bson.M{"bsonType": bson.A{"double", "int", "long", "decimal"}, "minimum": 0},
+			"windowSeconds":   bson.M{"bsonType": bson.A{"int", "long"}, "minimum": 0},
+		},
+	}
+}
+
+func fairUseCeilingsSchema() bson.M {
+	return bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"cheap", "normal", "spatial", "geometry"},
+		"properties": bson.M{
+			"cheap":    bson.M{"bsonType": bson.A{"int", "long"}, "minimum": 0},
+			"normal":   bson.M{"bsonType": bson.A{"int", "long"}, "minimum": 0},
+			"spatial":  bson.M{"bsonType": bson.A{"int", "long"}, "minimum": 0},
+			"geometry": bson.M{"bsonType": bson.A{"int", "long"}, "minimum": 0},
+		},
+	}
+}
+
+func fairUsePolicySchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "policyId", "revision", "anonymous", "authenticated", "sandbox", "costCeilings", "reason", "actorId", "createdAt", "effectiveFrom"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "string"}, "policyId": bson.M{"bsonType": "string", "minLength": 1},
+			"revision":  bson.M{"bsonType": bson.A{"int", "long"}, "minimum": 1},
+			"anonymous": fairUseAllowanceSchema(), "authenticated": fairUseAllowanceSchema(), "sandbox": fairUseAllowanceSchema(),
+			"costCeilings": fairUseCeilingsSchema(), "reason": bson.M{"bsonType": "string", "minLength": 1},
+			"actorId": bson.M{"bsonType": "string", "minLength": 1}, "createdAt": bson.M{"bsonType": "date"}, "effectiveFrom": bson.M{"bsonType": "date"},
+		},
+	}}
+}
+
+func fairUseOverrideSchema() bson.M {
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object", "additionalProperties": false,
+		"required": bson.A{"_id", "applicationId", "allowance", "costCeilings", "enabled", "reason", "actorId", "createdAt", "expiresAt"},
+		"properties": bson.M{
+			"_id": bson.M{"bsonType": "string"}, "applicationId": bson.M{"bsonType": "string", "minLength": 1},
+			"allowance": fairUseAllowanceSchema(), "costCeilings": fairUseCeilingsSchema(), "enabled": bson.M{"bsonType": "bool"},
+			"reason": bson.M{"bsonType": "string", "minLength": 1}, "actorId": bson.M{"bsonType": "string", "minLength": 1},
+			"createdAt": bson.M{"bsonType": "date"}, "expiresAt": bson.M{"bsonType": "date"}, "supersedesId": bson.M{"bsonType": "string"},
 		},
 	}}
 }
@@ -990,6 +1183,28 @@ func datasetVersionSchema() bson.M {
 					},
 				},
 			},
+		},
+	}}
+}
+
+func changeRequestSchema() bson.M {
+	stringArray := bson.M{"bsonType": "array", "items": bson.M{"bsonType": "string"}}
+	return bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": bson.A{"_id", "target", "proposedPatch", "snapshot", "evidence", "submitterId", "state", "comments", "history", "revisions", "version", "createdAt", "updatedAt"},
+		"properties": bson.M{
+			"_id":           bson.M{"bsonType": "string", "pattern": "^cr_[0-9A-HJKMNP-TV-Z]{26}$"},
+			"target":        bson.M{"bsonType": "object", "required": bson.A{"kind", "id"}, "additionalProperties": false, "properties": bson.M{"kind": bson.M{"bsonType": "string", "minLength": 1}, "id": bson.M{"bsonType": "string", "minLength": 1}}},
+			"proposedPatch": bson.M{"bsonType": "object"},
+			"snapshot":      bson.M{"bsonType": "object", "required": bson.A{"beforeJson", "afterJson", "digest"}, "additionalProperties": false, "properties": bson.M{"beforeJson": bson.M{"bsonType": "string", "minLength": 2}, "afterJson": bson.M{"bsonType": "string", "minLength": 2}, "digest": bson.M{"bsonType": "string", "pattern": "^[a-f0-9]{64}$"}}},
+			"evidence":      bson.M{"bsonType": "object", "properties": bson.M{"sourceId": bson.M{"bsonType": "string"}, "sourceRecordIds": stringArray, "duplicateCandidateIds": stringArray, "reconciliationConflictIds": stringArray, "references": stringArray}},
+			"submitterId":   bson.M{"bsonType": "string", "minLength": 1}, "reviewerId": bson.M{"bsonType": "string"},
+			"state":     bson.M{"enum": bson.A{"submitted", "in_review", "changes_requested", "approved", "rejected"}},
+			"comments":  bson.M{"bsonType": "array", "items": bson.M{"bsonType": "object", "required": bson.A{"id", "authorId", "body", "createdAt"}, "additionalProperties": false, "properties": bson.M{"id": bson.M{"bsonType": "string"}, "authorId": bson.M{"bsonType": "string"}, "body": bson.M{"bsonType": "string", "minLength": 1}, "requestId": bson.M{"bsonType": "string"}, "createdAt": bson.M{"bsonType": "date"}}}},
+			"history":   bson.M{"bsonType": "array", "minItems": 1, "items": bson.M{"bsonType": "object", "required": bson.A{"id", "to", "actorId", "createdAt"}, "additionalProperties": false, "properties": bson.M{"id": bson.M{"bsonType": "string"}, "from": bson.M{"bsonType": "string"}, "to": bson.M{"enum": bson.A{"submitted", "in_review", "changes_requested", "approved", "rejected"}}, "actorId": bson.M{"bsonType": "string"}, "comment": bson.M{"bsonType": "string"}, "requestId": bson.M{"bsonType": "string"}, "createdAt": bson.M{"bsonType": "date"}}}},
+			"revisions": bson.M{"bsonType": "array", "minItems": 1, "items": bson.M{"bsonType": "object", "required": bson.A{"number", "proposedPatch", "snapshot", "evidence", "actorId", "createdAt"}, "additionalProperties": false, "properties": bson.M{"number": bson.M{"bsonType": "long", "minimum": 1}, "proposedPatch": bson.M{"bsonType": "object"}, "snapshot": bson.M{"bsonType": "object"}, "evidence": bson.M{"bsonType": "object"}, "actorId": bson.M{"bsonType": "string"}, "createdAt": bson.M{"bsonType": "date"}}}},
+			"version":   bson.M{"bsonType": "long", "minimum": 1}, "requestId": bson.M{"bsonType": "string"},
+			"createdAt": bson.M{"bsonType": "date"}, "updatedAt": bson.M{"bsonType": "date"},
 		},
 	}}
 }

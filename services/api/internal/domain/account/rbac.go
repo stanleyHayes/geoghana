@@ -23,6 +23,9 @@ const (
 	PermSuspendKey       Permission = "key:suspend"
 	PermEditPlans        Permission = "plan:edit"
 	PermManageRoles      Permission = "role:manage"
+	PermViewOperations   Permission = "operations:view"
+	PermViewAudit        Permission = "audit:view"
+	PermManageFairUse    Permission = "fairuse:manage"
 )
 
 // permissions is Appendix C transcribed exactly.
@@ -38,17 +41,22 @@ var permissions = map[Role]map[Permission]bool{
 		PermPublishRelease: true, PermRollbackRelease: true,
 		PermViewOrganization: true, PermSuspendKey: true,
 		PermEditPlans: true, PermManageRoles: true,
+		PermViewOperations: true, PermViewAudit: true,
+		PermManageFairUse: true,
 	},
 	RoleDataAdmin: {
 		PermViewGeography: true, PermEditGeography: true, PermEditGeometry: true,
 		PermProposeChange: true, PermReviewChange: true, PermRunImport: true,
 		PermPublishRelease: true, PermRollbackRelease: true,
+		PermViewOperations: true, PermViewAudit: true,
 	},
 	RoleDataReviewer: {
 		PermViewGeography: true, PermProposeChange: true, PermReviewChange: true,
+		PermViewOperations: true,
 	},
 	RoleDataContributor: {
 		PermViewGeography: true, PermProposeChange: true,
+		PermViewOperations: true,
 		// "Run import job (mapping only)" in Appendix C. Mapping-only is a
 		// narrower capability than the import permission grants, so it is NOT
 		// granted here; it lands with the import screens that can express the
@@ -57,11 +65,13 @@ var permissions = map[Role]map[Permission]bool{
 	},
 	RoleDeveloperSupport: {
 		PermViewGeography: true, PermViewOrganization: true, PermSuspendKey: true,
+		PermViewOperations: true,
 	},
 	RoleSecurityAuditor: {
 		// Read-only by definition. An auditor that can change what it audits
 		// is not an auditor.
 		PermViewGeography: true, PermViewOrganization: true,
+		PermViewOperations: true, PermViewAudit: true,
 	},
 	RoleDeveloper: {
 		// An ordinary developer has no admin console access at all.
@@ -88,6 +98,8 @@ func Permissions(r Role) []Permission {
 		PermProposeChange, PermReviewChange, PermRunImport,
 		PermPublishRelease, PermRollbackRelease, PermViewOrganization,
 		PermSuspendKey, PermEditPlans, PermManageRoles,
+		PermViewOperations, PermViewAudit,
+		PermManageFairUse,
 	} {
 		if held[p] {
 			out = append(out, p)

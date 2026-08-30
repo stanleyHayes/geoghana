@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://geo.digitalghana.dev/contracts/conformance/case-file.schema.json",
+  "title": "GhanaGeo SDK conformance case file",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "cases"],
+  "properties": {
+    "version": { "const": 1 },
+    "cases": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/case" } }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "required", "operation", "protocols", "input", "expect"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9.-]+$" },
+        "required": { "type": "boolean" },
+        "operation": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]+$" },
+        "description": { "type": "string", "minLength": 1 },
+        "protocols": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["rest", "grpc", "graphql"] } },
+        "input": { "type": "object" },
+        "expect": { "oneOf": [{ "$ref": "#/$defs/successExpectation" }, { "$ref": "#/$defs/errorExpectation" }] }
+      }
+    },
+    "shape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "required"],
+      "properties": {
+        "type": { "enum": ["object", "array", "binary"] },
+        "required": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "quotaCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class"],
+      "properties": {
+        "class": { "enum": ["cheap", "normal", "spatial", "geometry", "dynamic", "none"] },
+        "units": { "type": "integer", "minimum": 0 },
+        "minimumUnits": { "type": "integer", "minimum": 0 },
+        "maximumUnits": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "semantics": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["protocolResultsEquivalent", "datasetVersionPresent", "stableCursorPagination", "preservesGhanaianOrthography", "anonymousByDefault", "cancellationPropagates", "emptyOutsideGhana"] }
+    },
+    "successExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "shape", "quotaCost"],
+      "properties": {
+        "outcome": { "const": "success" },
+        "httpStatus": { "type": "integer", "minimum": 200, "maximum": 299 },
+        "shape": { "$ref": "#/$defs/shape" },
+        "quotaCost": { "$ref": "#/$defs/quotaCost" },
+        "semantics": { "$ref": "#/$defs/semantics" }
+      }
+    },
+    "errorExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "httpStatus", "shape", "error", "quotaCost"],
+      "properties": {
+        "outcome": { "const": "error" },
+        "httpStatus": { "type": "integer", "minimum": 400, "maximum": 599 },
+        "shape": { "$ref": "#/$defs/shape" },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "grpcStatus", "requiredFields"],
+          "properties": {
+            "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+            "grpcStatus": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+            "requiredFields": { "type": "array", "minItems": 4, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "quotaCost": { "$ref": "#/$defs/quotaCost" }
+      }
+    }
+  }
+}

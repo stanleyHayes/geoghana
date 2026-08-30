@@ -27,7 +27,10 @@ var (
 	ErrUnsafeBrowserKey     = errors.New("unsafe scope combination for a browser key")
 	ErrOriginRequired       = errors.New("a browser key requires at least one allowed origin")
 	ErrKeyRevoked           = errors.New("key is revoked")
+	ErrKeySuspended         = errors.New("key is suspended")
 	ErrKeyExpired           = errors.New("key has expired")
+	ErrInvalidCursor        = errors.New("invalid cursor")
+	ErrInvalidKeyTransition = errors.New("invalid key state transition")
 )
 
 // Scope is a capability an API key may hold (Spec §12.3).
@@ -190,14 +193,17 @@ type APIKey struct {
 	Prefix string
 	// SecretHash is argon2id over the secret. The secret is shown once and
 	// then unrecoverable.
-	SecretHash     string
-	Scopes         []Scope
-	AllowedOrigins []string
-	AllowedIPs     []string
-	CreatedAt      time.Time
-	ExpiresAt      *time.Time
-	LastUsedAt     *time.Time
-	RevokedAt      *time.Time
+	SecretHash      string
+	Scopes          []Scope
+	AllowedOrigins  []string
+	AllowedIPs      []string
+	CreatedAt       time.Time
+	ExpiresAt       *time.Time
+	LastUsedAt      *time.Time
+	RevokedAt       *time.Time
+	RevokedReason   string
+	SuspendedAt     *time.Time
+	SuspendedReason string
 
 	// Elevated lifts this key's fair-use ceiling. A steward sets it on
 	// DOCUMENTED NEED — research, humanitarian or government use — and the
@@ -254,6 +260,9 @@ func (k APIKey) Validate() error {
 func (k APIKey) Usable(now time.Time) error {
 	if k.RevokedAt != nil {
 		return ErrKeyRevoked
+	}
+	if k.SuspendedAt != nil {
+		return ErrKeySuspended
 	}
 	if k.ExpiresAt != nil && now.After(*k.ExpiresAt) {
 		return ErrKeyExpired

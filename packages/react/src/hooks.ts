@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useGhanaGeoClient } from "./provider";
-import type { DistrictPage, Place, PlacePage, Region, RegionPage, ReverseResult, SearchPage } from "@ghanageo/client";
+import type { Place, PlacePage, Region, RegionPage, ReverseResult, SearchPage } from "@ghanageo/client";
 
 export const ghanaGeoKeys = {
   all: ["ghanageo"] as const,
@@ -32,7 +32,7 @@ export function useDistricts(params: { regionId?: string; first?: number } = {})
 
 export function useDistrict(id?: string) {
   const client = useGhanaGeoClient();
-  return useQuery({ queryKey: ghanaGeoKeys.district(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.get<{ data: DistrictPage["data"][number]; datasetVersion: string }>(`/districts/${encodeURIComponent(id!)}`, undefined, signal) });
+  return useQuery({ queryKey: ghanaGeoKeys.district(id ?? ""), enabled: !!id, queryFn: ({ signal }) => client.district(id!, signal) });
 }
 
 export function usePlace(id?: string) {

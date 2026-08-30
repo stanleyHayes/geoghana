@@ -40,3 +40,22 @@ func TestMetricsExposeBoundedOperationalSignals(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminMetricsExposeOnlyBoundedAggregates(t *testing.T) {
+	t.Setenv("OTEL_TRACES_EXPORTER", "none")
+	telemetry, err := New(context.Background(), "test", "v1", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = telemetry.Shutdown(context.Background()) })
+	telemetry.ObserveRequest("http", "GET /secret/path", "200", time.Millisecond)
+	telemetry.ObserveRequest("http", "GET /secret/path", "503", time.Millisecond)
+	telemetry.ObserveRequest("grpc", "/private.Service/Call", "InvalidArgument", time.Millisecond)
+	telemetry.ObserveCache("private_cache", "hit")
+	telemetry.ObserveCache("private_cache", "miss")
+
+	got := telemetry.AdminMetrics()
+	if got.RequestCount != 3 || got.ErrorCount != 1 || got.CacheHits != 1 || got.CacheMisses != 1 {
+		t.Fatalf("unexpected bounded aggregate: %+v", got)
+	}
+}

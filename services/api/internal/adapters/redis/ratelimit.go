@@ -9,11 +9,14 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	goredis "github.com/redis/go-redis/v9"
 
+	adminops "github.com/ghanageo/ghanageo/services/api/internal/domain/adminops"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 )
@@ -92,6 +95,48 @@ func NewLimiter(redisURL string, failOpen bool, telemetry ...*observability.Tele
 func (l *Limiter) Close() error { return l.client.Close() }
 
 func (l *Limiter) Ping(ctx context.Context) error { return l.client.Ping(ctx).Err() }
+
+// Probe performs only read-only Redis commands and returns a bounded summary.
+// A private timeout ensures the admin health page cannot be held open by a
+// stalled cache dependency.
+func (l *Limiter) Probe(ctx context.Context) adminops.ProbeResult {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	started := time.Now()
+	result := adminops.ProbeResult{Status: "unavailable", Detail: "cache probe failed"}
+	if err := l.client.Ping(ctx).Err(); err != nil {
+		result.LatencyMS = time.Since(started).Milliseconds()
+		return result
+	}
+	result.Status, result.Detail = "healthy", "read-only ping succeeded"
+	info, err := l.client.Info(ctx, "stats").Result()
+	if err == nil {
+		result.HitRate = redisHitRate(info)
+	}
+	result.LatencyMS = time.Since(started).Milliseconds()
+	return result
+}
+
+func redisHitRate(info string) *float64 {
+	var hits, misses float64
+	for _, line := range strings.Split(info, "\n") {
+		parts := strings.SplitN(strings.TrimSpace(line), ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		switch parts[0] {
+		case "keyspace_hits":
+			hits, _ = strconv.ParseFloat(parts[1], 64)
+		case "keyspace_misses":
+			misses, _ = strconv.ParseFloat(parts[1], 64)
+		}
+	}
+	if total := hits + misses; total > 0 {
+		rate := hits / total * 100
+		return &rate
+	}
+	return nil
+}
 
 // Decision is the outcome of a limit check, shaped for response headers.
 type Decision struct {

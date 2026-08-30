@@ -17,13 +17,18 @@ import (
 	redisadapter "github.com/ghanageo/ghanageo/services/api/internal/adapters/redis"
 	"github.com/ghanageo/ghanageo/services/api/internal/adapters/search/typesense"
 	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
+	appadminidentity "github.com/ghanageo/ghanageo/services/api/internal/app/adminidentity"
+	appadminops "github.com/ghanageo/ghanageo/services/api/internal/app/adminops"
+	appchangerequest "github.com/ghanageo/ghanageo/services/api/internal/app/changerequest"
 	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	appdeveloper "github.com/ghanageo/ghanageo/services/api/internal/app/developer"
+	appfairuse "github.com/ghanageo/ghanageo/services/api/internal/app/fairuse"
 	appgeo "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/auth"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/config"
+	platformfairuse "github.com/ghanageo/ghanageo/services/api/internal/platform/fairuse"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 	passkeyrp "github.com/ghanageo/ghanageo/services/api/internal/platform/passkey"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
@@ -54,6 +59,16 @@ func newLogger(level string) *slog.Logger {
 func run(cfg config.Config, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if err := validateProductionIdentityConfig(cfg); err != nil {
+		return err
+	}
+	// Validate production mail before opening databases or listeners. Account
+	// tokens must never fall back to the local log-only delivery path in a
+	// production process.
+	accountMailer, err := newAccountMailer(cfg)
+	if err != nil {
+		return err
+	}
 	serveHTTP, serveGRPC, err := enabledTransports(cfg.ServeMode)
 	if err != nil {
 		return err
@@ -83,16 +98,19 @@ func run(cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
+	regionRepo := mongoadapter.NewRegionRepo(store)
+	districtRepo := mongoadapter.NewDistrictRepo(store)
 	geo := appgeo.NewService(
-		mongoadapter.NewRegionRepo(store),
-		mongoadapter.NewDistrictRepo(store),
+		regionRepo,
+		districtRepo,
 		mongoadapter.NewPlaceRepo(store),
 		mongoadapter.NewRedirectRepo(store),
 		cfg.DatasetVersion,
-	)
+	).WithBoundaries(regionRepo, districtRepo).WithAdminRepository(mongoadapter.NewAdminGeographyRepo(store))
 
+	searchClient := typesense.New(cfg.TypesenseURL, cfg.TypesenseKey, telemetry)
 	searchSvc := appsearch.NewService(
-		typesense.New(cfg.TypesenseURL, cfg.TypesenseKey, telemetry),
+		searchClient,
 		mongoadapter.NewRegionRepo(store),
 		mongoadapter.NewDistrictRepo(store),
 		mongoadapter.NewPlaceRepo(store),
@@ -111,11 +129,14 @@ func run(cfg config.Config, log *slog.Logger) error {
 	}
 
 	securityAlerts := securityalert.New(cfg.SecurityAlertWebhookURL, cfg.SecurityAlertWebhookSecret, log)
+	fairUseRepo := mongoadapter.NewFairUseRepo(store)
+	fairUseResolver := platformfairuse.NewResolver(fairUseRepo, 30*time.Second)
 	authenticator := auth.New(
 		mongoadapter.NewKeyRepo(store),
 		limiterAdapter{limiter},
 		cfg.Env == "sandbox",
-	).WithSecurityAlerts(securityAlerts)
+	).WithSecurityAlerts(securityAlerts).WithFairUseResolver(fairUseResolver)
+	fairUseSvc := appfairuse.NewService(fairUseRepo, mongoadapter.NewAuditRepo(store), fairUseResolver)
 
 	// Steward writes: permission-checked in the domain and audited, including
 	// the attempts that are refused.
@@ -124,14 +145,14 @@ func run(cfg config.Config, log *slog.Logger) error {
 	datasetSvc := appdataset.NewService(
 		mongoadapter.NewDatasetRepo(store),
 		cfg.ExportDir,
-	)
+	).WithAudit(mongoadapter.NewAuditRepo(store))
 
 	accountSvc := appaccount.NewService(
 		mongoadapter.NewAccountRepo(store),
 		mongoadapter.NewSessionRepo(store),
 		mongoadapter.NewOneTimeTokenRepo(store),
 		mongoadapter.NewAuditRepo(store),
-		nil, // no mailer yet: tokens are logged at WARN for local use
+		accountMailer,
 		log,
 		"GhanaGeo",
 	).WithSecurityAlerts(securityAlerts)
@@ -168,7 +189,15 @@ func run(cfg config.Config, log *slog.Logger) error {
 		WithDeveloper(developerSvc).
 		WithUsage(usageRepo).
 		WithTelemetry(telemetry).
+		WithFairUse(fairUseSvc).
+		WithAdminIdentity(appadminidentity.NewService(mongoadapter.NewAdminIdentityRepo(store))).
+		WithAdminOps(appadminops.NewService(mongoadapter.NewAdminOpsRepo(store).WithHealthDependencies(limiter, searchClient, telemetry))).
+		WithChangeRequests(appchangerequest.NewService(mongoadapter.NewChangeRequestRepo(store))).
 		Routes()
+	restHandler, err = proxySecurity(restHandler, cfg)
+	if err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,

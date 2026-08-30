@@ -22,6 +22,7 @@ const (
 	OriginNotAllowed  Code = "ORIGIN_NOT_ALLOWED"
 	NotFound          Code = "NOT_FOUND"
 	ResourceGone      Code = "RESOURCE_GONE"
+	Conflict          Code = "CONFLICT"
 	RateLimitExceeded Code = "RATE_LIMIT_EXCEEDED"
 	QuotaExceeded     Code = "QUOTA_EXCEEDED"
 	QueryTooComplex   Code = "QUERY_TOO_COMPLEX"
@@ -42,6 +43,7 @@ var httpStatus = map[Code]int{
 	OriginNotAllowed:  http.StatusForbidden,
 	NotFound:          http.StatusNotFound,
 	ResourceGone:      http.StatusGone,
+	Conflict:          http.StatusConflict,
 	RateLimitExceeded: http.StatusTooManyRequests,
 	QuotaExceeded:     http.StatusTooManyRequests,
 	DeadlineExceeded:  http.StatusGatewayTimeout,

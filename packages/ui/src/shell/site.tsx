@@ -30,6 +30,79 @@ export interface NavLink {
   external?: boolean;
 }
 
+declare const process:
+  | {
+      env: {
+        NODE_ENV?: string;
+        NEXT_PUBLIC_GHANAGEO_SANDBOX_URL?: string;
+        NEXT_PUBLIC_GHANAGEO_PORTAL_URL?: string;
+      };
+    }
+  | undefined;
+
+const PRODUCTION_SANDBOX_ORIGIN = "https://sandbox.geo.digitalghana.dev";
+const PRODUCTION_PORTAL_ORIGIN = "https://console.geo.digitalghana.dev";
+const DEVELOPMENT_SANDBOX_ORIGIN = "http://localhost:3101";
+const DEVELOPMENT_PORTAL_ORIGIN = "http://localhost:3102";
+
+function isLoopback(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+/**
+ * Accept only secure public origins (plus loopback HTTP for local development).
+ * Paths, query strings and credentials are intentionally discarded so shared
+ * navigation cannot be configured to leak users to an unexpected deep link.
+ */
+export function resolvePublicOrigin(
+  value: string | undefined,
+  fallback: string,
+  allowLoopback = false,
+): string {
+  try {
+    const url = new URL(value ?? fallback);
+    const allowed = url.protocol === "https:" || (allowLoopback && url.protocol === "http:" && isLoopback(url.hostname));
+    if (!allowed || url.username || url.password) return new URL(fallback).origin;
+    return url.origin;
+  } catch {
+    return new URL(fallback).origin;
+  }
+}
+
+const development = typeof process !== "undefined" && process.env.NODE_ENV === "development";
+const defaultSandboxOrigin = resolvePublicOrigin(
+  typeof process === "undefined" ? undefined : process.env.NEXT_PUBLIC_GHANAGEO_SANDBOX_URL,
+  development ? DEVELOPMENT_SANDBOX_ORIGIN : PRODUCTION_SANDBOX_ORIGIN,
+  development,
+);
+const defaultPortalOrigin = resolvePublicOrigin(
+  typeof process === "undefined" ? undefined : process.env.NEXT_PUBLIC_GHANAGEO_PORTAL_URL,
+  development ? DEVELOPMENT_PORTAL_ORIGIN : PRODUCTION_PORTAL_ORIGIN,
+  development,
+);
+
+export interface SiteNavigationOrigins {
+  sandboxUrl?: string | undefined;
+  portalUrl?: string | undefined;
+}
+
+function toolNavigation({ sandboxUrl, portalUrl }: SiteNavigationOrigins = {}): readonly NavLink[] {
+  return [
+    {
+      href: resolvePublicOrigin(sandboxUrl, defaultSandboxOrigin, development),
+      label: "Sandbox",
+      hint: "Try the API with no account",
+      icon: FlaskConical,
+    },
+    {
+      href: resolvePublicOrigin(portalUrl, defaultPortalOrigin, development),
+      label: "Developer console",
+      hint: "Keys, usage and logs",
+      icon: Terminal,
+    },
+  ];
+}
+
 /** Shown in the header bar on wide screens. */
 export const PRIMARY_NAV: readonly NavLink[] = [
   { href: "/docs", label: "Docs", hint: "Quick starts and endpoints", icon: BookOpen },
@@ -42,10 +115,7 @@ export const SECONDARY_NAV: readonly NavLink[] = [
   { href: "/transparency", label: "Transparency", hint: "Income, costs and what they funded", icon: Receipt },
 ];
 
-export const TOOL_NAV: readonly NavLink[] = [
-  { href: "http://localhost:3101", label: "Sandbox", hint: "Try the API with no account", icon: FlaskConical },
-  { href: "http://localhost:3102", label: "Developer console", hint: "Keys, usage and logs", icon: Terminal },
-];
+export const TOOL_NAV: readonly NavLink[] = toolNavigation();
 
 function isCurrent(active: string | undefined, href: string) {
   return active === href ? "page" : undefined;
@@ -54,12 +124,15 @@ function isCurrent(active: string | undefined, href: string) {
 export function SiteHeader({
   active,
   suffix,
-  sandboxUrl = "http://localhost:3101",
+  sandboxUrl,
+  portalUrl,
 }: {
   active?: string | undefined;
   suffix?: string | undefined;
-  sandboxUrl?: string | undefined;
-}) {
+} & SiteNavigationOrigins) {
+  const toolLinks = toolNavigation({ sandboxUrl, portalUrl });
+  const resolvedSandboxUrl = toolLinks[0]?.href ?? defaultSandboxOrigin;
+
   return (
     <header className="gg-navbar" data-intensity="balanced">
       <div className="gg-navbar__left">
@@ -80,10 +153,10 @@ export function SiteHeader({
         {/* Theme is a product feature here, not a preference buried in admin:
             the tri-morphic system is what a visitor is being shown. */}
         <ThemeMenu />
-        <a className="gg-button gg-button--primary gg-button--sm gg-navbar__hide-xs" href={sandboxUrl}>
+        <a className="gg-button gg-button--primary gg-button--sm gg-navbar__hide-xs" href={resolvedSandboxUrl}>
           Sandbox
         </a>
-        <NavDrawer active={active} />
+        <NavDrawer active={active} toolLinks={toolLinks} sandboxUrl={resolvedSandboxUrl} />
       </div>
     </header>
   );
@@ -97,7 +170,15 @@ export function SiteHeader({
  * close. Each of those is easy to forget and individually makes the drawer
  * unusable with a keyboard or a screen reader.
  */
-function NavDrawer({ active }: { active?: string | undefined }) {
+function NavDrawer({
+  active,
+  toolLinks,
+  sandboxUrl,
+}: {
+  active?: string | undefined;
+  toolLinks: readonly NavLink[];
+  sandboxUrl: string;
+}) {
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
@@ -131,13 +212,13 @@ function NavDrawer({ active }: { active?: string | undefined }) {
             ))}
 
             <p className="gg-drawer__heading">Tools</p>
-            {TOOL_NAV.map((l) => (
+            {toolLinks.map((l) => (
               <DrawerLink key={l.href} link={l} active={active} />
             ))}
           </nav>
 
           <div className="gg-drawer__foot">
-            <a className="gg-button gg-button--primary gg-button--md" href="http://localhost:3101">
+            <a className="gg-button gg-button--primary gg-button--md" href={sandboxUrl}>
               Try the sandbox
             </a>
             <p className="gg-drawer__note">
@@ -172,7 +253,13 @@ function DrawerLink({ link, active }: { link: NavLink; active?: string | undefin
   );
 }
 
-export function SiteFooter({ children }: { children?: ReactNode }) {
+export function SiteFooter({
+  children,
+  sandboxUrl,
+  portalUrl,
+}: { children?: ReactNode } & SiteNavigationOrigins) {
+  const toolLinks = toolNavigation({ sandboxUrl, portalUrl });
+
   return (
     <footer className="gg-sitefooter">
       <div className="gg-page gg-page--mid" style={{ padding: 0 }}>
@@ -194,7 +281,7 @@ export function SiteFooter({ children }: { children?: ReactNode }) {
           </nav>
           <nav aria-label="Tools">
             <p className="gg-sitefooter__heading">Tools</p>
-            {TOOL_NAV.map((l) => (
+            {toolLinks.map((l) => (
               <a key={l.href} href={l.href} className="gg-sitefooter__link" rel="noopener noreferrer">
                 {l.label}
               </a>

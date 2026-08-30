@@ -22,7 +22,18 @@ const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const APPS = [
   { name: "web", dir: "apps/web", extraSrc: ["packages/ui/src"] },
   { name: "sandbox", dir: "apps/sandbox", extraSrc: [] },
-  { name: "portal", dir: "apps/portal", extraSrc: [] },
+  {
+    name: "portal",
+    dir: "apps/portal",
+    extraSrc: [],
+    /* These are reached from identity-provider emails or a redirect carrying
+       a short-lived token. Putting them in public navigation would be both
+       misleading and, for reset-password, an invalid way to enter the flow. */
+    implicitEntries: new Map([
+      ["/reset-password", "password-reset email"],
+      ["/verify-email", "email-verification link"],
+    ]),
+  },
   {
     name: "admin",
     dir: "apps/admin",
@@ -33,6 +44,12 @@ const APPS = [
        ELSE in admin still fail — a rendered page linking into the void is the
        real defect this check is for. */
     plannedNav: "src/config/navigation.ts",
+    /* Authentication middleware and authorization failures redirect here.
+       They are entry/exit points in the auth state machine, not nav items. */
+    implicitEntries: new Map([
+      ["/login", "unauthenticated redirect"],
+      ["/access-denied", "authorization-failure redirect"],
+    ]),
   },
 ];
 
@@ -40,6 +57,32 @@ const APPS = [
 const ALLOWED_ORPHANS = new Set([
   "/", // the root is reached by the domain itself
 ]);
+
+function findOrphans(routes, linked, implicitEntries = new Map()) {
+  return [...routes].filter((route) =>
+    !linked.has(route)
+    && !ALLOWED_ORPHANS.has(route)
+    && !implicitEntries.has(route)
+    // Dynamic segments are reached through interpolated hrefs, which cannot
+    // be resolved statically by this checker.
+    && !route.includes("[")
+  );
+}
+
+/* Keep the exemption mechanism honest: an explicitly modeled auth entry may
+   be unlinked, but a neighboring ordinary route must still be reported. */
+{
+  const syntheticRoutes = new Set(["/", "/login", "/dashboard", "/forgotten"]);
+  const syntheticLinks = new Map([["/dashboard", "fixture.tsx"]]);
+  const found = findOrphans(
+    syntheticRoutes,
+    syntheticLinks,
+    new Map([["/login", "authentication redirect"]]),
+  );
+  if (found.length !== 1 || found[0] !== "/forgotten") {
+    throw new Error("link checker regression: implicit entries hid an ordinary orphan");
+  }
+}
 
 function walk(dir, out = []) {
   let entries;
@@ -83,6 +126,16 @@ for (const app of APPS) {
   ].filter((f) => /\.(tsx|ts)$/.test(f));
 
   const linked = new Map(); // route -> first file that links it
+  const implicitEntries = app.implicitEntries ?? new Map();
+
+  // A stale exemption is almost as dangerous as a broad ignore: it can mask
+  // a typo in this production gate. Every modeled entry must be a real route.
+  for (const [route, reason] of implicitEntries) {
+    if (!routes.has(route)) {
+      console.error(`CONFIG ${app.name}: implicit entry ${route} (${reason}) does not exist`);
+      dead++;
+    }
+  }
 
   for (const f of sources) {
     const text = readFileSync(f, "utf8");
@@ -102,19 +155,14 @@ for (const app of APPS) {
     }
   }
 
-  for (const r of routes) {
-    if (linked.has(r) || ALLOWED_ORPHANS.has(r)) continue;
-    // A dynamic segment is reached through an interpolated href, which this
-    // checker cannot resolve statically. Reporting every [id] route as an
-    // orphan would bury the real ones, so they are skipped — the cost is that
-    // an genuinely unlinked detail page is not caught here.
-    if (r.includes("[")) continue;
+  for (const r of findOrphans(routes, linked, implicitEntries)) {
     console.error(`ORPHAN ${app.name}: ${r} exists but nothing links to it`);
     orphan++;
   }
 
   const note = app.plannedNav && planned ? `, ${planned} planned (not yet built)` : "";
-  console.log(`  ${app.name}: ${routes.size} routes, ${linked.size} linked${note}`);
+  const implicitNote = implicitEntries.size ? `, ${implicitEntries.size} implicit auth entries` : "";
+  console.log(`  ${app.name}: ${routes.size} routes, ${linked.size} linked${implicitNote}${note}`);
 }
 
 if (dead || orphan) {

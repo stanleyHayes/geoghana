@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { DeveloperDirectory } from "@/components/developer-admin";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/developers/orgs"]!} />;
+  return <DeveloperDirectory resource="organizations" />;
 }

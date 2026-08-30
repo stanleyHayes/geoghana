@@ -29,6 +29,12 @@ services:
         value: /var/lib/ghanageo/exports
       - key: API_ALLOWED_ORIGINS
         value: https://geo.digitalghana.dev,https://sandbox.geo.digitalghana.dev,https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev
+      - key: API_TRUST_PROXY_HEADERS
+        value: "true"
+      - key: API_TRUSTED_PROXY_CIDRS
+        sync: false
+      - key: API_REQUIRE_HTTPS
+        value: "true"
       - key: API_PASSKEY_RPID
         value: digitalghana.dev
       - key: API_PASSKEY_ORIGINS
@@ -45,16 +51,14 @@ services:
         sync: false
       - key: SECURITY_ALERT_WEBHOOK_SECRET
         sync: false
-      - key: AUTH_SECRET
-        sync: false
-      - key: SESSION_SECRET
-        sync: false
       - key: INTERNAL_SERVICE_TOKEN
         sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_FROM_EMAIL
         sync: false
+      - key: GHANAGEO_PORTAL_URL
+        value: https://console.geo.digitalghana.dev
       - key: SENTRY_DSN
         sync: false
     disk:

@@ -1,63 +1,27 @@
 "use client";
 
-import {
-  Badge, Card, SponsorWall, SupportPanel, ThemePicker, verificationTone,
-} from "@ghanageo/ui";
+import { Badge, Card, ThemePicker } from "@ghanageo/ui";
+import { Activity, Database, PackageCheck } from "lucide-react";
+import { AsyncState, useApi } from "@/components/data";
 import { PageHeader } from "@/components/screen";
-
-const COVERAGE = [
-  { label: "Regions", value: "16", status: "REFERENCE" },
-  { label: "Districts / MMDAs", value: "261", status: "SEED_NEEDS_CANONICAL_RECONCILIATION" },
-  { label: "Places", value: "15,925", status: "REFERENCE" },
-  { label: "Review queue", value: "12", status: "REVIEWED" },
-];
+import { getAdminDashboard } from "@/lib/admin-api";
 
 export default function AdminHome() {
-  return (
-    <>
-      <PageHeader
-        title="Ghana’s location data, as infrastructure"
-        lede={
-          <>
-            Current dataset <code style={{ fontFamily: "var(--font-mono)" }}>2026.08.3-ulid</code>.
-            Press <kbd className="gg-kbd">⌘K</kbd> to search.
-          </>
-        }
-      />
-
-      <div className="gg-auto-grid" style={{ marginBottom: "var(--space-8)" }}>
-        {COVERAGE.map((s) => {
-          const v = verificationTone(s.status);
-          return (
-            <Card key={s.label} interactive>
-              <p style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase",
-                          letterSpacing: "0.1em", color: "var(--fg-subtle)",
-                          fontWeight: 700, margin: 0 }}>{s.label}</p>
-              <p style={{ fontSize: "var(--text-3xl)", fontWeight: 700,
-                          margin: "var(--space-2) 0", fontVariantNumeric: "tabular-nums" }}>{s.value}</p>
-              <Badge tone={v.tone}><span aria-hidden>{v.glyph}</span> {v.label}</Badge>
-            </Card>
-          );
-        })}
-      </div>
-
-      <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-4)" }}>Support</h2>
-      <div style={{ display: "grid", gap: "var(--space-5)", marginBottom: "var(--space-8)" }}>
-        <SupportPanel
-          donateHref="http://localhost:3100/support"
-          figures={{ monthlyCostMinor: 48000, monthlyReceivedMinor: 17500, currency: "GHS" }}
-        />
-        <SponsorWall
-          sponsors={[
-            { id: "a", name: "Ghana Open Data Initiative", months: 14 },
-            { id: "b", name: "Accra Dev Collective", months: 6 },
-            { id: "c", name: "Individual supporters", months: 3 },
-          ]}
-        />
-      </div>
-
-      <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-4)" }}>Appearance</h2>
-      <ThemePicker />
-    </>
-  );
+  const state = useApi((signal) => getAdminDashboard(signal), []);
+  return <>
+    <PageHeader title="Ghana’s location data, as infrastructure" lede="Authoritative counts, release state and recent privileged activity from the protected administration API." />
+    <AsyncState state={state} empty="No dashboard projection was returned.">
+      {(dashboard) => <>
+        <div className="gg-auto-grid admin-overview-grid">
+          {([['Regions', dashboard.counts.regions], ['Districts / MMDAs', dashboard.counts.districts], ['Places', dashboard.counts.places], ['Roads', dashboard.counts.roads], ['Points of interest', dashboard.counts.pois], ['Audit entries', dashboard.counts.auditEntries]] as const).map(([label, value]) => <Card key={label}><p className="admin-metric-label">{label}</p><p className="admin-metric-value">{value.toLocaleString()}</p><Badge tone="canonical">Canonical count</Badge></Card>)}
+        </div>
+        <div className="admin-honesty-grid">
+          <Card><PackageCheck size={20} aria-hidden /><div><h2>Current release</h2><p>{dashboard.currentRelease ? `${dashboard.currentRelease.version} · ${dashboard.currentRelease.status.toLowerCase()}` : "No current published release is recorded."}</p>{dashboard.currentRelease ? <a href="/releases/versions">View release lifecycle</a> : null}</div><Badge tone={dashboard.currentRelease ? "canonical" : "neutral"}>{dashboard.currentRelease ? "Recorded" : "Unavailable"}</Badge></Card>
+          <Card><Database size={20} aria-hidden /><div><h2>Outbox</h2><p>{dashboard.counts.pendingOutbox.toLocaleString()} pending · {dashboard.counts.deadOutbox.toLocaleString()} dead</p><a href="/ops/queues">Inspect queue health</a></div><Badge tone={dashboard.counts.deadOutbox ? "danger" : "canonical"}>{dashboard.counts.deadOutbox ? "Needs attention" : "Clear"}</Badge></Card>
+        </div>
+        <section className="admin-activity" aria-labelledby="recent-activity-title"><div className="admin-section-heading"><Activity size={18} aria-hidden /><h2 id="recent-activity-title">Recent privileged activity</h2><a href="/security/audit">Open audit log</a></div>{dashboard.recentActivity.length ? <ol>{dashboard.recentActivity.map((entry) => <li key={entry.id}><span className={`admin-status-dot admin-status-dot--${entry.outcome}`} /><div><strong>{entry.action}</strong><p>{entry.actor.label || entry.actor.id || entry.actor.kind} · {entry.target.label || entry.target.id || entry.target.kind}</p></div><time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time></li>)}</ol> : <Card>No recent privileged activity is recorded.</Card>}</section>
+      </>}
+    </AsyncState>
+    <h2 className="admin-section-title">Appearance</h2><ThemePicker />
+  </>;
 }

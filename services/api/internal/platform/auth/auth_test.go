@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/fairuse"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
 )
 
@@ -20,6 +21,71 @@ type authTestLimiter struct{ decision Decision }
 
 func (l authTestLimiter) Allow(context.Context, identity.Identity, identity.Allowance, identity.CostClass) (Decision, error) {
 	return l.decision, nil
+}
+
+type captureLimiter struct{ allowance identity.Allowance }
+
+func (l *captureLimiter) Allow(_ context.Context, _ identity.Identity, a identity.Allowance, _ identity.CostClass) (Decision, error) {
+	l.allowance = a
+	return Decision{Allowed: true, Limit: a.BurstUnits}, nil
+}
+
+type policyRepo struct{ policy *identity.FairUsePolicy }
+
+func (r *policyRepo) CurrentPolicy(context.Context, time.Time) (*identity.FairUsePolicy, error) {
+	return r.policy, nil
+}
+func (*policyRepo) CurrentOverride(context.Context, string, time.Time) (*identity.FairUseOverride, error) {
+	return nil, nil
+}
+
+func TestAuthorizeUsesLivePolicyAndKeepsSandboxStricter(t *testing.T) {
+	now := time.Now().UTC()
+	p := identity.DefaultFairUsePolicy()
+	p.Revision = 2
+	p.CreatedAt = now.Add(-time.Minute)
+	p.EffectiveFrom = p.CreatedAt
+	p.Reason = "capacity measurement"
+	p.Authenticated.BurstUnits = 900
+	p.Sandbox.BurstUnits = 90
+	repo := &policyRepo{policy: &p}
+	resolver := fairuse.NewResolver(repo, time.Hour)
+	limiter := &captureLimiter{}
+	a := New(authTestKeys{}, limiter, true).WithFairUseResolver(resolver)
+	if _, _, err := a.Authorize(context.Background(), "", "203.0.113.1", "", identity.CostCheap); err != nil {
+		t.Fatal(err)
+	}
+	if limiter.allowance.BurstUnits != 90 {
+		t.Fatalf("sandbox burst=%d, want 90", limiter.allowance.BurstUnits)
+	}
+	p.Sandbox.BurstUnits = 80
+	resolver.Invalidate()
+	if _, _, err := a.Authorize(context.Background(), "", "203.0.113.1", "", identity.CostCheap); err != nil {
+		t.Fatal(err)
+	}
+	if limiter.allowance.BurstUnits != 80 {
+		t.Fatalf("refreshed sandbox burst=%d, want 80", limiter.allowance.BurstUnits)
+	}
+}
+
+func TestDisabledCostClassPreservesRateLimitHeaders(t *testing.T) {
+	now := time.Now().UTC()
+	p := identity.DefaultFairUsePolicy()
+	p.Revision = 2
+	p.CreatedAt = now.Add(-time.Minute)
+	p.EffectiveFrom = p.CreatedAt
+	p.Reason = "disable expensive geometry"
+	p.CostCeilings[identity.CostGeometry] = 0
+	a := New(authTestKeys{}, &captureLimiter{}, false).WithFairUseResolver(fairuse.NewResolver(&policyRepo{policy: &p}, time.Hour))
+	h := a.Middleware(func(*http.Request) identity.CostClass { return identity.CostGeometry })(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("disabled request reached handler") }))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/boundaries/x", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	if rec.Header().Get("X-RateLimit-Limit") == "" || rec.Header().Get("X-RateLimit-Remaining") == "" || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("missing compatibility headers: %v", rec.Header())
+	}
 }
 
 type authTestAlerts struct{ events []securityalert.Event }

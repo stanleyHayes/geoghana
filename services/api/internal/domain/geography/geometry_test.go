@@ -11,6 +11,18 @@ func square() Ring {
 	return Ring{{-0.3, 5.5}, {-0.1, 5.5}, {-0.1, 5.7}, {-0.3, 5.7}, {-0.3, 5.5}}
 }
 
+func TestPolygonContainsGeometry(t *testing.T) {
+	parent := polygon(Ring{{-2, 5}, {0, 5}, {0, 7}, {-2, 7}, {-2, 5}})
+	inside := polygon(Ring{{-1.5, 5.5}, {-1, 5.5}, {-1, 6}, {-1.5, 6}, {-1.5, 5.5}})
+	outside := polygon(Ring{{-1, 6}, {0.5, 6}, {0.5, 6.5}, {-1, 6.5}, {-1, 6}})
+	if !parent.ContainsGeometry(inside) {
+		t.Fatal("contained child was rejected")
+	}
+	if parent.ContainsGeometry(outside) {
+		t.Fatal("boundary crossing its parent was accepted")
+	}
+}
+
 func polygon(rings ...Ring) *Geometry {
 	coords := make([][][]float64, 0, len(rings))
 	for _, r := range rings {

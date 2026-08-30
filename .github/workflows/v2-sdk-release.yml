@@ -1,0 +1,109 @@
+name: V2 SDK coordinated release
+
+on:
+  push:
+    tags: ["v2.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer without the v prefix
+        required: true
+        type: string
+      publish:
+        description: Publish after rehearsal (requires protected sdk-release environment)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: v2-sdk-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality-gates:
+    name: Require complete SDK matrix and docs checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Wait for same-commit quality evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: ruby scripts/verify-sdk-required-checks.rb "$REPOSITORY" "$REVISION"
+
+  rehearse:
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { fetch-depth: 0 }
+      - id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          value="${GITHUB_REF_NAME#v}"
+          if [[ "${GITHUB_EVENT_NAME}" == workflow_dispatch ]]; then value="$INPUT_VERSION"; fi
+          [[ "$value" =~ ^2\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]] || exit 2
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with: { version: 11 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.13" }
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version-file: sdks/go/go.mod }
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
+        with: { sdk: 3.13.2 }
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with: { flutter-version: 3.47.2, channel: stable }
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with: { global-json-file: sdks/dotnet/global.json }
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with: { php-version: "8.3", tools: composer }
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install pinned protobuf generators
+        run: |
+          curl -fsSLo /tmp/protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v33.2/protoc-33.2-linux-x86_64.zip
+          echo "b24b53f87c151bfd48b112fe4c3a6e6574e5198874f38036aff41df3456b8caf  /tmp/protoc.zip" | shasum -a 256 -c -
+          unzip -q /tmp/protoc.zip -d "$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          GOBIN="$HOME/.local/bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          GOBIN="$HOME/.local/bin" go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - name: Prove isolated Java prerelease and stable staging
+        run: ./scripts/test-java-sdk-release-staging.sh
+      - name: Rehearse every SDK without publishing
+        run: ./scripts/rehearse-v2-sdk-release.sh "${{ steps.version.outputs.value }}"
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: release/v2/${{ steps.version.outputs.value }}/**
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ghanageo-v2-sdk-${{ steps.version.outputs.value }}
+          path: release/v2/${{ steps.version.outputs.value }}/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' || inputs.publish
+    needs: rehearse
+    uses: ./.github/workflows/v2-sdk-publish.yml
+    with:
+      version: ${{ needs.rehearse.outputs.version }}
+      commit: ${{ github.sha }}
+      artifact-name: ghanageo-v2-sdk-${{ needs.rehearse.outputs.version }}
+    secrets: inherit

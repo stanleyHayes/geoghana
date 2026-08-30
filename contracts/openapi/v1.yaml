@@ -400,6 +400,37 @@ paths:
       security: []
       requestBody: { $ref: "#/components/requestBodies/JsonBody" }
       responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /auth/password-reset/request:
+    post:
+      operationId: requestPasswordReset
+      summary: Request a password-reset email
+      description: Always returns the same accepted response, whether or not the address belongs to an account.
+      tags: [Accounts]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordResetRequest" }
+      responses:
+        "202": { $ref: "#/components/responses/Success" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /auth/password-reset/confirm:
+    post:
+      operationId: confirmPasswordReset
+      summary: Replace a password using a single-use reset token
+      description: A successful reset revokes every existing browser session for the account.
+      tags: [Accounts]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordResetConfirmation" }
+      responses:
+        "200": { $ref: "#/components/responses/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
   /auth/login:
     post:
       operationId: login
@@ -638,13 +669,306 @@ paths:
       tags: [Administration]
       security: [{ SessionCookie: [] }]
       responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" } }
+  /admin/fair-use/policy:
+    get:
+      operationId: getAdminFairUsePolicy
+      summary: Read the currently effective fair-use policy
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      responses:
+        "200": { description: Current policy, content: { application/json: { schema: { type: object, properties: { data: { $ref: "#/components/schemas/FairUsePolicy" } } } } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/fair-use/policies:
+    post:
+      operationId: appendAdminFairUsePolicy
+      summary: Append an immutable fair-use policy revision
+      description: Requires the fairuse:manage permission. The reason is mandatory and the policy plus audit evidence commit atomically.
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/FairUsePolicyInput" } } }
+      responses:
+        "201": { description: Policy appended, content: { application/json: { schema: { type: object, properties: { data: { $ref: "#/components/schemas/FairUsePolicy" } } } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/fair-use/overrides:
+    post:
+      operationId: appendAdminFairUseOverride
+      summary: Append a temporary application fair-use override
+      description: Requires fairuse:manage. Enabled overrides must document a reason, increase rather than reduce the public allowance, and have an expiry.
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/FairUseOverrideInput" } } }
+      responses:
+        "201": { $ref: "#/components/responses/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      summary: Read canonical record counts, current release and recent activity
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/developers/organizations:
+    get:
+      operationId: listAdminDeveloperOrganizations
+      summary: Search organizations globally without credential material
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/SearchQuery" }, { $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/developers/accounts:
+    get:
+      operationId: listAdminDeveloperAccounts
+      summary: Search developer accounts globally without authentication material
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/SearchQuery" }, { $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/developers/applications:
+    get:
+      operationId: listAdminDeveloperApplications
+      summary: Search applications globally
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/SearchQuery" }
+        - { name: organizationId, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/developers/keys:
+    get:
+      operationId: listAdminDeveloperKeys
+      summary: Search secret-free API-key metadata globally
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/SearchQuery" }
+        - { name: organizationId, in: query, schema: { type: string } }
+        - { name: applicationId, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string, enum: [active, suspended, revoked] } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/developers/usage:
+    get:
+      operationId: getAdminDeveloperUsage
+      summary: Read an application's attributed usage summary
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { name: organizationId, in: query, required: true, schema: { type: string } }
+        - { name: applicationId, in: query, required: true, schema: { type: string } }
+        - { name: since, in: query, schema: { type: string, format: date-time } }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/developers/requests:
+    get:
+      operationId: listAdminDeveloperRequests
+      summary: Page through an application's secret-free request log
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { name: organizationId, in: query, required: true, schema: { type: string } }
+        - { name: applicationId, in: query, required: true, schema: { type: string } }
+        - { name: before, in: query, schema: { type: string, format: date-time } }
+        - { $ref: "#/components/parameters/Limit" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/developers/keys/{keyId}/suspend:
+    post:
+      operationId: suspendAdminDeveloperKey
+      summary: Suspend an active API key with mandatory audit reason
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/KeyId" }]
+      requestBody: { $ref: "#/components/requestBodies/ReasonBody" }
+      responses: { "204": { description: Key suspended. }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" }, "409": { $ref: "#/components/responses/Conflict" } }
+  /admin/developers/keys/{keyId}/revoke:
+    post:
+      operationId: revokeAdminDeveloperKey
+      summary: Permanently revoke an API key with mandatory audit reason
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/KeyId" }]
+      requestBody: { $ref: "#/components/requestBodies/ReasonBody" }
+      responses: { "204": { description: Key revoked. }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" }, "409": { $ref: "#/components/responses/Conflict" } }
+  /admin/system-health:
+    get:
+      operationId: getAdminSystemHealth
+      summary: Read measured dependency, queue and ETL health
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/audit-log:
+    get:
+      operationId: listAdminAuditLog
+      summary: Page through the immutable audit log
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { name: actor, in: query, schema: { type: string } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: target, in: query, schema: { type: string } }
+        - { name: outcome, in: query, schema: { type: string, enum: [succeeded, failed] } }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/source-runs:
+    get:
+      operationId: listAdminSourceRuns
+      summary: Page through source import runs recorded in the audit trail
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/source-runs/{id}:
+    get:
+      operationId: getAdminSourceRun
+      summary: Read one immutable source import run
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /admin/source-runs/{id}/records:
+    get:
+      operationId: listAdminSourceRunRecords
+      summary: Page through privacy-safe raw-record references for a durable import run
+      description: Historical audit-only runs return an empty page with meta.detailAvailability set to historical_summary_only because per-record data was never retained.
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /admin/source-runs/{id}/records/{recordId}:
+    get:
+      operationId: getAdminSourceRunRecord
+      summary: Read one privacy-safe raw-record reference and its SHA-256 payload digest
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+        - { name: recordId, in: path, required: true, schema: { type: string, pattern: "^src_[a-f0-9]{32}$" } }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /admin/source-runs/{id}/conflicts:
+    get:
+      operationId: listAdminSourceRunConflicts
+      summary: Page through durable reconciliation-conflict records for an import run
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /admin/source-runs/{id}/duplicates:
+    get:
+      operationId: listAdminSourceRunDuplicates
+      summary: Page through durable duplicate-candidate records for an import run
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /admin/dataset-releases:
+    get:
+      operationId: listAdminDatasetReleases
+      summary: Page through every dataset release lifecycle state
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/dataset-releases/{version}/readiness:
+    get:
+      operationId: getAdminDatasetReleaseReadiness
+      summary: Validate whether a dataset release is ready to publish
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ name: version, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /admin/dataset-releases/{version}/advance:
+    post:
+      operationId: advanceAdminDatasetRelease
+      summary: Advance a release through validation, review, and approval
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ name: version, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [toStatus, reason]
+              properties:
+                toStatus: { type: string, enum: [validation, review, approved] }
+                reason: { type: string, minLength: 1, maxLength: 1000 }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" }, "409": { $ref: "#/components/responses/Conflict" } }
+  /admin/dataset-releases/{version}/changelog:
+    put:
+      operationId: updateAdminDatasetReleaseChangelog
+      summary: Author audited release notes before publication
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ name: version, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [changelog, reason]
+              properties:
+                changelog: { type: string, minLength: 1, maxLength: 20000 }
+                reason: { type: string, minLength: 1, maxLength: 1000 }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" }, "409": { $ref: "#/components/responses/Conflict" } }
+  /admin/dataset-releases/{version}/publish:
+    post:
+      operationId: publishAdminDatasetRelease
+      summary: Publish an approved dataset release after exact confirmation
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ name: version, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [confirmVersion]
+              properties:
+                confirmVersion: { type: string, description: Must exactly equal the version path parameter. }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /admin/dataset-releases/{version}/rollback:
+    post:
+      operationId: rollbackAdminDatasetRelease
+      summary: Restore a rolled-back dataset release after exact confirmation
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ name: version, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [confirmVersion, reason]
+              properties:
+                confirmVersion: { type: string, description: Must exactly equal the version path parameter. }
+                reason: { type: string, minLength: 1, description: Immutable rollback rationale recorded in the audit trail. }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
   /admin/regions/{id}:
     patch:
       operationId: updateAdminRegion
       summary: Update a region as an authorized steward
       tags: [Administration]
       security: [{ SessionCookie: [] }]
-      parameters: [{ $ref: "#/components/parameters/Id" }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/IdempotencyKey" }]
       requestBody: { $ref: "#/components/requestBodies/JsonBody" }
       responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
   /admin/districts/{id}:
@@ -653,7 +977,7 @@ paths:
       summary: Update a district as an authorized steward
       tags: [Administration]
       security: [{ SessionCookie: [] }]
-      parameters: [{ $ref: "#/components/parameters/Id" }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/IdempotencyKey" }]
       requestBody: { $ref: "#/components/requestBodies/JsonBody" }
       responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
   /admin/places/{id}:
@@ -662,18 +986,197 @@ paths:
       summary: Update a place as an authorized steward
       tags: [Administration]
       security: [{ SessionCookie: [] }]
-      parameters: [{ $ref: "#/components/parameters/Id" }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/IdempotencyKey" }]
       requestBody: { $ref: "#/components/requestBodies/JsonBody" }
       responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
-  /admin/places/{id}/deprecate:
+  /admin/geography/{kind}:
     post:
-      operationId: deprecateAdminPlace
-      summary: Deprecate a place into a resolvable redirect
+      operationId: createAdminGeography
+      summary: Create a canonical region, district, place, road, or POI
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { name: kind, in: path, required: true, schema: { type: string, enum: [regions, districts, places, roads, pois] } }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses:
+        "201": { $ref: "#/components/responses/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/geography/{kind}/{id}/deprecate:
+    post:
+      operationId: deprecateAdminGeography
+      summary: Deprecate or merge a canonical region, district, place, road, or POI
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { name: kind, in: path, required: true, schema: { type: string, enum: [regions, districts, places, roads, pois] } }
+        - { $ref: "#/components/parameters/Id" }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody: { $ref: "#/components/requestBodies/JsonBody" }
+      responses:
+        "200": { $ref: "#/components/responses/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/redirects:
+    get:
+      operationId: listAdminRedirects
+      summary: List durable canonical identifier redirects
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /admin/places/{id}/aliases:
+    get:
+      operationId: listAdminPlaceAliases
+      summary: List active and deprecated aliases for one place
       tags: [Administration]
       security: [{ SessionCookie: [] }]
       parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" } }
+    post:
+      operationId: createAdminPlaceAlias
+      summary: Create an alias and atomically add it to the canonical place projection
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/IdempotencyKey" }]
       requestBody: { $ref: "#/components/requestBodies/JsonBody" }
-      responses: { "200": { $ref: "#/components/responses/Success" }, "403": { $ref: "#/components/responses/Forbidden" } }
+      responses: { "201": { $ref: "#/components/responses/Success" }, "400": { $ref: "#/components/responses/BadRequest" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "409": { $ref: "#/components/responses/Conflict" } }
+  /admin/places/{id}/aliases/{aliasId}/deprecate:
+    post:
+      operationId: deprecateAdminPlaceAlias
+      summary: Deprecate an alias and atomically remove it from the canonical place projection
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+        - { name: aliasId, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      responses: { "200": { $ref: "#/components/responses/Success" }, "401": { $ref: "#/components/responses/Unauthenticated" }, "403": { $ref: "#/components/responses/Forbidden" }, "409": { $ref: "#/components/responses/Conflict" } }
+  /admin/boundaries/{kind}/{id}:
+    get:
+      operationId: getAdminBoundary
+      summary: Read a canonical region or district boundary for editing
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { name: kind, in: path, required: true, schema: { type: string, enum: [region, district] } }
+        - { $ref: "#/components/parameters/Id" }
+      responses:
+        "200":
+          description: Boundary and a strong ETag used for compare-and-swap
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/BoundaryEnvelope" } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      operationId: updateAdminBoundary
+      summary: Replace a canonical region or district boundary with compare-and-swap
+      description: Requires an authenticated MFA-complete steward session with geography:edit and geometry:edit permissions. Invalid coordinates and self-intersecting polygons are rejected before persistence.
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { name: kind, in: path, required: true, schema: { type: string, enum: [region, district] } }
+        - { $ref: "#/components/parameters/Id" }
+        - { name: If-Match, in: header, required: true, schema: { type: string }, description: Strong ETag returned by GET. }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/BoundaryGeometry" } } }
+      responses:
+        "200":
+          description: Updated boundary
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/BoundaryEnvelope" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /admin/change-requests:
+    get:
+      operationId: listAdminChangeRequests
+      summary: Page through change requests visible to the steward
+      description: Contributors only receive their own proposals; actors with change:review may filter and view the whole moderation queue.
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { name: state, in: query, schema: { $ref: "#/components/schemas/ChangeRequestState" } }
+        - { name: targetKind, in: query, schema: { type: string } }
+        - { name: targetId, in: query, schema: { type: string } }
+        - { name: submitterId, in: query, schema: { type: string } }
+        - { name: reviewerId, in: query, schema: { type: string } }
+      responses:
+        "200": { description: Visible change-request page, content: { application/json: { schema: { $ref: "#/components/schemas/ChangeRequestPage" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createAdminChangeRequest
+      summary: Submit a change request with immutable source evidence
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CreateChangeRequest" } } }
+      responses:
+        "201": { description: Submitted or idempotently replayed change request, content: { application/json: { schema: { $ref: "#/components/schemas/ChangeRequestEnvelope" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/change-requests/{id}:
+    get:
+      operationId: getAdminChangeRequest
+      summary: Read one visible change request and its append-only history
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200": { description: Change request, content: { application/json: { schema: { $ref: "#/components/schemas/ChangeRequestEnvelope" } } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /admin/change-requests/{id}/transitions:
+    post:
+      operationId: transitionAdminChangeRequest
+      summary: Apply a reviewer-only state transition using compare-and-swap
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ChangeRequestTransition" } } } }
+      responses: &changeRequestMutationResponses
+        "200": { description: Updated change request, content: { application/json: { schema: { $ref: "#/components/schemas/ChangeRequestEnvelope" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/change-requests/{id}/revisions:
+    post:
+      operationId: reviseAdminChangeRequest
+      summary: Append a submitter-owned revision using compare-and-swap
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ChangeRequestRevisionInput" } } } }
+      responses: *changeRequestMutationResponses
+  /admin/change-requests/{id}/comments:
+    post:
+      operationId: commentAdminChangeRequest
+      summary: Append a reviewer comment using compare-and-swap
+      tags: [Administration]
+      security: [{ SessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ChangeRequestCommentInput" } } } }
+      responses: *changeRequestMutationResponses
 
 components:
   securitySchemes:
@@ -689,7 +1192,7 @@ components:
     SessionCookie:
       type: apiKey
       in: cookie
-      name: ghanageo_session
+      name: gg_session
       description: Rotating HttpOnly browser session. Mutations also require an allowed Origin.
 
   requestBodies:
@@ -698,6 +1201,16 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/JsonObject" }
+    ReasonBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties:
+              reason: { type: string, minLength: 1, maxLength: 1000 }
 
   parameters:
     Id:
@@ -727,10 +1240,21 @@ components:
       in: query
       schema: { type: string }
       description: "Opaque cursor from a previous response's `nextCursor`."
+    SearchQuery:
+      name: q
+      in: query
+      schema: { type: string }
+      description: Case-insensitive support search across safe display identifiers.
     Limit:
       name: limit
       in: query
       schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Unique caller-generated key. Replays return the already committed result without duplicating audit evidence.
+      schema: { type: string, minLength: 1, maxLength: 128 }
     Query:
       name: q
       in: query
@@ -789,11 +1313,171 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: The expected version no longer matches. Refresh before retrying with a new idempotency key.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    ChangeRequestState:
+      type: string
+      enum: [submitted, in_review, changes_requested, approved, rejected]
+    ChangeRequestEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        sourceId: { type: string }
+        sourceRecordIds: { type: array, items: { type: string } }
+        duplicateCandidateIds: { type: array, items: { type: string } }
+        reconciliationConflictIds: { type: array, items: { type: string } }
+        references: { type: array, items: { type: string } }
+    ChangeRequestSnapshot:
+      type: object
+      required: [before, after, digest]
+      properties:
+        before: { $ref: "#/components/schemas/JsonObject" }
+        after: { $ref: "#/components/schemas/JsonObject" }
+        digest: { type: string, pattern: "^[a-f0-9]{64}$" }
+    ChangeRequest:
+      type: object
+      required: [id, target, proposedPatch, snapshot, evidence, submitterId, state, comments, history, revisions, version, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^cr_[0-9A-HJKMNP-TV-Z]{26}$" }
+        target:
+          type: object
+          required: [kind, id]
+          properties: { kind: { type: string }, id: { type: string } }
+        proposedPatch: { $ref: "#/components/schemas/JsonObject" }
+        snapshot: { $ref: "#/components/schemas/ChangeRequestSnapshot" }
+        evidence: { $ref: "#/components/schemas/ChangeRequestEvidence" }
+        submitterId: { type: string }
+        reviewerId: { type: string }
+        state: { $ref: "#/components/schemas/ChangeRequestState" }
+        comments: { type: array, items: { $ref: "#/components/schemas/ChangeRequestComment" } }
+        history: { type: array, items: { $ref: "#/components/schemas/ChangeRequestHistoryEvent" } }
+        revisions: { type: array, items: { $ref: "#/components/schemas/ChangeRequestRevision" } }
+        version: { type: integer, format: int64, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ChangeRequestComment:
+      type: object
+      required: [id, authorId, body, createdAt]
+      properties: { id: { type: string }, authorId: { type: string }, body: { type: string }, createdAt: { type: string, format: date-time } }
+    ChangeRequestHistoryEvent:
+      type: object
+      required: [id, to, actorId, createdAt]
+      properties: { id: { type: string }, from: { $ref: "#/components/schemas/ChangeRequestState" }, to: { $ref: "#/components/schemas/ChangeRequestState" }, actorId: { type: string }, comment: { type: string }, createdAt: { type: string, format: date-time } }
+    ChangeRequestRevision:
+      type: object
+      required: [number, proposedPatch, snapshot, evidence, actorId, createdAt]
+      properties: { number: { type: integer, format: int64, minimum: 1 }, proposedPatch: { $ref: "#/components/schemas/JsonObject" }, snapshot: { $ref: "#/components/schemas/ChangeRequestSnapshot" }, evidence: { $ref: "#/components/schemas/ChangeRequestEvidence" }, actorId: { type: string }, createdAt: { type: string, format: date-time } }
+    ChangeRequestEnvelope:
+      type: object
+      required: [data]
+      properties: { data: { $ref: "#/components/schemas/ChangeRequest" } }
+    ChangeRequestPage:
+      type: object
+      required: [data]
+      properties: { data: { type: array, items: { $ref: "#/components/schemas/ChangeRequest" } }, nextCursor: { type: string } }
+    CreateChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [target, proposedPatch, before, after, evidence]
+      properties:
+        target: { type: object, required: [kind, id], properties: { kind: { type: string }, id: { type: string } } }
+        proposedPatch: { $ref: "#/components/schemas/JsonObject" }
+        before: { $ref: "#/components/schemas/JsonObject" }
+        after: { $ref: "#/components/schemas/JsonObject" }
+        evidence: { $ref: "#/components/schemas/ChangeRequestEvidence" }
+    ChangeRequestTransition:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, state]
+      properties: { expectedVersion: { type: integer, format: int64, minimum: 1 }, state: { type: string, enum: [in_review, changes_requested, approved, rejected] }, comment: { type: string } }
+    ChangeRequestRevisionInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, proposedPatch, after, evidence]
+      properties: { expectedVersion: { type: integer, format: int64, minimum: 1 }, proposedPatch: { $ref: "#/components/schemas/JsonObject" }, after: { $ref: "#/components/schemas/JsonObject" }, evidence: { $ref: "#/components/schemas/ChangeRequestEvidence" }, comment: { type: string } }
+    ChangeRequestCommentInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, body]
+      properties: { expectedVersion: { type: integer, format: int64, minimum: 1 }, body: { type: string, minLength: 1 } }
+    FairUseAllowance:
+      type: object
+      additionalProperties: false
+      required: [burstUnits, refillPerSecond, windowSeconds]
+      properties:
+        burstUnits: { type: integer, minimum: 1 }
+        refillPerSecond: { type: number, exclusiveMinimum: 0 }
+        windowSeconds: { type: integer, minimum: 1 }
+    FairUseCostCeilings:
+      type: object
+      additionalProperties: false
+      required: [cheap, normal, spatial, geometry]
+      properties:
+        cheap: { type: integer, minimum: 0 }
+        normal: { type: integer, minimum: 0 }
+        spatial: { type: integer, minimum: 0 }
+        geometry: { type: integer, minimum: 0 }
+    FairUsePolicyInput:
+      type: object
+      additionalProperties: false
+      required: [revision, anonymous, authenticated, sandbox, costCeilings, reason, effectiveFrom]
+      properties:
+        revision: { type: integer, format: int64, minimum: 1 }
+        anonymous: { $ref: "#/components/schemas/FairUseAllowance" }
+        authenticated: { $ref: "#/components/schemas/FairUseAllowance" }
+        sandbox: { $ref: "#/components/schemas/FairUseAllowance" }
+        costCeilings: { $ref: "#/components/schemas/FairUseCostCeilings" }
+        reason: { type: string, minLength: 1 }
+        effectiveFrom: { type: string, format: date-time }
+    FairUsePolicy:
+      allOf:
+        - { $ref: "#/components/schemas/FairUsePolicyInput" }
+        - type: object
+          required: [id, actorId, createdAt]
+          properties:
+            id: { type: string, const: public-default }
+            actorId: { type: string }
+            createdAt: { type: string, format: date-time }
+    FairUseOverrideInput:
+      type: object
+      additionalProperties: false
+      required: [applicationId, allowance, costCeilings, enabled, reason, expiresAt]
+      properties:
+        id: { type: string, description: Optional client idempotency identifier. }
+        applicationId: { type: string, minLength: 1 }
+        allowance: { $ref: "#/components/schemas/FairUseAllowance" }
+        costCeilings: { $ref: "#/components/schemas/FairUseCostCeilings" }
+        enabled: { type: boolean }
+        reason: { type: string, minLength: 1 }
+        expiresAt: { type: string, format: date-time }
+        supersedesId: { type: string }
     JsonObject:
       type: object
       additionalProperties: true
+
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+
+    PasswordResetConfirmation:
+      type: object
+      additionalProperties: false
+      required: [token, password]
+      properties:
+        token: { type: string, minLength: 32, maxLength: 256 }
+        password:
+          type: string
+          minLength: 12
+          maxLength: 1024
+          description: Must satisfy the server password policy; never logged or returned.
 
     Error:
       type: object
@@ -890,10 +1574,28 @@ components:
       type: object
       required: [value]
       properties:
+        id: { type: string }
+        placeId: { type: string }
         value: { type: string, description: "Preserves the true orthography, including Twi, Ga and Ewe characters." }
         type: { type: string }
         language: { type: string, example: tw }
         isPreferred: { type: boolean }
+        status: { $ref: "#/components/schemas/Status" }
+
+    BoundaryGeometry:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { type: string, enum: [Polygon, MultiPolygon] }
+        coordinates: { type: array, items: {}, description: GeoJSON coordinate arrays in longitude-latitude order. }
+    BoundaryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - { $ref: "#/components/schemas/BoundaryGeometry" }
+            - { type: "null" }
 
     Place:
       type: object

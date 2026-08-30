@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { QueryClient } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import type { PropsWithChildren } from "react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { GhanaGeoClient } from "@ghanageo/client";
 import { GhanaGeoProvider, ghanaGeoKeys, useGhanaGeoClient, useRegions, useSearch } from "../src";
 
@@ -39,6 +39,33 @@ describe("@ghanageo/react", () => {
     const first = result.current;
     rerender();
     expect(result.current).toBe(first);
+  });
+
+  it("recreates an options-owned client when retry or telemetry configuration changes", () => {
+    let observed: GhanaGeoClient | undefined;
+    function Consumer() { observed = useGhanaGeoClient(); return null; }
+    const fetcher = vi.fn<typeof fetch>();
+    const firstRetry = { maxRetries: 1 };
+    const secondRetry = { maxRetries: 2 };
+    const firstTelemetry = { onEvent: vi.fn() };
+    const secondTelemetry = { onEvent: vi.fn() };
+    const view = render(<GhanaGeoProvider options={{ fetcher, retry: firstRetry, telemetry: firstTelemetry }}><Consumer /></GhanaGeoProvider>);
+    const first = observed;
+    view.rerender(<GhanaGeoProvider options={{ fetcher, retry: secondRetry, telemetry: firstTelemetry }}><Consumer /></GhanaGeoProvider>);
+    const second = observed;
+    view.rerender(<GhanaGeoProvider options={{ fetcher, retry: secondRetry, telemetry: secondTelemetry }}><Consumer /></GhanaGeoProvider>);
+    expect(second).not.toBe(first);
+    expect(observed).not.toBe(second);
+  });
+
+  it("does not amplify client failures with an additional TanStack retry layer", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => HttpResponse.json({ error: { code: "INTERNAL", message: "failed" } }, { status: 500 }));
+    function Wrapper({ children }: PropsWithChildren) {
+      return <GhanaGeoProvider options={{ baseUrl: "https://example.test/v1", fetcher, retry: false }}>{children}</GhanaGeoProvider>;
+    }
+    const { result } = renderHook(() => useRegions(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it("deduplicates concurrent region hooks", async () => {

@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/dataset"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/outbox"
 )
@@ -172,10 +173,63 @@ func (r *DatasetRepo) Upsert(ctx context.Context, v dataset.Version) error {
 	return nil
 }
 
+// UpdateAudited compare-and-swaps one unpublished release and appends its
+// immutable audit evidence in the same transaction.
+func (r *DatasetRepo) UpdateAudited(ctx context.Context, before, after dataset.Version, evidence audit.Entry) error {
+	auditAppendMu.Lock()
+	defer auditAppendMu.Unlock()
+	for _, artifact := range after.Artifacts {
+		if err := artifact.SafeFilename(); err != nil {
+			return err
+		}
+	}
+	session, err := r.s.client.StartSession()
+	if err != nil {
+		return fmt.Errorf("start dataset update transaction: %w", err)
+	}
+	defer session.EndSession(ctx)
+	_, err = session.WithTransaction(ctx, func(tx context.Context) (any, error) {
+		doc := fromDomain(after)
+		filter := bson.M{"_id": before.Version, "status": string(before.Status)}
+		if before.Changelog == "" {
+			filter["changelog"] = bson.M{"$in": bson.A{"", nil}}
+		} else {
+			filter["changelog"] = before.Changelog
+		}
+		result, replaceErr := r.col().ReplaceOne(tx, filter, doc)
+		if replaceErr != nil {
+			return nil, replaceErr
+		}
+		if result.MatchedCount != 1 {
+			return nil, fmt.Errorf("dataset release compare-and-swap conflict")
+		}
+		if _, auditErr := NewAuditRepo(r.s).append(tx, evidence); auditErr != nil {
+			return nil, auditErr
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return fmt.Errorf("update dataset version %s: %w", after.Version, err)
+	}
+	return nil
+}
+
 // Activate atomically demotes the previous release, promotes the next one and
 // records durable work for the background worker. Consumers can therefore
 // never observe a published version whose search rebuild event was lost.
 func (r *DatasetRepo) Activate(ctx context.Context, previous []dataset.Version, next dataset.Version) error {
+	return r.activate(ctx, previous, next, nil)
+}
+
+// ActivateAudited commits the catalogue transition, reindex outbox event and
+// immutable audit evidence in one transaction. None can exist without all.
+func (r *DatasetRepo) ActivateAudited(ctx context.Context, previous []dataset.Version, next dataset.Version, evidence audit.Entry) error {
+	auditAppendMu.Lock()
+	defer auditAppendMu.Unlock()
+	return r.activate(ctx, previous, next, &evidence)
+}
+
+func (r *DatasetRepo) activate(ctx context.Context, previous []dataset.Version, next dataset.Version, evidence *audit.Entry) error {
 	for _, version := range append(append([]dataset.Version{}, previous...), next) {
 		for _, artifact := range version.Artifacts {
 			if err := artifact.SafeFilename(); err != nil {
@@ -204,6 +258,11 @@ func (r *DatasetRepo) Activate(ctx context.Context, previous []dataset.Version, 
 			"version": next.Version, "publishedAt": next.PublishedAt,
 		}, now); enqueueErr != nil {
 			return nil, enqueueErr
+		}
+		if evidence != nil {
+			if _, auditErr := NewAuditRepo(r.s).append(tx, *evidence); auditErr != nil {
+				return nil, auditErr
+			}
 		}
 		return nil, nil
 	})

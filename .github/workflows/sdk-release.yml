@@ -1,9 +1,6 @@
 name: TypeScript SDK release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       version:
@@ -23,19 +20,21 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 11
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
+      - name: Verify seven-package release ownership
+        run: node scripts/check-sdk-release-ownership.mjs
 
       - name: Resolve and validate version
         id: release
@@ -54,33 +53,12 @@ jobs:
           }
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Stamp package versions
-        env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          for package_dir in core client react node data proto; do
-            npm --prefix "packages/${package_dir}" version "$RELEASE_VERSION" --no-git-tag-version
-          done
-
       - name: Verify source, tests and consumer tarballs
         run: ./scripts/verify-sdk-release.sh "${{ steps.release.outputs.version }}"
 
-      - name: Publish in dependency order
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          npm publish --access public --provenance "release/npm/ghanageo-core-${RELEASE_VERSION}.tgz"
-          npm publish --access public --provenance "release/npm/ghanageo-client-${RELEASE_VERSION}.tgz"
-          npm publish --access public --provenance "release/npm/ghanageo-react-${RELEASE_VERSION}.tgz"
-          npm publish --access public --provenance "release/npm/ghanageo-node-${RELEASE_VERSION}.tgz"
-          npm publish --access public --provenance "release/npm/ghanageo-data-${RELEASE_VERSION}.tgz"
-          npm publish --access public --provenance "release/npm/ghanageo-proto-${RELEASE_VERSION}.tgz"
-
       - name: Upload verified dry-run packages
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ghanageo-sdk-${{ steps.release.outputs.version }}
           path: release/npm/*.tgz

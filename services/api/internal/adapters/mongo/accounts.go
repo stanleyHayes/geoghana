@@ -159,6 +159,15 @@ func (r *AccountRepo) SetRecoveryCodes(ctx context.Context, id string, hashes []
 	return r.set(ctx, id, bson.M{"recoveryCodes": hashes})
 }
 
+// ResetMFA is reserved for explicit operator recovery. It clears every TOTP
+// credential together so an account cannot retain a secret without its
+// matching recovery state. Callers must revoke sessions separately.
+func (r *AccountRepo) ResetMFA(ctx context.Context, id string) error {
+	return r.set(ctx, id, bson.M{
+		"totpSecret": "", "totpLastStep": int64(0), "recoveryCodes": []string{},
+	})
+}
+
 // BumpSessionEpoch is "sign out everywhere": one write, every session dies.
 func (r *AccountRepo) BumpSessionEpoch(ctx context.Context, id string) error {
 	_, err := r.col().UpdateOne(ctx, bson.M{"_id": id}, bson.M{

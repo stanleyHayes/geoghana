@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3100",
     "typecheck": "tsc --noEmit",
+    "seo:check": "node ../../scripts/check-web-seo.mjs",
     "lint": "echo ok"
   },
   "dependencies": {

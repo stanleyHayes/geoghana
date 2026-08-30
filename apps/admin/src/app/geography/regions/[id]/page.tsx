@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { Card } from "@ghanageo/ui";
 import { PageHeader } from "@/components/screen";
 import { AsyncState, VerificationBadge, useApi } from "@/components/data";
 import { RecordEditor, SavedNotice } from "@/components/record-editor";
 import { SignInPanel } from "@/components/session";
 import {
-  VERIFICATION_OPTIONS, fetchRegion, updateRegion, type RegionRecord,
+  BoundaryEditor,
+  RetirementPanel,
+} from "@/components/geography-admin-controls";
+import {
+  VERIFICATION_OPTIONS,
+  fetchRegion,
+  updateRegion,
+  type RegionRecord,
 } from "@/lib/admin-api";
 
 export default function RegionDetail() {
@@ -25,47 +31,64 @@ export default function RegionDetail() {
 
   return (
     <>
-      <PageHeader eyebrow="Geography · Region" title="Region" lede="Edit the canonical record. Every change is audited." />
+      <PageHeader
+        eyebrow="Geography · Region"
+        title="Region"
+        lede="Edit the canonical record. Every change is audited."
+      />
       <SignInPanel />
       <SavedNotice at={savedAt} />
       <AsyncState state={state}>
         {(r) => (
           <div style={{ display: "grid", gap: "var(--space-5)" }}>
-            <RecordEditor
-              title={r.name}
-              recordId={r.id}
-              onSave={async (changes) => {
-                await updateRegion(r.id, changes);
-                setRev((v) => v + 1);
-              setSavedAt(Date.now());
-                setSavedAt(Date.now());
-              }}
-              fields={[
-                { key: "name", label: "Name", value: r.name },
-                { key: "capital", label: "Capital", value: r.capital ?? "" },
-                { key: "code", label: "Official code", value: r.code ?? "" },
-                {
-                  key: "verificationStatus", label: "Verification",
-                  value: r.verificationStatus, options: VERIFICATION_OPTIONS,
-                  hint: "A seed row is never promoted automatically (R5).",
-                },
-              ]}
-              footer={
-                <div className="gg-stack-row" style={{ marginTop: "var(--space-4)" }}>
-                  <VerificationBadge status={r.verificationStatus} />
-                  <span style={{ fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>
-                    Source: {r.provenance?.sourceId ?? "not recorded"}
-                  </span>
-                </div>
-              }
-            />
-            <Card data-intensity="restrained">
-              <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
-                A region is never deleted. Deprecating one would orphan every district
-                beneath it, so retirement is a dataset-release decision rather than a
-                record edit.
-              </p>
-            </Card>
+            <div id="editor">
+              <RecordEditor
+                title={r.name}
+                recordId={r.id}
+                onSave={async (changes) => {
+                  await updateRegion(r.id, changes);
+                  setRev((v) => v + 1);
+                  setSavedAt(Date.now());
+                }}
+                fields={[
+                  { key: "name", label: "Name", value: r.name },
+                  { key: "capital", label: "Capital", value: r.capital ?? "" },
+                  { key: "code", label: "Official code", value: r.code ?? "" },
+                  {
+                    key: "verificationStatus",
+                    label: "Verification",
+                    value: r.verificationStatus,
+                    options: VERIFICATION_OPTIONS,
+                    hint: "A seed row is never promoted automatically (R5).",
+                  },
+                ]}
+                footer={
+                  <div
+                    className="gg-stack-row"
+                    style={{ marginTop: "var(--space-4)" }}
+                  >
+                    <VerificationBadge status={r.verificationStatus} />
+                    <span
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        color: "var(--fg-muted)",
+                      }}
+                    >
+                      Source: {r.provenance?.sourceId ?? "not recorded"}
+                    </span>
+                  </div>
+                }
+              />
+            </div>
+            <BoundaryEditor kind="region" id={r.id} />
+            <div id="retire">
+              <RetirementPanel
+                kind="regions"
+                id={r.id}
+                status={r.status}
+                onChanged={() => setRev((v) => v + 1)}
+              />
+            </div>
           </div>
         )}
       </AsyncState>

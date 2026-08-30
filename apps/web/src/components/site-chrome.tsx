@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { sandboxOrigin } from "@/lib/seo";
 
 const primary = [
   { href: "/products", label: "Products" },
@@ -23,7 +24,7 @@ const primary = [
 
 const footerLinks = [
   { href: "/docs", label: "Start building", note: "REST, GraphQL, gRPC and CLI", icon: BookOpenText },
-  { href: "http://localhost:3101", label: "Open sandbox", note: "Run a request without an account", icon: FlaskConical },
+  { href: sandboxOrigin, label: "Open sandbox", note: "Run a request without an account", icon: FlaskConical },
   { href: "/about", label: "How the data works", note: "Sources, limits and governance", icon: Database },
   { href: "/support", label: "Support the public good", note: "Costs, donations and sponsors", icon: Heart },
 ];
@@ -41,7 +42,7 @@ export function MarketingHeader({ active }: { active?: string }) {
   return (
     <header className="marketing-header" data-intensity="expressive">
       <div className="marketing-header__inner">
-        <a className="marketing-brand" href="/" aria-label="GhanaGeo home">
+        <a className="marketing-brand" href="/">
           <span className="marketing-brand__mark" aria-hidden>GG</span>
           <span>
             <strong>GhanaGeo</strong>
@@ -59,7 +60,7 @@ export function MarketingHeader({ active }: { active?: string }) {
 
         <div className="marketing-header__actions">
           <ThemeMenu />
-          <a className="marketing-header__sandbox" href="http://localhost:3101">
+          <a className="marketing-header__sandbox" href={sandboxOrigin}>
             Try the API <ArrowUpRight size={15} aria-hidden />
           </a>
           <button
@@ -83,7 +84,7 @@ export function MarketingHeader({ active }: { active?: string }) {
             </a>
           ))}
           <a href="/support"><span>0{primary.length + 1}</span>Support GhanaGeo</a>
-          <a className="marketing-mobile-nav__cta" href="http://localhost:3101">
+          <a className="marketing-mobile-nav__cta" href={sandboxOrigin}>
             Open the sandbox <ArrowUpRight size={17} aria-hidden />
           </a>
         </nav>

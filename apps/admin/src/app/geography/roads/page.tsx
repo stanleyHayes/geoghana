@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { RoadsCatalogue } from "@/components/live-catalogues";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/geography/roads"]!} />;
+  return <RoadsCatalogue />;
 }

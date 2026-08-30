@@ -323,7 +323,7 @@ func TestPasswordHashing(t *testing.T) {
 	})
 
 	t.Run("rejects weak passwords", func(t *testing.T) {
-		for _, bad := range []string{"short", "password", "aaaaaaaaaaaaaaaa", ""} {
+		for _, bad := range []string{"short", "password", "aaaaaaaaaaaaaaaa", "", strings.Repeat("safe phrase ", 100)} {
 			if err := ValidatePassword(bad); err == nil {
 				t.Errorf("weak password %q accepted", bad)
 			}

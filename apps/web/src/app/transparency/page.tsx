@@ -4,12 +4,14 @@ import { ArrowRight, CalendarClock, FileText, ReceiptText, ShieldCheck } from "l
 import {
   CADENCE, COMMITMENTS, COST_LINES, INCOME_LINES, PERIODS, formatCents,
 } from "@/content/transparency";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Transparency — GhanaGeo",
   description:
     "What came in, what it cost to run, and what it paid for. The public funding ledger for GhanaGeo.",
-};
+  path: "/transparency",
+});
 
 type LedgerLines = readonly typeof COST_LINES[number][];
 

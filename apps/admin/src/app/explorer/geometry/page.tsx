@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { GeometryWorkspace } from "@/components/geography-admin-controls";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/explorer/geometry"]!} />;
+  return <GeometryWorkspace />;
 }

@@ -2,15 +2,260 @@ package geography
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/account"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	domain "github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
+	"github.com/ghanageo/ghanageo/services/api/internal/ports"
 )
+
+type CreateInput struct {
+	ID, Name, CountryCode, Capital, OfficialCode, RegionID, RegionName, DistrictID, DistrictName string
+	DistrictType, PlaceType, RoadClass, Ref, POIClass, Category, Attribution                     string
+	Centroid                                                                                     *domain.Coordinate
+	Geometry                                                                                     *domain.Geometry
+	Provenance                                                                                   domain.Provenance
+}
+
+func (s *Service) mutationEvidence(a Actor, action audit.Action, kind, id string, before, after map[string]any) (audit.Entry, error) {
+	e, err := audit.New(audit.Actor{Kind: audit.ActorAdmin, ID: a.ID, Label: a.Email, IP: a.IP}, action, audit.Target{Kind: kind, ID: id})
+	if err != nil {
+		return audit.Entry{}, err
+	}
+	return e.WithChange(before, after).WithRequest(a.RequestID), nil
+}
+
+func (s *Service) CreateAdminGeography(ctx context.Context, a Actor, kind string, in CreateInput) (any, error) {
+	if err := s.authorize(a, account.PermEditGeography); err != nil {
+		return nil, err
+	}
+	if s.admin == nil {
+		return nil, apierr.New(apierr.Internal, "Admin geography writes are not configured.")
+	}
+	baseStatus, verify := domain.StatusActive, domain.VerificationReviewed
+	var value any
+	switch kind {
+	case "region":
+		value = domain.Region{ID: in.ID, CountryCode: in.CountryCode, Name: in.Name, Capital: in.Capital, OfficialCode: in.OfficialCode, Status: baseStatus, VerificationStatus: verify, Centroid: in.Centroid, Geometry: in.Geometry, Provenance: in.Provenance, DatasetVersion: s.version}
+	case "district":
+		value = domain.District{ID: in.ID, RegionID: in.RegionID, RegionName: in.RegionName, Name: in.Name, DistrictType: in.DistrictType, OfficialCode: in.OfficialCode, Capital: in.Capital, Status: baseStatus, VerificationStatus: verify, Centroid: in.Centroid, Geometry: in.Geometry, Provenance: in.Provenance, DatasetVersion: s.version}
+	case "place":
+		pt, err := domain.ParsePlaceType(in.PlaceType)
+		if err != nil {
+			return nil, apierr.Wrap(apierr.InvalidArgument, "Unknown place type.", err)
+		}
+		value = domain.Place{ID: in.ID, Name: in.Name, Type: pt, RegionID: in.RegionID, RegionName: in.RegionName, DistrictID: in.DistrictID, DistrictName: in.DistrictName, Status: baseStatus, VerificationStatus: verify, Centroid: in.Centroid, Geometry: in.Geometry, Provenance: in.Provenance, DatasetVersion: s.version}
+	case "road":
+		rc, ok := domain.ParseRoadClass(in.RoadClass)
+		if !ok {
+			return nil, apierr.New(apierr.InvalidArgument, "Unknown road class.")
+		}
+		value = domain.Road{ID: in.ID, Name: in.Name, Ref: in.Ref, Class: rc, RegionID: in.RegionID, RegionName: in.RegionName, DistrictID: in.DistrictID, Geometry: in.Geometry, Status: baseStatus, VerificationStatus: verify, Provenance: in.Provenance, Attribution: in.Attribution, DatasetVersion: s.version}
+	case "poi":
+		value = domain.POI{ID: in.ID, Name: in.Name, Class: domain.POIClass(strings.ToUpper(in.POIClass)), Category: in.Category, RegionID: in.RegionID, RegionName: in.RegionName, DistrictID: in.DistrictID, Centroid: in.Centroid, Status: baseStatus, VerificationStatus: verify, Provenance: in.Provenance, Attribution: in.Attribution, DatasetVersion: s.version}
+	default:
+		return nil, apierr.New(apierr.InvalidArgument, "Unsupported geography kind.")
+	}
+	if !domain.IsULID(in.ID) {
+		return nil, apierr.New(apierr.InvalidArgument, "A valid ULID id is required.")
+	}
+	if in.Geometry != nil {
+		if err := in.Geometry.Validate(); err != nil {
+			return nil, apierr.Wrap(apierr.InvalidCoordinate, "Geometry is invalid.", err)
+		}
+	}
+	if kind == "district" && in.Geometry != nil {
+		if s.regionBoundaries == nil {
+			return nil, apierr.New(apierr.Internal, "Region boundaries are not configured.")
+		}
+		parent, err := s.regionBoundaries.GetGeometry(ctx, in.RegionID)
+		if err != nil || parent == nil || !parent.ContainsGeometry(in.Geometry) {
+			return nil, apierr.New(apierr.InvalidCoordinate, "District boundary must be contained by its region boundary.")
+		}
+	}
+	var err error
+	switch v := value.(type) {
+	case domain.Region:
+		err = v.Validate()
+	case domain.District:
+		err = v.Validate()
+	case domain.Place:
+		err = v.Validate()
+	case domain.Road:
+		err = v.Validate()
+		if err == nil {
+			err = v.Provenance.Validate()
+		}
+	case domain.POI:
+		err = v.Validate()
+		if err == nil {
+			err = v.Provenance.Validate()
+		}
+	}
+	if err != nil {
+		return nil, apierr.Wrap(apierr.InvalidArgument, "Geography record is invalid.", err)
+	}
+	e, _ := s.mutationEvidence(a, audit.ActionRecordUpdated, kind, in.ID, nil, map[string]any{"name": in.Name, "status": "ACTIVE"})
+	switch v := value.(type) {
+	case domain.Region:
+		err = s.admin.CreateRegion(ctx, v, e)
+	case domain.District:
+		err = s.admin.CreateDistrict(ctx, v, e)
+	case domain.Place:
+		err = s.admin.CreatePlace(ctx, v, e)
+	case domain.Road:
+		err = s.admin.CreateRoad(ctx, v, e)
+	case domain.POI:
+		err = s.admin.CreatePOI(ctx, v, e)
+	}
+	if err != nil {
+		return nil, apierr.Wrap(apierr.Conflict, "Could not create geography record.", err)
+	}
+	return value, nil
+}
+
+func (s *Service) DeprecateAdminGeography(ctx context.Context, a Actor, kind, id, target, reason string) error {
+	if err := s.authorize(a, account.PermEditGeography); err != nil {
+		return err
+	}
+	if s.admin == nil {
+		return apierr.New(apierr.Internal, "Admin geography writes are not configured.")
+	}
+	e, _ := s.mutationEvidence(a, audit.ActionRecordDeprecated, kind, id, nil, map[string]any{"status": map[bool]string{true: "MERGED", false: "DEPRECATED"}[target != ""], "mergedInto": target, "reason": reason})
+	if err := s.admin.Deprecate(ctx, kind, id, target, reason, e); err != nil {
+		return apierr.Wrap(apierr.Conflict, "Could not deprecate geography record.", err)
+	}
+	return nil
+}
+func (s *Service) ListAdminRedirects(ctx context.Context, a Actor, p ports.ListParams) (ports.Page[domain.Redirect], error) {
+	if err := s.authorize(a, account.PermViewGeography); err != nil {
+		return ports.Page[domain.Redirect]{}, err
+	}
+	return s.admin.ListRedirects(ctx, p)
+}
+func (s *Service) ListAdminAliases(ctx context.Context, a Actor, placeID string) ([]domain.Alias, error) {
+	if err := s.authorize(a, account.PermViewGeography); err != nil {
+		return nil, err
+	}
+	return s.admin.ListAliases(ctx, placeID)
+}
+func (s *Service) CreateAdminAlias(ctx context.Context, a Actor, x domain.Alias) error {
+	if err := s.authorize(a, account.PermEditGeography); err != nil {
+		return err
+	}
+	if !domain.IsULID(x.ID) || !domain.IsULID(x.PlaceID) || strings.TrimSpace(x.Value) == "" {
+		return apierr.New(apierr.InvalidArgument, "Alias id, place id and value are required.")
+	}
+	x.Status = domain.StatusActive
+	e, _ := s.mutationEvidence(a, audit.ActionRecordUpdated, "place_alias", x.ID, nil, map[string]any{"placeId": x.PlaceID, "value": x.Value, "status": "ACTIVE"})
+	if err := s.admin.CreateAlias(ctx, x, e); err != nil {
+		return apierr.Wrap(apierr.Conflict, "Could not create alias.", err)
+	}
+	return nil
+}
+func (s *Service) DeprecateAdminAlias(ctx context.Context, a Actor, placeID, id string) error {
+	if err := s.authorize(a, account.PermEditGeography); err != nil {
+		return err
+	}
+	e, _ := s.mutationEvidence(a, audit.ActionRecordDeprecated, "place_alias", id, nil, map[string]any{"placeId": placeID, "status": "DEPRECATED"})
+	if err := s.admin.DeprecateAlias(ctx, placeID, id, e); err != nil {
+		return apierr.Wrap(apierr.Conflict, "Could not deprecate alias.", err)
+	}
+	return nil
+}
+
+// BoundaryResult carries the representation and its strong validator. Clients
+// must return ETag in If-Match before a write, preventing lost updates.
+type BoundaryResult struct {
+	Geometry *domain.Geometry
+	ETag     string
+}
+
+func boundaryETag(g *domain.Geometry) string {
+	b, _ := json.Marshal(g)
+	s := sha256.Sum256(b)
+	return `"` + hex.EncodeToString(s[:]) + `"`
+}
+
+func (s *Service) GetAdminBoundary(ctx context.Context, a Actor, kind, id string) (BoundaryResult, error) {
+	if err := s.authorize(a, account.PermViewGeography); err != nil {
+		return BoundaryResult{}, err
+	}
+	repo := s.regionBoundaries
+	if kind == "district" {
+		repo = s.districtBoundaries
+	}
+	if repo == nil || (kind != "region" && kind != "district") {
+		return BoundaryResult{}, apierr.New(apierr.InvalidArgument, "Unsupported boundary kind.")
+	}
+	g, err := repo.GetGeometry(ctx, id)
+	if err != nil {
+		return BoundaryResult{}, apierr.Wrap(apierr.NotFound, "Boundary record not found.", err)
+	}
+	return BoundaryResult{Geometry: g, ETag: boundaryETag(g)}, nil
+}
+
+func (s *Service) UpdateAdminBoundary(ctx context.Context, a Actor, kind, id, ifMatch string, next *domain.Geometry) (BoundaryResult, error) {
+	if err := s.authorize(a, account.PermEditGeography); err != nil {
+		return BoundaryResult{}, err
+	}
+	if err := s.authorize(a, account.PermEditGeometry); err != nil {
+		return BoundaryResult{}, err
+	}
+	if next == nil || (next.Type != domain.GeomPolygon && next.Type != domain.GeomMultiPolygon) {
+		return BoundaryResult{}, apierr.New(apierr.InvalidArgument, "A Polygon or MultiPolygon geometry is required.")
+	}
+	if err := next.Validate(); err != nil {
+		return BoundaryResult{}, apierr.Wrap(apierr.InvalidCoordinate, "Boundary geometry is invalid.", err)
+	}
+	repo := s.regionBoundaries
+	if kind == "district" {
+		repo = s.districtBoundaries
+	}
+	if repo == nil || (kind != "region" && kind != "district") {
+		return BoundaryResult{}, apierr.New(apierr.InvalidArgument, "Unsupported boundary kind.")
+	}
+	current, err := repo.GetGeometry(ctx, id)
+	if err != nil {
+		return BoundaryResult{}, apierr.Wrap(apierr.NotFound, "Boundary record not found.", err)
+	}
+	if ifMatch == "" || ifMatch != boundaryETag(current) {
+		return BoundaryResult{}, apierr.New(apierr.Conflict, "Boundary changed since it was loaded.").WithDetail("currentETag", boundaryETag(current))
+	}
+	if kind == "district" {
+		d, x := s.GetDistrict(ctx, id)
+		if x != nil {
+			return BoundaryResult{}, x
+		}
+		parent, x := s.regionBoundaries.GetGeometry(ctx, d.RegionID)
+		if x != nil || parent == nil || !parent.ContainsGeometry(next) {
+			return BoundaryResult{}, apierr.New(apierr.InvalidCoordinate, "District boundary must be contained by its region boundary.")
+		}
+	}
+	before, _ := json.Marshal(current)
+	after, _ := json.Marshal(next)
+	evidence, err := audit.New(audit.Actor{Kind: audit.ActorAdmin, ID: a.ID, Label: a.Email, IP: a.IP}, audit.ActionRecordUpdated, audit.Target{Kind: kind + "_geometry", ID: id})
+	if err != nil {
+		return BoundaryResult{}, apierr.Wrap(apierr.Internal, "Could not create audit evidence.", err)
+	}
+	evidence = evidence.WithChange(map[string]any{"geometry": string(before)}, map[string]any{"geometry": string(after)}).WithRequest(a.RequestID)
+	ok, err := repo.SetGeometryCAS(ctx, id, current, next, evidence)
+	if err != nil {
+		return BoundaryResult{}, apierr.Wrap(apierr.Internal, "Could not save boundary geometry.", err)
+	}
+	if !ok {
+		return BoundaryResult{}, apierr.New(apierr.Conflict, "Boundary changed while it was being saved.")
+	}
+	return BoundaryResult{Geometry: next, ETag: boundaryETag(next)}, nil
+}
 
 // Geography mutations (story GEO-17.3).
 //
@@ -133,10 +378,11 @@ func (s *Service) UpdateRegion(
 		return nil, werr
 	}
 
-	_, err = s.regions.Upsert(ctx, next)
-	s.record(ctx, a, audit.ActionRecordUpdated,
-		audit.Target{Kind: "region", ID: id, Label: next.Name},
-		before, regionState(next), err)
+	if s.admin == nil {
+		return nil, apierr.New(apierr.Internal, "Admin geography writes are not configured.")
+	}
+	evidence, _ := s.mutationEvidence(a, audit.ActionRecordUpdated, "region", id, before, regionState(next))
+	err = s.admin.UpdateRegion(ctx, next, evidence)
 	if err != nil {
 		return nil, apierr.Wrap(apierr.Internal, "Could not save the region.", err)
 	}
@@ -221,10 +467,11 @@ func (s *Service) UpdateDistrict(
 		return nil, werr
 	}
 
-	_, err = s.districts.Upsert(ctx, next)
-	s.record(ctx, a, audit.ActionRecordUpdated,
-		audit.Target{Kind: "district", ID: id, Label: next.Name},
-		before, districtState(next), err)
+	if s.admin == nil {
+		return nil, apierr.New(apierr.Internal, "Admin geography writes are not configured.")
+	}
+	evidence, _ := s.mutationEvidence(a, audit.ActionRecordUpdated, "district", id, before, districtState(next))
+	err = s.admin.UpdateDistrict(ctx, next, evidence)
 	if err != nil {
 		return nil, apierr.Wrap(apierr.Internal, "Could not save the district.", err)
 	}
@@ -281,10 +528,11 @@ func (s *Service) UpdatePlace(
 		return nil, werr
 	}
 
-	_, err = s.places.Upsert(ctx, next)
-	s.record(ctx, a, audit.ActionRecordUpdated,
-		audit.Target{Kind: "place", ID: id, Label: next.Name},
-		before, placeState(next), err)
+	if s.admin == nil {
+		return nil, apierr.New(apierr.Internal, "Admin geography writes are not configured.")
+	}
+	evidence, _ := s.mutationEvidence(a, audit.ActionRecordUpdated, "place", id, before, placeState(next))
+	err = s.admin.UpdatePlace(ctx, next, evidence)
 	if err != nil {
 		return nil, apierr.Wrap(apierr.Internal, "Could not save the place.", err)
 	}

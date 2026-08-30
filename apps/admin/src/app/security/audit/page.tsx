@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { AuditLog } from "@/components/admin-operations";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/security/audit"]!} />;
+  return <AuditLog />;
 }

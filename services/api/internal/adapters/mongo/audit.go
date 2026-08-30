@@ -67,9 +67,10 @@ func (d auditDoc) toDomain() audit.Entry {
 // and it uses InsertOne so a duplicate _id is an error rather than an
 // overwrite — ReplaceOne with upsert would have made rewriting a row trivial.
 type AuditRepo struct {
-	s  *Store
-	mu sync.Mutex
+	s *Store
 }
+
+var auditAppendMu sync.Mutex
 
 func NewAuditRepo(s *Store) *AuditRepo { return &AuditRepo{s: s} }
 
@@ -87,8 +88,14 @@ func (r *AuditRepo) col() *mongo.Collection { return r.s.db.Collection(ColAuditL
 // as tampering. This is a single-writer log by nature; the lock makes that
 // explicit rather than leaving it to luck.
 func (r *AuditRepo) Append(ctx context.Context, e audit.Entry) (audit.Entry, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	auditAppendMu.Lock()
+	defer auditAppendMu.Unlock()
+	return r.append(ctx, e)
+}
+
+// append writes under an existing auditAppendMu critical section. Transactional
+// collaborators use this so their state change and its evidence commit together.
+func (r *AuditRepo) append(ctx context.Context, e audit.Entry) (audit.Entry, error) {
 
 	// Truncated to milliseconds because that is BSON's datetime resolution.
 	// Hashing a nanosecond-precision timestamp would produce a digest the

@@ -9,8 +9,12 @@ import { AsyncState, VerificationBadge, useApi } from "@/components/data";
 import { RecordEditor, SavedNotice } from "@/components/record-editor";
 import { RequirePermission, SignInPanel } from "@/components/session";
 import {
-  PLACE_TYPE_OPTIONS, VERIFICATION_OPTIONS, deprecatePlace, fetchPlace,
-  updatePlace, type PlaceRecord,
+  PLACE_TYPE_OPTIONS,
+  VERIFICATION_OPTIONS,
+  deprecatePlace,
+  fetchPlace,
+  updatePlace,
+  type PlaceRecord,
 } from "@/lib/admin-api";
 
 export default function PlaceDetail() {
@@ -35,38 +39,65 @@ export default function PlaceDetail() {
       <AsyncState state={state}>
         {(p) => (
           <div style={{ display: "grid", gap: "var(--space-5)" }}>
-            <RecordEditor
-              title={p.name}
-              recordId={p.id}
-              onSave={async (changes) => {
-                await updatePlace(p.id, changes);
-                setRev((v) => v + 1);
-              setSavedAt(Date.now());
-                setSavedAt(Date.now());
-              }}
-              fields={[
-                { key: "name", label: "Name", value: p.name },
-                { key: "type", label: "Type", value: p.type, options: PLACE_TYPE_OPTIONS },
-                { key: "districtId", label: "District", value: p.district?.id ?? "" },
-                { key: "regionId", label: "Region", value: p.region?.id ?? "" },
-                {
-                  key: "verificationStatus", label: "Verification",
-                  value: p.verificationStatus, options: VERIFICATION_OPTIONS,
-                },
-              ]}
-              footer={
-                <div className="gg-stack-row" style={{ marginTop: "var(--space-4)" }}>
-                  <VerificationBadge status={p.verificationStatus} />
-                  {p.centroid ? (
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-2xs)",
-                                   color: "var(--fg-muted)" }}>
-                      {p.centroid.latitude.toFixed(5)}, {p.centroid.longitude.toFixed(5)}
-                    </span>
-                  ) : null}
-                </div>
-              }
-            />
-            <MergePanel place={p} onMerged={() => setRev((v) => v + 1)} />
+            <div id="editor">
+              <RecordEditor
+                title={p.name}
+                recordId={p.id}
+                onSave={async (changes) => {
+                  await updatePlace(p.id, changes);
+                  setRev((v) => v + 1);
+                  setSavedAt(Date.now());
+                }}
+                fields={[
+                  { key: "name", label: "Name", value: p.name },
+                  {
+                    key: "type",
+                    label: "Type",
+                    value: p.type,
+                    options: PLACE_TYPE_OPTIONS,
+                  },
+                  {
+                    key: "districtId",
+                    label: "District",
+                    value: p.district?.id ?? "",
+                  },
+                  {
+                    key: "regionId",
+                    label: "Region",
+                    value: p.region?.id ?? "",
+                  },
+                  {
+                    key: "verificationStatus",
+                    label: "Verification",
+                    value: p.verificationStatus,
+                    options: VERIFICATION_OPTIONS,
+                  },
+                ]}
+                footer={
+                  <div
+                    className="gg-stack-row"
+                    style={{ marginTop: "var(--space-4)" }}
+                  >
+                    <VerificationBadge status={p.verificationStatus} />
+                    {p.centroid ? (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: "var(--text-2xs)",
+                          color: "var(--fg-muted)",
+                        }}
+                      >
+                        {p.centroid.latitude.toFixed(5)},{" "}
+                        {p.centroid.longitude.toFixed(5)}
+                      </span>
+                    ) : null}
+                  </div>
+                }
+              />
+            </div>
+            <div id="retire">
+              <MergePanel place={p} onMerged={() => setRev((v) => v + 1)} />
+            </div>
           </div>
         )}
       </AsyncState>
@@ -81,7 +112,13 @@ export default function PlaceDetail() {
  * survivor — so every consumer holding it can follow the redirect and update
  * at their own pace instead of getting a 404 with nowhere to go.
  */
-function MergePanel({ place, onMerged }: { place: PlaceRecord; onMerged: () => void }) {
+function MergePanel({
+  place,
+  onMerged,
+}: {
+  place: PlaceRecord;
+  onMerged: () => void;
+}) {
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -93,9 +130,11 @@ function MergePanel({ place, onMerged }: { place: PlaceRecord; onMerged: () => v
       <Card data-intensity="restrained">
         <div className="gg-stack-row">
           <Badge tone="needsRecon">{place.status}</Badge>
-          <span style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
-            This record is already retired. Its id still resolves to a 410 so nothing
-            that stored it is broken.
+          <span
+            style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}
+          >
+            This record is already retired. Its id still resolves to a 410 so
+            nothing that stored it is broken.
           </span>
         </div>
       </Card>
@@ -123,10 +162,17 @@ function MergePanel({ place, onMerged }: { place: PlaceRecord; onMerged: () => v
         <Merge size={18} style={{ color: "var(--brand)" }} aria-hidden />
         <strong>Merge into another record</strong>
       </div>
-      <p style={{ margin: "0 0 var(--space-4)", color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-        The surviving record keeps its id. This one is retired and its id returns 410
-        with <code style={{ fontFamily: "var(--font-mono)" }}>mergedInto</code> — never a
-        404, so nothing that already stored it breaks.
+      <p
+        style={{
+          margin: "0 0 var(--space-4)",
+          color: "var(--fg-muted)",
+          fontSize: "var(--text-sm)",
+        }}
+      >
+        The surviving record keeps its id. This one is retired and its id
+        returns 410 with{" "}
+        <code style={{ fontFamily: "var(--font-mono)" }}>mergedInto</code> —
+        never a 404, so nothing that already stored it breaks.
       </p>
 
       <RequirePermission
@@ -135,28 +181,58 @@ function MergePanel({ place, onMerged }: { place: PlaceRecord; onMerged: () => v
       >
         {done ? (
           <p role="status" style={{ margin: 0, fontSize: "var(--text-sm)" }}>
-            Merged. <code style={{ fontFamily: "var(--font-mono)" }}>{place.id}</code> now
-            redirects to <code style={{ fontFamily: "var(--font-mono)" }}>{target}</code>.
+            Merged.{" "}
+            <code style={{ fontFamily: "var(--font-mono)" }}>{place.id}</code>{" "}
+            now redirects to{" "}
+            <code style={{ fontFamily: "var(--font-mono)" }}>{target}</code>.
           </p>
         ) : (
-          <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-4)" }}>
-            <Field label="Surviving record id" htmlFor="merge-target"
-                   hint="The record that keeps its identity. It must already exist.">
-              <Input id="merge-target" value={target} placeholder="01KDVDNA003BF7FQZ9WWE8VPWE"
-                     onChange={(e) => setTarget(e.target.value)} required />
+          <form
+            onSubmit={submit}
+            style={{ display: "grid", gap: "var(--space-4)" }}
+          >
+            <Field
+              label="Surviving record id"
+              htmlFor="merge-target"
+              hint="The record that keeps its identity. It must already exist."
+            >
+              <Input
+                id="merge-target"
+                value={target}
+                placeholder="01KDVDNA003BF7FQZ9WWE8VPWE"
+                onChange={(e) => setTarget(e.target.value)}
+                required
+              />
             </Field>
-            <Field label="Reason" htmlFor="merge-reason"
-                   hint="Recorded in the audit log and returned with the 410.">
-              <Input id="merge-reason" value={reason}
-                     placeholder="duplicate of the Ashanti regional capital"
-                     onChange={(e) => setReason(e.target.value)} />
+            <Field
+              label="Reason"
+              htmlFor="merge-reason"
+              hint="Recorded in the audit log and returned with the 410."
+            >
+              <Input
+                id="merge-reason"
+                value={reason}
+                placeholder="duplicate of the Ashanti regional capital"
+                onChange={(e) => setReason(e.target.value)}
+              />
             </Field>
             {error ? (
-              <p role="alert" style={{ margin: 0, color: "var(--danger)", fontSize: "var(--text-sm)" }}>
+              <p
+                role="alert"
+                style={{
+                  margin: 0,
+                  color: "var(--danger)",
+                  fontSize: "var(--text-sm)",
+                }}
+              >
                 {error}
               </p>
             ) : null}
-            <button className="gg-button gg-button--danger gg-button--sm" type="submit" disabled={busy}>
+            <button
+              className="gg-button gg-button--danger gg-button--sm"
+              type="submit"
+              disabled={busy}
+            >
               {busy ? "Merging…" : "Merge and retire this record"}
             </button>
           </form>

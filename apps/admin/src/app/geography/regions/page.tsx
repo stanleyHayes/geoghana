@@ -2,8 +2,16 @@
 
 import { Card } from "@ghanageo/ui";
 import { PageHeader } from "@/components/screen";
-import { AsyncState, Provenance, VerificationBadge, useApi } from "@/components/data";
+import {
+  AsyncState,
+  Provenance,
+  VerificationBadge,
+  useApi,
+} from "@/components/data";
 import { listRegions, type Page, type Region } from "@/lib/api";
+import { GeographyCreatePanel } from "@/components/geography-admin-controls";
+import { TableActionLink, TableActions } from "@/components/table-actions";
+import { Archive, Eye, Pencil } from "lucide-react";
 
 export default function RegionsScreen() {
   const state = useApi<Page<Region>>((s) => listRegions({ limit: 50 }, s), []);
@@ -15,37 +23,94 @@ export default function RegionsScreen() {
         title="Regions"
         lede="Ghana's 16 regions, the top level of the administrative hierarchy. Reading the live API — the same endpoint any developer calls."
       />
+      <GeographyCreatePanel kind="regions" />
 
       <AsyncState state={state} empty="No regions returned.">
         {(page) => (
           <>
-            <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)",
-                        margin: "0 0 var(--space-4)" }}>
+            <p
+              style={{
+                color: "var(--fg-muted)",
+                fontSize: "var(--text-sm)",
+                margin: "0 0 var(--space-4)",
+              }}
+            >
               {page.data.length} regions · dataset{" "}
-              <code style={{ fontFamily: "var(--font-mono)" }}>{page.datasetVersion}</code>
+              <code style={{ fontFamily: "var(--font-mono)" }}>
+                {page.datasetVersion}
+              </code>
             </p>
             <Card style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
-                <table className="gg-table" style={{ width: "100%", minWidth: 640 }}>
+                <table
+                  className="gg-table"
+                  style={{ width: "100%", minWidth: 640 }}
+                >
                   <thead>
                     <tr>
                       <th scope="col">Region</th>
                       <th scope="col">Capital</th>
                       <th scope="col">Verification</th>
                       <th scope="col">Source</th>
+                      <th scope="col">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {page.data.map((r) => (
                       <tr key={r.id}>
                         <td>
-                          <a href={`/geography/regions/${encodeURIComponent(r.id)}`} style={{ fontWeight: 600, color: "var(--brand)" }}>{r.name}</a>
-                          <span style={{ display: "block", fontFamily: "var(--font-mono)",
-                                         fontSize: "var(--text-2xs)", color: "var(--fg-subtle)" }}>{r.id}</span>
+                          <a
+                            href={`/geography/regions/${encodeURIComponent(r.id)}`}
+                            style={{ fontWeight: 600, color: "var(--brand)" }}
+                          >
+                            {r.name}
+                          </a>
+                          <span
+                            style={{
+                              display: "block",
+                              fontFamily: "var(--font-mono)",
+                              fontSize: "var(--text-2xs)",
+                              color: "var(--fg-subtle)",
+                            }}
+                          >
+                            {r.id}
+                          </span>
                         </td>
                         <td>{r.capital ?? "—"}</td>
-                        <td><VerificationBadge status={r.verificationStatus} /></td>
-                        <td><Provenance source={r.provenance?.sourceId} url={r.provenance?.sourceUrl} /></td>
+                        <td>
+                          <VerificationBadge status={r.verificationStatus} />
+                        </td>
+                        <td>
+                          <Provenance
+                            source={r.provenance?.sourceId}
+                            url={r.provenance?.sourceUrl}
+                          />
+                        </td>
+                        <td>
+                          <TableActions label={`Actions for ${r.name}`}>
+                            <TableActionLink
+                              href={`/geography/regions/${encodeURIComponent(r.id)}`}
+                              label={`View ${r.name}`}
+                            >
+                              <Eye />
+                            </TableActionLink>
+                            <TableActionLink
+                              href={`/geography/regions/${encodeURIComponent(r.id)}#editor`}
+                              label={`Edit ${r.name}`}
+                            >
+                              <Pencil />
+                            </TableActionLink>
+                            <TableActionLink
+                              href={`/geography/regions/${encodeURIComponent(r.id)}#retire`}
+                              label={`Deprecate or merge ${r.name}`}
+                              tone="danger"
+                            >
+                              <Archive />
+                            </TableActionLink>
+                          </TableActions>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

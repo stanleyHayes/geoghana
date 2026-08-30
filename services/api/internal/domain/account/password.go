@@ -42,15 +42,24 @@ const (
 // MinPasswordLength follows NIST SP 800-63B: length is what matters, and
 // composition rules ("one capital, one symbol") push people toward
 // "Password1!" — predictable and no stronger.
-const MinPasswordLength = 12
+const (
+	MinPasswordLength = 12
+	// Bound password hashing work and request memory. Long passphrases remain
+	// supported; multi-kilobyte credentials provide no practical benefit.
+	MaxPasswordLength = 1024
+)
 
 var ErrPasswordMismatch = errors.New("password does not match")
 
 // ValidatePassword enforces length and rejects the handful of values that are
 // long but worthless. It deliberately imposes no composition rules.
 func ValidatePassword(pw string) error {
-	if utf8.RuneCountInString(pw) < MinPasswordLength {
+	length := utf8.RuneCountInString(pw)
+	if length < MinPasswordLength {
 		return fmt.Errorf("%w: at least %d characters", ErrWeakPassword, MinPasswordLength)
+	}
+	if length > MaxPasswordLength {
+		return fmt.Errorf("%w: at most %d characters", ErrWeakPassword, MaxPasswordLength)
 	}
 	lower := strings.ToLower(strings.TrimSpace(pw))
 	for _, bad := range []string{

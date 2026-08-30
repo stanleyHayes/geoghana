@@ -281,23 +281,26 @@ func (r *OrganizationInvitationRepo) Revoke(ctx context.Context, id, orgID strin
 // The stored key never contains the secret — only the public prefix and an
 // argon2id digest (Spec §12.2).
 type apiKeyDoc struct {
-	ID             string     `bson:"_id"`
-	ApplicationID  string     `bson:"applicationId"`
-	OrganizationID string     `bson:"organizationId"`
-	Name           string     `bson:"name"`
-	Class          string     `bson:"class"`
-	Environment    string     `bson:"environment"`
-	Prefix         string     `bson:"prefix"`
-	SecretHash     string     `bson:"secretHash"`
-	Scopes         []string   `bson:"scopes"`
-	AllowedOrigins []string   `bson:"allowedOrigins,omitempty"`
-	AllowedIPs     []string   `bson:"allowedIps,omitempty"`
-	CreatedAt      time.Time  `bson:"createdAt"`
-	ExpiresAt      *time.Time `bson:"expiresAt,omitempty"`
-	LastUsedAt     *time.Time `bson:"lastUsedAt,omitempty"`
-	RevokedAt      *time.Time `bson:"revokedAt,omitempty"`
-	Elevated       bool       `bson:"elevated,omitempty"`
-	ElevatedReason string     `bson:"elevatedReason,omitempty"`
+	ID              string     `bson:"_id"`
+	ApplicationID   string     `bson:"applicationId"`
+	OrganizationID  string     `bson:"organizationId"`
+	Name            string     `bson:"name"`
+	Class           string     `bson:"class"`
+	Environment     string     `bson:"environment"`
+	Prefix          string     `bson:"prefix"`
+	SecretHash      string     `bson:"secretHash"`
+	Scopes          []string   `bson:"scopes"`
+	AllowedOrigins  []string   `bson:"allowedOrigins,omitempty"`
+	AllowedIPs      []string   `bson:"allowedIps,omitempty"`
+	CreatedAt       time.Time  `bson:"createdAt"`
+	ExpiresAt       *time.Time `bson:"expiresAt,omitempty"`
+	LastUsedAt      *time.Time `bson:"lastUsedAt,omitempty"`
+	RevokedAt       *time.Time `bson:"revokedAt,omitempty"`
+	RevokedReason   string     `bson:"revokedReason,omitempty"`
+	SuspendedAt     *time.Time `bson:"suspendedAt,omitempty"`
+	SuspendedReason string     `bson:"suspendedReason,omitempty"`
+	Elevated        bool       `bson:"elevated,omitempty"`
+	ElevatedReason  string     `bson:"elevatedReason,omitempty"`
 }
 
 func toKeyDoc(k identity.APIKey) apiKeyDoc {
@@ -311,7 +314,9 @@ func toKeyDoc(k identity.APIKey) apiKeyDoc {
 		Prefix: k.Prefix, SecretHash: k.SecretHash, Scopes: scopes,
 		AllowedOrigins: k.AllowedOrigins, AllowedIPs: k.AllowedIPs,
 		CreatedAt: k.CreatedAt, ExpiresAt: k.ExpiresAt, LastUsedAt: k.LastUsedAt,
-		RevokedAt: k.RevokedAt, Elevated: k.Elevated, ElevatedReason: k.ElevatedReason,
+		RevokedAt: k.RevokedAt, RevokedReason: k.RevokedReason,
+		SuspendedAt: k.SuspendedAt, SuspendedReason: k.SuspendedReason,
+		Elevated: k.Elevated, ElevatedReason: k.ElevatedReason,
 	}
 }
 
@@ -327,7 +332,9 @@ func fromKeyDoc(d apiKeyDoc) identity.APIKey {
 		Prefix:      d.Prefix, SecretHash: d.SecretHash, Scopes: scopes,
 		AllowedOrigins: d.AllowedOrigins, AllowedIPs: d.AllowedIPs,
 		CreatedAt: d.CreatedAt, ExpiresAt: d.ExpiresAt, LastUsedAt: d.LastUsedAt,
-		RevokedAt: d.RevokedAt, Elevated: d.Elevated, ElevatedReason: d.ElevatedReason,
+		RevokedAt: d.RevokedAt, RevokedReason: d.RevokedReason,
+		SuspendedAt: d.SuspendedAt, SuspendedReason: d.SuspendedReason,
+		Elevated: d.Elevated, ElevatedReason: d.ElevatedReason,
 	}
 }
 

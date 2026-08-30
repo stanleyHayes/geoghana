@@ -193,6 +193,91 @@ func cross(a, b, p [2]float64) float64 {
 	return (b[0]-a[0])*(p[1]-a[1]) - (b[1]-a[1])*(p[0]-a[0])
 }
 
+// ContainsGeometry reports whether every exterior point of child lies inside
+// this polygon or multipolygon. It is the blocking district-within-region gate
+// used before canonical boundary writes.
+func (g *Geometry) ContainsGeometry(child *Geometry) bool {
+	if g == nil || child == nil {
+		return false
+	}
+	var parents [][]Ring
+	switch g.Type {
+	case GeomPolygon:
+		r, e := asRings(g.Coordinates)
+		if e != nil {
+			return false
+		}
+		parents = [][]Ring{r}
+	case GeomMultiPolygon:
+		p, e := asPolygons(g.Coordinates)
+		if e != nil {
+			return false
+		}
+		parents = p
+	default:
+		return false
+	}
+	var children [][]Ring
+	switch child.Type {
+	case GeomPolygon:
+		r, e := asRings(child.Coordinates)
+		if e != nil {
+			return false
+		}
+		children = [][]Ring{r}
+	case GeomMultiPolygon:
+		p, e := asPolygons(child.Coordinates)
+		if e != nil {
+			return false
+		}
+		children = p
+	default:
+		return false
+	}
+	for _, poly := range children {
+		if len(poly) == 0 {
+			return false
+		}
+		for _, point := range poly[0] {
+			contained := false
+			for _, parent := range parents {
+				if pointInPolygon(point, parent) {
+					contained = true
+					break
+				}
+			}
+			if !contained {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func pointInPolygon(p [2]float64, rings []Ring) bool {
+	if len(rings) == 0 || !pointInRing(p, rings[0]) {
+		return false
+	}
+	for _, hole := range rings[1:] {
+		if pointInRing(p, hole) {
+			return false
+		}
+	}
+	return true
+}
+
+func pointInRing(p [2]float64, ring Ring) bool {
+	inside := false
+	for i, j := 0, len(ring)-1; i < len(ring); j, i = i, i+1 {
+		xi, yi := ring[i][0], ring[i][1]
+		xj, yj := ring[j][0], ring[j][1]
+		if ((yi > p[1]) != (yj > p[1])) && p[0] < (xj-xi)*(p[1]-yi)/(yj-yi)+xi {
+			inside = !inside
+		}
+	}
+	return inside
+}
+
 // SignedArea returns twice the signed area of a ring. Positive is
 // counter-clockwise. MongoDB interprets a polygon larger than a hemisphere by
 // its winding order, so getting this wrong can invert a district into

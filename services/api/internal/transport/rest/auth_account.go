@@ -33,7 +33,7 @@ func (h *Handler) setSessionCookie(w http.ResponseWriter, r *http.Request, token
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   SecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expires,
 		MaxAge:   int(time.Until(expires).Seconds()),
@@ -43,7 +43,7 @@ func (h *Handler) setSessionCookie(w http.ResponseWriter, r *http.Request, token
 func (h *Handler) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: "", Path: "/",
-		HttpOnly: true, Secure: isSecureRequest(r),
+		HttpOnly: true, Secure: SecureRequest(r),
 		SameSite: http.SameSiteLaxMode, MaxAge: -1,
 	})
 }
@@ -51,7 +51,10 @@ func (h *Handler) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 // isSecureRequest reports whether the connection is TLS, honouring a proxy's
 // X-Forwarded-Proto. Local plain HTTP must NOT set Secure, or the cookie is
 // silently dropped and nobody can sign in during development.
-func isSecureRequest(r *http.Request) bool {
+// SecureRequest reports the effective transport security after trusted-edge
+// normalization. It is exported so the process composition can be regression
+// tested without duplicating the cookie policy.
+func SecureRequest(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
@@ -106,6 +109,35 @@ func (h *Handler) authVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"message": "Email address confirmed. You can sign in now."})
+}
+
+func (h *Handler) authRequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Email string `json:"email"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	res := h.accounts.RequestPasswordReset(r.Context(), body.Email, clientIP(r))
+	writeJSON(w, http.StatusAccepted, map[string]any{"message": res.Message})
+}
+
+func (h *Handler) authConfirmPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	if err := h.accounts.ConfirmPasswordReset(r.Context(), body.Token, body.Password, clientIP(r)); err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	h.clearSessionCookie(w, r)
+	writeJSON(w, http.StatusOK, map[string]any{"message": "Password changed. Sign in again on every device."})
 }
 
 func (h *Handler) authLogin(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +212,7 @@ func (h *Handler) authLogout(w http.ResponseWriter, r *http.Request) {
 	// The cookie is cleared regardless, so a client is never left holding one
 	// it believes is live.
 	h.clearSessionCookie(w, r)
-	writeJSON(w, http.StatusOK, map[string]any{"message": "Signed out."})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) authLogoutAll(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +225,7 @@ func (h *Handler) authLogoutAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.clearSessionCookie(w, r)
-	writeJSON(w, http.StatusOK, map[string]any{"message": "Signed out on every device."})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) authSession(w http.ResponseWriter, r *http.Request) {
@@ -282,15 +314,15 @@ func (h *Handler) requireSessionAllowingEnrolment(
 		writeErr(w, r, err)
 		return account.Session{}, account.Account{}, false
 	}
-	h.setSessionCookie(w, r, newToken, sess.ExpiresAt)
+	if newToken != "" {
+		h.setSessionCookie(w, r, newToken, sess.ExpiresAt)
+	}
 	return sess, a, true
 }
 
-// requireSession authenticates the cookie and rotates it.
-//
-// Rotation happens on EVERY authenticated request, so the window in which a
-// stolen token is useful is one request wide, and reuse of the superseded
-// token is detected as theft.
+// requireSession authenticates the cookie and refreshes it only when the
+// rotation interval is due. This keeps parallel dashboard requests on one
+// chain instead of making ordinary browser concurrency look like theft.
 func (h *Handler) requireSession(
 	w http.ResponseWriter, r *http.Request,
 ) (account.Session, account.Account, bool) {
@@ -311,7 +343,9 @@ func (h *Handler) requireSession(
 		writeErr(w, r, err)
 		return account.Session{}, account.Account{}, false
 	}
-	h.setSessionCookie(w, r, newToken, sess.ExpiresAt)
+	if newToken != "" {
+		h.setSessionCookie(w, r, newToken, sess.ExpiresAt)
+	}
 	return sess, a, true
 }
 

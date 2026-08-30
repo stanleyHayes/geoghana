@@ -1,0 +1,13 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "baseUrl": "../..",
+    "paths": {
+      "@ghanageo/client": ["packages/client/src/index.ts"],
+      "@ghanageo/core": ["packages/core/src/index.ts"]
+    }
+  },
+  "include": ["examples/typescript.ts"]
+}

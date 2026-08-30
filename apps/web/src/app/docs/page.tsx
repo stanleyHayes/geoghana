@@ -1,59 +1,14 @@
 import { Card, Badge } from "@ghanageo/ui";
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
-import { Terminal, Code2, Package, Boxes, ExternalLink } from "lucide-react";
+import { ExternalLink, Braces, ShieldCheck } from "lucide-react";
+import { SDK_API_VERSION, SDK_EXAMPLES, SDK_TESTED_DATASET_VERSION } from "@/content/sdk-docs.generated";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "GhanaGeo documentation",
   description: "Quick starts for REST, GraphQL, gRPC, the CLI and npm. No account required.",
-};
-
-const QUICKSTARTS = [
-  {
-    icon: Terminal,
-    title: "curl",
-    body: "No account, no key. Works from any terminal.",
-    code: `curl "https://api.geo.digitalghana.dev/v1/search?q=osu"`,
-    ready: true,
-  },
-  {
-    icon: Boxes,
-    title: "CLI",
-    body: "Table output for humans, --json for scripts, --csv for spreadsheets.",
-    code: `npx ghanageo search "tema comm"
-npx ghanageo reverse 6.688 -1.624
-npx ghanageo regions --json | jq -r '.[].capital'`,
-    ready: true,
-  },
-  {
-    icon: Package,
-    title: "React",
-    body: "TanStack Query hooks with cancellation and a stable query-key factory.",
-    code: `npm install @ghanageo/react
-
-const { data } = useAutocomplete(query);`,
-    ready: false,
-    story: "GEO-13.3",
-  },
-  {
-    icon: Code2,
-    title: "GraphQL",
-    body: "Nested geography in one round trip, with a complexity budget.",
-    code: `query { place(id: "01KDVDNA00N6BFFK8VF5K8YXPW") {
-  name district { name region { name } }
-} }`,
-    ready: true,
-  },
-  {
-    icon: Boxes,
-    title: "gRPC",
-    body: "Typed service-to-service access over the same use cases as REST. Reflection is on, so grpcurl needs no .proto.",
-    code: `grpcurl -plaintext api.geo.digitalghana.dev:443 list
-
-grpcurl -d '{"limit":2}' api.geo.digitalghana.dev:443 \\
-  ghanageo.v1.GeographyService/ListRegions`,
-    ready: true,
-  },
-];
+  path: "/docs",
+});
 
 const ENDPOINTS = [
   ["GET /v1/regions", "Ghana's 16 regions", "cheap"],
@@ -96,23 +51,63 @@ export default function Docs() {
         </p>
 
         <section style={{ marginBottom: "var(--space-12)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-5)" }}>Quick starts</h2>
-          {/* Two across, not auto-fit: these cards are sized by their code
-              samples, and four across clips every one of them. */}
+          <div className="gg-stack-row" style={{ alignItems: "end", marginBottom: "var(--space-5)" }}>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontSize: "var(--text-xl)", margin: 0 }}>Choose your language</h2>
+              <p style={{ color: "var(--fg-muted)", margin: "var(--space-2) 0 0", maxWidth: "64ch" }}>
+                Every quick start is extracted from source that is compiled in CI, so the docs stay aligned with the shipped SDK.
+              </p>
+            </div>
+            <div className="gg-stack-row" aria-label="Compatibility versions">
+              <Badge tone="canonical">API {SDK_API_VERSION}</Badge>
+              <Badge tone="reviewed">Dataset {SDK_TESTED_DATASET_VERSION}</Badge>
+            </div>
+          </div>
           <div className="gg-auto-grid gg-auto-grid--pair">
-            {QUICKSTARTS.map((q) => (
-              <Card key={q.title}>
-                <div className="gg-stack-row" style={{ marginBottom: "var(--space-2)" }}>
-                  <q.icon size={18} style={{ color: "var(--brand)" }} aria-hidden />
-                  <strong style={{ flex: 1 }}>{q.title}</strong>
-                  {!q.ready ? <Badge tone="needsRecon">! planned · {q.story}</Badge> : null}
+            {SDK_EXAMPLES.map((sdk) => (
+              <Card key={sdk.id} data-intensity="restrained">
+                <div className="gg-stack-row" style={{ marginBottom: "var(--space-3)" }}>
+                  <Braces size={18} style={{ color: "var(--brand)" }} aria-hidden />
+                  <strong style={{ flex: 1, fontSize: "var(--text-lg)" }}>{sdk.label}</strong>
+                  <Badge tone="canonical">tested</Badge>
                 </div>
-                <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)",
-                            margin: "0 0 var(--space-3)" }}>{q.body}</p>
-                <pre className="gg-code">{q.code}</pre>
+                <p className="gg-code" style={{ marginBottom: "var(--space-3)" }}>{sdk.install}</p>
+                <pre className="gg-code gg-code--lg" style={{ maxHeight: 320 }}>{sdk.code}</pre>
+                <p style={{ color: "var(--fg-subtle)", fontSize: "var(--text-xs)", margin: "var(--space-3) 0 0" }}>
+                  Source: <code>{sdk.source}</code>
+                </p>
               </Card>
             ))}
           </div>
+        </section>
+
+        <section style={{ marginBottom: "var(--space-12)" }}>
+          <div className="gg-stack-row" style={{ marginBottom: "var(--space-4)" }}>
+            <ShieldCheck size={20} style={{ color: "var(--brand)" }} aria-hidden />
+            <h2 style={{ fontSize: "var(--text-xl)", margin: 0 }}>Capability and compatibility</h2>
+          </div>
+          <Card data-intensity="restrained" style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
+                <thead><tr style={{ background: "var(--bg-subtle)" }}>
+                  {["SDK", "Runtime", "Protocols", "Cancellation", "Retries", "Pagination", "Typed error"].map((heading) => (
+                    <th key={heading} style={{ textAlign: "start", padding: "var(--space-3) var(--space-4)", fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".08em", color: "var(--fg-subtle)", whiteSpace: "nowrap" }}>{heading}</th>
+                  ))}
+                </tr></thead>
+                <tbody>{SDK_EXAMPLES.map((sdk) => (
+                  <tr key={sdk.id} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td style={{ padding: "var(--space-3) var(--space-4)", fontWeight: 700, whiteSpace: "nowrap" }}>{sdk.label}</td>
+                    <td style={{ padding: "var(--space-3) var(--space-4)", color: "var(--fg-muted)", minWidth: 150 }}>{sdk.runtime}</td>
+                    <td style={{ padding: "var(--space-3) var(--space-4)", whiteSpace: "nowrap" }}>{sdk.protocols.join(" · ")}</td>
+                    <td style={{ padding: "var(--space-3) var(--space-4)", color: "var(--fg-muted)", minWidth: 180 }}>{sdk.cancellation}</td>
+                    <td style={{ padding: "var(--space-3) var(--space-4)", color: "var(--fg-muted)", minWidth: 190 }}>{sdk.retry}</td>
+                    <td style={{ padding: "var(--space-3) var(--space-4)", color: "var(--fg-muted)", minWidth: 190 }}>{sdk.pagination}</td>
+                    <td style={{ padding: "var(--space-3) var(--space-4)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>{sdk.errors}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </Card>
         </section>
 
         <section style={{ marginBottom: "var(--space-12)" }}>

@@ -1,0 +1,8 @@
+{
+  "name": "example/ghanageo-consumer",
+  "private": true,
+  "require": {"ghanageo/ghanageo-php": "@dev", "guzzlehttp/guzzle": "^7.9"},
+  "repositories": [{"type": "path", "url": "..", "options": {"symlink": false}}],
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

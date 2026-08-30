@@ -18,11 +18,11 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Scan repository secrets and configuration
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           scan-type: fs
           scan-ref: .
@@ -32,7 +32,7 @@ jobs:
       - name: Build production API image
         run: docker build --tag ghanageo-api:${{ github.sha }} .
       - name: Scan production API image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: ghanageo-api:${{ github.sha }}
           scanners: vuln,secret,misconfig
@@ -44,17 +44,17 @@ jobs:
     name: Dependency vulnerabilities
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.work
           cache-dependency-path: |
             services/api/go.sum
             cli/go.sum
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 11.11.0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -62,7 +62,7 @@ jobs:
       - name: Audit production JavaScript dependencies
         run: pnpm audit --prod --audit-level high
       - name: Install Go vulnerability scanner
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
       - name: Scan API reachable symbols
         working-directory: services/api
         run: govulncheck ./...
@@ -82,15 +82,15 @@ jobs:
       matrix:
         language: [go, javascript-typescript]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         if: matrix.language == 'go'
         with:
           go-version-file: go.work
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@5ba2889ada762081db2c4f32a729827dce632c7b # v3
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/autobuild@v3
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/autobuild@5ba2889ada762081db2c4f32a729827dce632c7b # v3
+      - uses: github/codeql-action/analyze@5ba2889ada762081db2c4f32a729827dce632c7b # v3
         with:
           category: "/language:${{ matrix.language }}"

@@ -1,0 +1,6 @@
+# Canonical input and pinned generator evidence for reproducible releases.
+source = ../../proto/ghanageo/v1/geography.proto
+sha256 = 93f2448982cec282cf260e0ea1e52151b88c6ca1148dc8eb57c8ba47404ff153
+protoc = 33.2
+protoc-gen-go = 1.36.11
+protoc-gen-go-grpc = 1.6.2

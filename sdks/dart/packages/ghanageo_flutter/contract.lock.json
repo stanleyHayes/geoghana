@@ -1,0 +1,9 @@
+{
+  "corePackage": "ghanageo",
+  "coreVersion": "0.1.0",
+  "conformanceDigest": "0b19aa446e1b744ea966a20f637f0e391cb84bfbcc4667666fb3644f34fdaf04",
+  "openapiSha256": "6b4c124bf4ec0b5582fda27acc4444674ebbe40c0df1af817e7f60aa89a33143",
+  "protobufSha256": "93f2448982cec282cf260e0ea1e52151b88c6ca1148dc8eb57c8ba47404ff153",
+  "testedDart": "3.13.2",
+  "testedFlutter": "3.47.2"
+}

@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+VERSION=9.1.0
+SHA256=a17ddd85a26b6a7f5ddb71ff8b05fc5104c0202c6e64782429790c933686c806
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+DIST="$ROOT/.build-tools/gradle-$VERSION"
+if [ ! -x "$DIST/bin/gradle" ]; then
+  mkdir -p "$ROOT/.build-tools"
+  ARCHIVE="$ROOT/.build-tools/gradle-$VERSION.zip"
+  curl -fsSL "https://services.gradle.org/distributions/gradle-$VERSION-bin.zip" -o "$ARCHIVE"
+  printf '%s  %s\n' "$SHA256" "$ARCHIVE" | shasum -a 256 -c -
+  unzip -q "$ARCHIVE" -d "$ROOT/.build-tools"
+fi
+exec "$DIST/bin/gradle" -p "$ROOT" "$@"

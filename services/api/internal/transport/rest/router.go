@@ -19,8 +19,12 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	appaccount "github.com/ghanageo/ghanageo/services/api/internal/app/account"
+	appadminidentity "github.com/ghanageo/ghanageo/services/api/internal/app/adminidentity"
+	appadminops "github.com/ghanageo/ghanageo/services/api/internal/app/adminops"
+	appchangerequest "github.com/ghanageo/ghanageo/services/api/internal/app/changerequest"
 	appdataset "github.com/ghanageo/ghanageo/services/api/internal/app/dataset"
 	appdeveloper "github.com/ghanageo/ghanageo/services/api/internal/app/developer"
+	appfairuse "github.com/ghanageo/ghanageo/services/api/internal/app/fairuse"
 	app "github.com/ghanageo/ghanageo/services/api/internal/app/geography"
 	appsearch "github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
@@ -40,7 +44,25 @@ type Handler struct {
 	developer      *appdeveloper.Service
 	usage          usageDomain.Repository
 	telemetry      *observability.Telemetry
+	adminOps       *appadminops.Service
+	adminIdentity  *appadminidentity.Service
+	changeRequests *appchangerequest.Service
+	fairUse        *appfairuse.Service
 }
+
+func (h *Handler) WithAdminOps(a *appadminops.Service) *Handler { h.adminOps = a; return h }
+
+func (h *Handler) WithAdminIdentity(a *appadminidentity.Service) *Handler {
+	h.adminIdentity = a
+	return h
+}
+
+func (h *Handler) WithChangeRequests(a *appchangerequest.Service) *Handler {
+	h.changeRequests = a
+	return h
+}
+
+func (h *Handler) WithFairUse(a *appfairuse.Service) *Handler { h.fairUse = a; return h }
 
 func (h *Handler) WithDeveloper(a *appdeveloper.Service) *Handler { h.developer = a; return h }
 
@@ -158,9 +180,12 @@ func (h *Handler) Routes() http.Handler {
 		// API keys presenting scopes. Cookie-authenticated mutations are guarded
 		// by the router-level origin check as well as SameSite=Lax.
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", h.authRegister)
+			r.Use(adminPrivateResponse)
+			r.With(authExpensiveGuard).Post("/register", h.authRegister)
 			r.Post("/verify", h.authVerifyEmail)
-			r.Post("/login", h.authLogin)
+			r.Post("/password-reset/request", h.authRequestPasswordReset)
+			r.With(authExpensiveGuard).Post("/password-reset/confirm", h.authConfirmPasswordReset)
+			r.With(authExpensiveGuard).Post("/login", h.authLogin)
 			r.Post("/mfa/totp", h.authTOTP)
 			r.Post("/mfa/recover", h.authRecover)
 			r.Post("/mfa/enrol", h.authEnrolTOTP)
@@ -180,6 +205,7 @@ func (h *Handler) Routes() http.Handler {
 		})
 		if h.developer != nil {
 			r.Route("/developer", func(r chi.Router) {
+				r.Use(adminPrivateResponse)
 				r.Get("/organizations", h.developerOrganizations)
 				r.Post("/organizations", h.developerCreateOrganization)
 				r.Get("/organizations/{orgId}/invitations", h.developerInvitations)
@@ -223,11 +249,51 @@ func (h *Handler) Routes() http.Handler {
 		// checked, and audited — including refusals. There is deliberately no
 		// DELETE: a record is deprecated into a redirect, never removed.
 		r.Route("/admin", func(r chi.Router) {
+			r.Use(adminPrivateResponse)
 			r.Get("/permissions", h.adminPermissions)
+			r.Get("/fair-use/policy", h.adminFairUsePolicy)
+			r.Post("/fair-use/policies", h.adminAppendFairUsePolicy)
+			r.Post("/fair-use/overrides", h.adminAppendFairUseOverride)
+			r.Get("/dashboard", h.adminDashboard)
+			r.Get("/system-health", h.adminSystemHealth)
+			r.Get("/audit-log", h.adminAuditLog)
+			r.Get("/developers/organizations", h.adminDeveloperOrganizations)
+			r.Get("/developers/accounts", h.adminDeveloperAccounts)
+			r.Get("/developers/applications", h.adminDeveloperApplications)
+			r.Get("/developers/keys", h.adminDeveloperKeys)
+			r.Get("/developers/usage", h.adminDeveloperUsage)
+			r.Get("/developers/requests", h.adminDeveloperRequests)
+			r.Post("/developers/keys/{keyId}/suspend", h.adminSuspendDeveloperKey)
+			r.Post("/developers/keys/{keyId}/revoke", h.adminRevokeDeveloperKey)
+			r.Get("/source-runs", h.adminSourceRuns)
+			r.Get("/source-runs/{id}", h.adminSourceRun)
+			r.Get("/source-runs/{id}/records", h.adminSourceRecords)
+			r.Get("/source-runs/{id}/records/{recordId}", h.adminSourceRecord)
+			r.Get("/source-runs/{id}/conflicts", h.adminSourceConflicts)
+			r.Get("/source-runs/{id}/duplicates", h.adminSourceDuplicates)
+			r.Get("/dataset-releases", h.adminDatasetReleases)
+			r.Get("/dataset-releases/{version}/readiness", h.adminDatasetReleaseReadiness)
+			r.Post("/dataset-releases/{version}/advance", h.adminAdvanceDatasetRelease)
+			r.Put("/dataset-releases/{version}/changelog", h.adminUpdateDatasetChangelog)
+			r.Post("/dataset-releases/{version}/publish", h.adminPublishDatasetRelease)
+			r.Post("/dataset-releases/{version}/rollback", h.adminRollbackDatasetRelease)
 			r.Patch("/regions/{id}", h.adminUpdateRegion)
 			r.Patch("/districts/{id}", h.adminUpdateDistrict)
 			r.Patch("/places/{id}", h.adminUpdatePlace)
-			r.Post("/places/{id}/deprecate", h.adminDeprecatePlace)
+			r.Post("/geography/{kind:regions|districts|places|roads|pois}", h.adminCreateGeography)
+			r.Post("/geography/{kind:regions|districts|places|roads|pois}/{id}/deprecate", h.adminDeprecateGeography)
+			r.Get("/redirects", h.adminRedirects)
+			r.Get("/places/{id}/aliases", h.adminAliases)
+			r.Post("/places/{id}/aliases", h.adminCreateAlias)
+			r.Post("/places/{id}/aliases/{aliasId}/deprecate", h.adminDeprecateAlias)
+			r.Get("/boundaries/{kind}/{id}", h.adminGetBoundary)
+			r.Put("/boundaries/{kind}/{id}", h.adminUpdateBoundary)
+			r.Get("/change-requests", h.adminListChangeRequests)
+			r.Post("/change-requests", h.adminCreateChangeRequest)
+			r.Get("/change-requests/{id}", h.adminGetChangeRequest)
+			r.Post("/change-requests/{id}/transitions", h.adminTransitionChangeRequest)
+			r.Post("/change-requests/{id}/revisions", h.adminReviseChangeRequest)
+			r.Post("/change-requests/{id}/comments", h.adminCommentChangeRequest)
 		})
 
 		r.With(auth.RequireScope(identity.ScopeDatasetsRead)).Get("/datasets", h.listDatasets)
@@ -286,7 +352,11 @@ func (h *Handler) cors(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		if origin != "" && h.allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			// Keep this list aligned with the registered browser-facing routes.
+			// Admin geography edits use PATCH and passkey removal uses DELETE;
+			// omitting either here makes the browser reject the request at
+			// preflight even though the authenticated endpoint is implemented.
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "600")

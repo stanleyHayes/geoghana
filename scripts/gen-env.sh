@@ -7,13 +7,22 @@
 # Nothing it writes is ever committed — .gitignore covers .env and .env.*.
 #
 #   ./scripts/gen-env.sh            # fill blanks, keep everything existing
-#   ./scripts/gen-env.sh --rotate   # regenerate the generated secrets too
+#   ./scripts/gen-env.sh --rotate-local # rotate generator-managed local secrets
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ROTATE=false
-[[ "${1:-}" == "--rotate" ]] && ROTATE=true
+ROTATE_LOCAL=false
+case "${1:-}" in
+  "") ;;
+  --rotate-local) ROTATE_LOCAL=true ;;
+  --rotate)
+    echo "--rotate is intentionally unsupported because provenance cannot be inferred." >&2
+    echo "Use --rotate-local for generator-managed development secrets; rotate production secrets at their provider." >&2
+    exit 2
+    ;;
+  *) echo "usage: $0 [--rotate-local]" >&2; exit 2 ;;
+esac
 
 # ---------------------------------------------------------------- helpers
 
@@ -35,14 +44,16 @@ read_existing() {
     || true
 }
 
-# keep <file> <KEY> <fallback> — preserves a pasted value unless --rotate and
-# the value is one we generated (never rotates something you pasted by hand).
+# keep <file> <KEY> <fallback> — preserves every existing value. The optional
+# local_generated marker permits --rotate-local only for development files the
+# generator owns. Production calls deliberately never pass this marker because
+# a dotenv value has no reliable provenance after an operator edits it.
 keep() {
   local file="$1" key="$2" fallback="$3"
   local current
   current="$(read_existing "$file" "$key")"
   if [[ -n "$current" && "$current" != PASTE_* ]]; then
-    if [[ "$ROTATE" == true && "${4:-}" == "generated" ]]; then
+    if [[ "$ROTATE_LOCAL" == true && "${4:-}" == "local_generated" ]]; then
       echo "$fallback"
     else
       echo "$current"
@@ -65,13 +76,11 @@ write() {
 # secret (the API and worker must agree on the internal token, for instance).
 
 ROOT_ENV=".env"
-MONGO_PASSWORD="$(keep "$ROOT_ENV" MONGO_PASSWORD "$(gen 24 32)" generated)"
-REDIS_PASSWORD="$(keep "$ROOT_ENV" REDIS_PASSWORD "$(gen 24 32)" generated)"
-TYPESENSE_API_KEY="$(keep "$ROOT_ENV" TYPESENSE_API_KEY "$(gen 32 48)" generated)"
-INTERNAL_SERVICE_TOKEN="$(keep "$ROOT_ENV" INTERNAL_SERVICE_TOKEN "$(gen 32 48)" generated)"
-AUTH_SECRET="$(keep "$ROOT_ENV" AUTH_SECRET "$(gen 32 44)" generated)"
-SESSION_SECRET="$(keep "$ROOT_ENV" SESSION_SECRET "$(gen 32 44)" generated)"
-SECURITY_ALERT_WEBHOOK_SECRET="$(keep "$ROOT_ENV" SECURITY_ALERT_WEBHOOK_SECRET "$(gen 32 48)" generated)"
+MONGO_PASSWORD="$(keep "$ROOT_ENV" MONGO_PASSWORD "$(gen 24 32)" local_generated)"
+REDIS_PASSWORD="$(keep "$ROOT_ENV" REDIS_PASSWORD "$(gen 24 32)" local_generated)"
+TYPESENSE_API_KEY="$(keep "$ROOT_ENV" TYPESENSE_API_KEY "$(gen 32 48)" local_generated)"
+INTERNAL_SERVICE_TOKEN="$(keep "$ROOT_ENV" INTERNAL_SERVICE_TOKEN "$(gen 32 48)" local_generated)"
+SECURITY_ALERT_WEBHOOK_SECRET="$(keep "$ROOT_ENV" SECURITY_ALERT_WEBHOOK_SECRET "$(gen 32 48)" local_generated)"
 
 # Connection strings. Pasted values survive re-runs; the defaults point at the
 # local Docker stack.
@@ -85,9 +94,9 @@ TYPESENSE_URL="$(keep "$ROOT_ENV" TYPESENSE_URL "http://localhost:8108")"
 # production means a leaked dev machine is a production compromise, and it is
 # the single most common way a small team gets breached.
 PROD_ENV=".env.production"
-PROD_INTERNAL_SERVICE_TOKEN="$(keep "$PROD_ENV" INTERNAL_SERVICE_TOKEN "$(gen 32 48)" generated)"
-PROD_AUTH_SECRET="$(keep "$PROD_ENV" AUTH_SECRET "$(gen 32 44)" generated)"
-PROD_SESSION_SECRET="$(keep "$PROD_ENV" SESSION_SECRET "$(gen 32 44)" generated)"
+PROD_INTERNAL_SERVICE_TOKEN="$(keep "$PROD_ENV" INTERNAL_SERVICE_TOKEN "$(gen 32 48)")"
+PROD_AUTH_SECRET="$(keep "$PROD_ENV" AUTH_SECRET "$(gen 32 44)")"
+PROD_SESSION_SECRET="$(keep "$PROD_ENV" SESSION_SECRET "$(gen 32 44)")"
 
 # Production connections — yours to paste, preserved once set.
 PROD_MONGO_URI="$(keep "$PROD_ENV" MONGO_URI PASTE_MONGODB_ATLAS_URI)"
@@ -96,9 +105,11 @@ PROD_REDIS_URL="$(keep "$PROD_ENV" REDIS_URL PASTE_REDIS_URL)"
 PROD_TYPESENSE_URL="$(keep "$PROD_ENV" TYPESENSE_URL PASTE_TYPESENSE_URL)"
 PROD_TYPESENSE_API_KEY="$(keep "$PROD_ENV" TYPESENSE_API_KEY PASTE_TYPESENSE_API_KEY)"
 PROD_SENTRY_DSN="$(keep "$PROD_ENV" SENTRY_DSN PASTE_SENTRY_DSN)"
+PROD_OTEL_EXPORTER_OTLP_ENDPOINT="$(keep "$PROD_ENV" OTEL_EXPORTER_OTLP_ENDPOINT PASTE_OTEL_EXPORTER_OTLP_ENDPOINT)"
+PROD_OTEL_EXPORTER_OTLP_HEADERS="$(keep "$PROD_ENV" OTEL_EXPORTER_OTLP_HEADERS PASTE_OTEL_EXPORTER_OTLP_HEADERS)"
 PROD_RESEND_API_KEY="$(keep "$PROD_ENV" RESEND_API_KEY PASTE_RESEND_API_KEY)"
 PROD_SECURITY_ALERT_WEBHOOK_URL="$(keep "$PROD_ENV" SECURITY_ALERT_WEBHOOK_URL PASTE_SECURITY_ALERT_WEBHOOK_URL)"
-PROD_SECURITY_ALERT_WEBHOOK_SECRET="$(keep "$PROD_ENV" SECURITY_ALERT_WEBHOOK_SECRET "$(gen 32 48)" generated)"
+PROD_SECURITY_ALERT_WEBHOOK_SECRET="$(keep "$PROD_ENV" SECURITY_ALERT_WEBHOOK_SECRET "$(gen 32 48)")"
 
 echo "Generating environment files…"
 echo
@@ -122,13 +133,11 @@ write "$ROOT_ENV" \
 "REDIS_URL=\"$REDIS_URL\"" \
 "TYPESENSE_URL=\"$TYPESENSE_URL\"" \
 "" \
-"# --- Generated secrets (safe to rotate with --rotate) ---" \
+"# --- Generated local secrets (rotate with --rotate-local) ---" \
 "MONGO_PASSWORD=$MONGO_PASSWORD" \
 "REDIS_PASSWORD=$REDIS_PASSWORD" \
 "TYPESENSE_API_KEY=$TYPESENSE_API_KEY" \
 "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
-"AUTH_SECRET=$AUTH_SECRET" \
-"SESSION_SECRET=$SESSION_SECRET" \
 "" \
 "# --- Local service ports. This machine runs other projects, so GhanaGeo" \
 "# --- claims a dedicated block. Change here and in docker-compose.yml together." \
@@ -149,6 +158,7 @@ write "$PROD_ENV" \
 "# shipping a file. A .env.production on a server is a file that can leak." \
 "" \
 "GHANAGEO_ENV=production" \
+"GHANAGEO_SERVE_MODE=http" \
 "" \
 "# ── PASTE: MongoDB Atlas ────────────────────────────────────────────────" \
 "# Atlas → Database → Connect → Drivers → Go. Include the database name." \
@@ -174,12 +184,13 @@ write "$PROD_ENV" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\"" \
 "RESEND_API_KEY=$PROD_RESEND_API_KEY" \
 "RESEND_FROM_EMAIL=noreply@digitalghana.dev" \
+"GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev" \
 "SECURITY_ALERT_WEBHOOK_URL=$PROD_SECURITY_ALERT_WEBHOOK_URL" \
 "SECURITY_ALERT_WEBHOOK_SECRET=$PROD_SECURITY_ALERT_WEBHOOK_SECRET" \
 "" \
 "# --- Generated for production. DIFFERENT from your local values, on purpose:" \
 "# --- reusing a development secret in production turns a leaked laptop into a" \
-"# --- production compromise. Rotate with: ./scripts/gen-env.sh --rotate" \
+"# --- production compromise. Rotate these at their provider, never here." \
 "INTERNAL_SERVICE_TOKEN=$PROD_INTERNAL_SERVICE_TOKEN" \
 "AUTH_SECRET=$PROD_AUTH_SECRET" \
 "SESSION_SECRET=$PROD_SESSION_SECRET" \
@@ -220,7 +231,13 @@ write "$API_ENV" \
 write "services/api/.env.production" \
 "# GhanaGeo API — production. NEVER COMMIT. Load these into Render, not a file." \
 "GHANAGEO_ENV=production" \
+"GHANAGEO_SERVE_MODE=http" \
 "API_LOG_LEVEL=info" \
+"API_TRUST_PROXY_HEADERS=true" \
+"API_TRUSTED_PROXY_CIDRS=PASTE_RENDER_EDGE_PROXY_CIDRS" \
+"API_REQUIRE_HTTPS=true" \
+"API_PASSKEY_RPID=digitalghana.dev" \
+"API_PASSKEY_ORIGINS=\"https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev\"" \
 "API_HTTP_PORT=8080" \
 "API_GRPC_PORT=9090" \
 "" \
@@ -236,12 +253,15 @@ write "services/api/.env.production" \
 "" \
 "API_ALLOWED_ORIGINS=\"https://geo.digitalghana.dev,https://sandbox.geo.digitalghana.dev,https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev\"" \
 "" \
-"INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
+"INTERNAL_SERVICE_TOKEN=$PROD_INTERNAL_SERVICE_TOKEN" \
 "" \
 "# ── PASTE: observability and mail ───────────────────────────────────────" \
+"OTEL_EXPORTER_OTLP_ENDPOINT=$PROD_OTEL_EXPORTER_OTLP_ENDPOINT" \
+"OTEL_EXPORTER_OTLP_HEADERS=$PROD_OTEL_EXPORTER_OTLP_HEADERS" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\"" \
 "RESEND_API_KEY=$PROD_RESEND_API_KEY" \
 "RESEND_FROM_EMAIL=noreply@digitalghana.dev" \
+"GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev" \
 "SECURITY_ALERT_WEBHOOK_URL=$PROD_SECURITY_ALERT_WEBHOOK_URL" \
 "SECURITY_ALERT_WEBHOOK_SECRET=$PROD_SECURITY_ALERT_WEBHOOK_SECRET"
 
@@ -271,6 +291,8 @@ write "services/worker/.env.production" \
 "TYPESENSE_API_KEY=$PROD_TYPESENSE_API_KEY" \
 "INTERNAL_SERVICE_TOKEN=$PROD_INTERNAL_SERVICE_TOKEN" \
 "INGEST_CACHE_DIR=/var/cache/ghanageo/ingest" \
+"OTEL_EXPORTER_OTLP_ENDPOINT=$PROD_OTEL_EXPORTER_OTLP_ENDPOINT" \
+"OTEL_EXPORTER_OTLP_HEADERS=$PROD_OTEL_EXPORTER_OTLP_HEADERS" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\""
 
 # --------------------------------------------------------------------- cli
@@ -317,9 +339,11 @@ next_app() {
   # Preserve keys already issued for this app. Without this, every re-run
   # blanked them and the app silently lost its credentials — which would have
   # made "safe to re-run" untrue in exactly the way that costs an afternoon.
-  local browser_key server_key prod_browser_key prod_server_key
+  local browser_key server_key prod_browser_key prod_server_key auth_secret session_secret
   browser_key="$(read_existing "$dir/.env" NEXT_PUBLIC_GHANAGEO_BROWSER_KEY)"
   server_key="$(read_existing "$dir/.env" GHANAGEO_SERVER_KEY)"
+  auth_secret="$(keep "$dir/.env" AUTH_SECRET "$(gen 32 44)" local_generated)"
+  session_secret="$(keep "$dir/.env" SESSION_SECRET "$(gen 32 44)" local_generated)"
   prod_browser_key="$(keep "$dir/.env.production" NEXT_PUBLIC_GHANAGEO_BROWSER_KEY PASTE_BROWSER_KEY)"
   prod_server_key="$(keep "$dir/.env.production" GHANAGEO_SERVER_KEY PASTE_SERVER_KEY)"
 
@@ -332,6 +356,10 @@ next_app() {
 "NEXT_PUBLIC_GHANAGEO_API_URL=\"http://localhost:8180/v1\"" \
 "NEXT_PUBLIC_GHANAGEO_GRAPHQL_URL=\"http://localhost:8180/graphql\"" \
 "NEXT_PUBLIC_SITE_URL=\"http://localhost:$port\"" \
+"NEXT_PUBLIC_GHANAGEO_WEB_URL=\"http://localhost:3100\"" \
+"NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=\"http://localhost:3101\"" \
+"NEXT_PUBLIC_GHANAGEO_PORTAL_URL=\"http://localhost:3102\"" \
+"NEXT_PUBLIC_GHANAGEO_INDEXABLE=false" \
 "NEXT_PUBLIC_ENVIRONMENT=local" \
 "" \
 "# A browser key is origin-restricted and scope-limited, so exposing it is" \
@@ -341,8 +369,8 @@ next_app() {
 "NEXT_PUBLIC_GHANAGEO_BROWSER_KEY=$browser_key" \
 "" \
 "# --- Server-only: never prefixed NEXT_PUBLIC_. ---" \
-"AUTH_SECRET=$AUTH_SECRET" \
-"SESSION_SECRET=$SESSION_SECRET" \
+"AUTH_SECRET=$auth_secret" \
+"SESSION_SECRET=$session_secret" \
 "GHANAGEO_SERVER_KEY=$server_key" \
 "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN"
 
@@ -354,6 +382,10 @@ next_app() {
 "NEXT_PUBLIC_GHANAGEO_API_URL=\"https://api.geo.digitalghana.dev/v1\"" \
 "NEXT_PUBLIC_GHANAGEO_GRAPHQL_URL=\"https://api.geo.digitalghana.dev/graphql\"" \
 "NEXT_PUBLIC_SITE_URL=\"https://$host\"" \
+"NEXT_PUBLIC_GHANAGEO_WEB_URL=\"https://geo.digitalghana.dev\"" \
+"NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=\"https://sandbox.geo.digitalghana.dev\"" \
+"NEXT_PUBLIC_GHANAGEO_PORTAL_URL=\"https://console.geo.digitalghana.dev\"" \
+"NEXT_PUBLIC_GHANAGEO_INDEXABLE=$([[ \"$dir\" == \"apps/web\" ]] && echo true || echo false)" \
 "NEXT_PUBLIC_ENVIRONMENT=production" \
 "" \
 "# ── PASTE: a BROWSER-class key restricted to https://$host ──" \
@@ -363,11 +395,11 @@ next_app() {
 "NEXT_PUBLIC_SENTRY_DSN=$(keep "$dir/.env.production" NEXT_PUBLIC_SENTRY_DSN PASTE_SENTRY_DSN_OR_LEAVE_BLANK)" \
 "" \
 "# --- Server-only: never prefixed NEXT_PUBLIC_. ---" \
-"AUTH_SECRET=$AUTH_SECRET" \
-"SESSION_SECRET=$SESSION_SECRET" \
+"AUTH_SECRET=$PROD_AUTH_SECRET" \
+"SESSION_SECRET=$PROD_SESSION_SECRET" \
 "# ── PASTE: a SERVER-class key. This must never reach a client bundle. ──" \
 "GHANAGEO_SERVER_KEY=$prod_server_key" \
-"INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN"
+"INTERNAL_SERVICE_TOKEN=$PROD_INTERNAL_SERVICE_TOKEN"
 }
 
 next_app apps/web      3100 "geo.digitalghana.dev"         "GhanaGeo marketing and docs"

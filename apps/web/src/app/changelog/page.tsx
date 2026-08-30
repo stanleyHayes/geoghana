@@ -1,5 +1,8 @@
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { Database, GitCommitHorizontal, Package } from "lucide-react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata({ title: "API and dataset changelog", description: "Track GhanaGeo API releases, dataset versions, identifier migrations and developer-tool changes.", path: "/changelog" });
 
 const releases=[
 	{date:"29 Aug 2026",version:"Dataset 2026.08.3-ulid",icon:Database,items:["Canonical region, district and place identifiers now use deterministic ULIDs.","Previously published slug identifiers return a tombstone with their replacement ID.","Provenance, relationships and 248 licensed district boundaries were preserved across the migration."]},

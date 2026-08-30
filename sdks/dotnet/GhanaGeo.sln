@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GhanaGeo", "src/GhanaGeo/GhanaGeo.csproj", "{3583C5F4-0948-41A6-9CC9-C1C567053935}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GhanaGeo.Tests", "tests/GhanaGeo.Tests/GhanaGeo.Tests.csproj", "{90AA52A7-2FB5-4B3E-A543-440733E6A68F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3583C5F4-0948-41A6-9CC9-C1C567053935}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3583C5F4-0948-41A6-9CC9-C1C567053935}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3583C5F4-0948-41A6-9CC9-C1C567053935}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3583C5F4-0948-41A6-9CC9-C1C567053935}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90AA52A7-2FB5-4B3E-A543-440733E6A68F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90AA52A7-2FB5-4B3E-A543-440733E6A68F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90AA52A7-2FB5-4B3E-A543-440733E6A68F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90AA52A7-2FB5-4B3E-A543-440733E6A68F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

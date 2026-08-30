@@ -3,6 +3,7 @@
   "compilerOptions": {
     "noEmit": true,
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "allowJs": true,
     "resolveJsonModule": true,
     "types": ["node", "react", "react-dom"],

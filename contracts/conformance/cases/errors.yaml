@@ -1,0 +1,179 @@
+version: 1
+cases:
+  -
+    id: error.invalid-argument
+    required: true
+    operation: listPlaces
+    protocols: [rest, grpc, graphql]
+    input: { query: { limit: invalid } }
+    expect:
+      outcome: error
+      httpStatus: 400
+      shape: { type: object, required: [error] }
+      error: { code: INVALID_ARGUMENT, grpcStatus: INVALID_ARGUMENT, requiredFields: [code, message, requestId, docs] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.invalid-coordinates
+    required: true
+    operation: reverseGeocode
+    protocols: [rest, grpc, graphql]
+    input: { query: { lat: 91, lng: 0 } }
+    expect:
+      outcome: error
+      httpStatus: 400
+      shape: { type: object, required: [error] }
+      error: { code: INVALID_COORDINATES, grpcStatus: INVALID_ARGUMENT, requiredFields: [code, message, requestId, docs, details.latitude, details.longitude] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.radius-out-of-range
+    required: true
+    operation: nearby
+    protocols: [rest, grpc, graphql]
+    input: { query: { lat: 5.56, lng: -0.2, radius: 50001 } }
+    expect:
+      outcome: error
+      httpStatus: 400
+      shape: { type: object, required: [error] }
+      error: { code: RADIUS_OUT_OF_RANGE, grpcStatus: INVALID_ARGUMENT, requiredFields: [code, message, requestId, docs, details.maxRadiusMeters] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.query-too-short
+    required: true
+    operation: search
+    protocols: [rest, grpc, graphql]
+    input: { query: { q: K } }
+    expect:
+      outcome: error
+      httpStatus: 400
+      shape: { type: object, required: [error] }
+      error: { code: QUERY_TOO_SHORT, grpcStatus: INVALID_ARGUMENT, requiredFields: [code, message, requestId, docs, details.minLength] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.payload-too-large
+    required: true
+    operation: search
+    protocols: [rest, grpc]
+    input: { fixture: oversized-request }
+    expect:
+      outcome: error
+      httpStatus: 413
+      shape: { type: object, required: [error] }
+      error: { code: PAYLOAD_TOO_LARGE, grpcStatus: RESOURCE_EXHAUSTED, requiredFields: [code, message, requestId, docs] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.unauthenticated
+    required: true
+    operation: listRoads
+    protocols: [rest]
+    input: { auth: omitted }
+    expect:
+      outcome: error
+      httpStatus: 401
+      shape: { type: object, required: [error] }
+      error: { code: UNAUTHENTICATED, grpcStatus: UNAUTHENTICATED, requiredFields: [code, message, requestId, docs] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.key-revoked
+    required: true
+    operation: listRegions
+    protocols: [rest, grpc, graphql]
+    input: { auth: revoked-fixture }
+    expect:
+      outcome: error
+      httpStatus: 401
+      shape: { type: object, required: [error] }
+      error: { code: KEY_REVOKED, grpcStatus: UNAUTHENTICATED, requiredFields: [code, message, requestId, docs] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.permission-denied
+    required: true
+    operation: getBoundary
+    protocols: [rest, grpc, graphql]
+    input: { auth: missing-boundaries-scope, path: { id: gh-region-ashanti } }
+    expect:
+      outcome: error
+      httpStatus: 403
+      shape: { type: object, required: [error] }
+      error: { code: PERMISSION_DENIED, grpcStatus: PERMISSION_DENIED, requiredFields: [code, message, requestId, docs, details.requiredScope] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.origin-not-allowed
+    required: true
+    operation: listRegions
+    protocols: [rest]
+    input: { auth: browser-origin-denied-fixture }
+    expect:
+      outcome: error
+      httpStatus: 403
+      shape: { type: object, required: [error] }
+      error: { code: ORIGIN_NOT_ALLOWED, grpcStatus: PERMISSION_DENIED, requiredFields: [code, message, requestId, docs, details.origin] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.not-found
+    required: true
+    operation: getPlace
+    protocols: [rest, grpc, graphql]
+    input: { path: { id: gh-place-does-not-exist } }
+    expect:
+      outcome: error
+      httpStatus: 404
+      shape: { type: object, required: [error] }
+      error: { code: NOT_FOUND, grpcStatus: NOT_FOUND, requiredFields: [code, message, requestId, docs, details.id] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: error.resource-gone
+    required: true
+    operation: getPlace
+    protocols: [rest, grpc, graphql]
+    input: { path: { id: gh-place-merged-fixture } }
+    expect:
+      outcome: error
+      httpStatus: 410
+      shape: { type: object, required: [error] }
+      error: { code: RESOURCE_GONE, grpcStatus: NOT_FOUND, requiredFields: [code, message, requestId, docs, details.mergedInto, details.reason] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: error.rate-limit-exceeded
+    required: true
+    operation: search
+    protocols: [rest, grpc, graphql]
+    input: { auth: burst-exhausted-fixture, query: { q: Kumasi } }
+    expect:
+      outcome: error
+      httpStatus: 429
+      shape: { type: object, required: [error] }
+      error: { code: RATE_LIMIT_EXCEEDED, grpcStatus: RESOURCE_EXHAUSTED, requiredFields: [code, message, requestId, docs, details.retryAfterSeconds, details.limit] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.quota-exceeded
+    required: true
+    operation: search
+    protocols: [rest, grpc, graphql]
+    input: { auth: quota-exhausted-fixture, query: { q: Kumasi } }
+    expect:
+      outcome: error
+      httpStatus: 429
+      shape: { type: object, required: [error] }
+      error: { code: QUOTA_EXCEEDED, grpcStatus: RESOURCE_EXHAUSTED, requiredFields: [code, message, requestId, docs, details.resetsAt] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.query-too-complex
+    required: true
+    operation: search
+    protocols: [graphql]
+    input: { fixture: over-complexity-budget }
+    expect:
+      outcome: error
+      httpStatus: 400
+      shape: { type: object, required: [error] }
+      error: { code: QUERY_TOO_COMPLEX, grpcStatus: INVALID_ARGUMENT, requiredFields: [code, message, requestId, docs, details.cost, details.maxCost, details.depth, details.maxDepth] }
+      quotaCost: { class: none, units: 0 }
+  - id: error.deadline-exceeded
+    required: true
+    operation: nearby
+    protocols: [rest, grpc, graphql]
+    input: { fixture: forced-deadline }
+    expect:
+      outcome: error
+      httpStatus: 504
+      shape: { type: object, required: [error] }
+      error: { code: DEADLINE_EXCEEDED, grpcStatus: DEADLINE_EXCEEDED, requiredFields: [code, message, requestId, docs] }
+      quotaCost: { class: spatial, units: 4 }
+  - id: error.internal
+    required: true
+    operation: listRegions
+    protocols: [rest, grpc, graphql]
+    input: { fixture: forced-internal-error }
+    expect:
+      outcome: error
+      httpStatus: 500
+      shape: { type: object, required: [error] }
+      error: { code: INTERNAL, grpcStatus: INTERNAL, requiredFields: [code, message, requestId, docs] }
+      quotaCost: { class: none, units: 0 }

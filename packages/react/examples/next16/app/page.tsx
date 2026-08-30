@@ -7,7 +7,7 @@ export default async function Page() {
   const client = new GhanaGeoClient();
   await queryClient.prefetchQuery({
     queryKey: ghanaGeoKeys.regions(),
-    queryFn: ({ signal }) => client.listRegions({ signal }),
+    queryFn: ({ signal }) => client.regions({}, signal),
   });
 
   return <Providers state={dehydrate(queryClient)}>Your hydrated location UI</Providers>;

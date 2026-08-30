@@ -3,8 +3,13 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/user"
 	"time"
@@ -21,6 +26,7 @@ import (
 	"github.com/ghanageo/ghanageo/services/api/internal/app/ingest"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/search"
 	"github.com/ghanageo/ghanageo/services/api/internal/app/seed"
+	accountdomain "github.com/ghanageo/ghanageo/services/api/internal/domain/account"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
@@ -44,7 +50,7 @@ Usage:
   ghanageo-admin data validate  --dataset seed
   ghanageo-admin data reconcile --against canonical-staging
   ghanageo-admin data reindex
-  ghanageo-admin data import --source geonames --file <GH.txt> [--limit N]
+  ghanageo-admin data import --source geonames --file <GH.txt> [--limit N] [--request-id ID]
   ghanageo-admin data boundaries --level ADM1|ADM2 --file <geojson> [--apply]
   ghanageo-admin data assign-districts
   ghanageo-admin data dedupe [--apply]
@@ -56,6 +62,7 @@ Usage:
   ghanageo-admin dataset history
   ghanageo-admin dataset publish  --version <v>
   ghanageo-admin dataset rollback --to <v>
+  GHANAGEO_ADMIN_PASSWORD=<secret> ghanageo-admin accounts bootstrap-admin --email <address> [--reset-mfa]
   ghanageo migrate
 `)
 }
@@ -135,9 +142,93 @@ func run(args []string) error {
 		case "revoke":
 			return cmdKeyRevoke(ctx, args[2:])
 		}
+	case "accounts":
+		if len(args) < 2 {
+			usage()
+			return fmt.Errorf("accounts: no subcommand")
+		}
+		if args[1] == "bootstrap-admin" {
+			return cmdBootstrapAdmin(ctx, args[2:])
+		}
 	}
 	usage()
 	return fmt.Errorf("unknown command %q", args[0])
+}
+
+func cmdBootstrapAdmin(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("bootstrap-admin", flag.ContinueOnError)
+	email := fs.String("email", "", "email address for the local super-admin")
+	resetMFA := fs.Bool("reset-mfa", false, "clear existing MFA credentials so the administrator must enrol again")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	normalizedEmail := accountdomain.NormalizeEmail(*email)
+	if err := accountdomain.ValidateEmail(normalizedEmail); err != nil {
+		return err
+	}
+	password := os.Getenv("GHANAGEO_ADMIN_PASSWORD")
+	if password == "" {
+		return fmt.Errorf("GHANAGEO_ADMIN_PASSWORD is required")
+	}
+	defer os.Unsetenv("GHANAGEO_ADMIN_PASSWORD")
+	hash, err := accountdomain.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	store, _, err := connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close(ctx)
+	if err := mongo.Migrate(ctx, store.DB()); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	repo := mongo.NewAccountRepo(store)
+	existing, err := repo.ByEmail(ctx, normalizedEmail)
+	if errors.Is(err, mongo.ErrAccountNotFound) {
+		id, idErr := accountdomain.NewID("acc")
+		if idErr != nil {
+			return idErr
+		}
+		if createErr := repo.Create(ctx, accountdomain.Account{
+			ID: id, Email: normalizedEmail, EmailVerified: true,
+			PasswordHash: hash, Role: accountdomain.RoleSuperAdmin,
+		}); createErr != nil {
+			return createErr
+		}
+		fmt.Printf("✓ created verified SUPER_ADMIN account %s\n", normalizedEmail)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := repo.SetPasswordHash(ctx, existing.ID, hash); err != nil {
+		return err
+	}
+	if err := repo.SetRole(ctx, existing.ID, accountdomain.RoleSuperAdmin); err != nil {
+		return err
+	}
+	if err := repo.MarkEmailVerified(ctx, existing.ID); err != nil {
+		return err
+	}
+	if err := repo.SetDisabled(ctx, existing.ID, false); err != nil {
+		return err
+	}
+	if *resetMFA {
+		if err := repo.ResetMFA(ctx, existing.ID); err != nil {
+			return err
+		}
+	}
+	if err := repo.BumpSessionEpoch(ctx, existing.ID); err != nil {
+		return err
+	}
+	fmt.Printf("✓ refreshed verified SUPER_ADMIN account %s and revoked its existing sessions", normalizedEmail)
+	if *resetMFA {
+		fmt.Print("; MFA enrolment was reset")
+	}
+	fmt.Println()
+	return nil
 }
 
 func connect(ctx context.Context) (*mongo.Store, config.Config, error) {
@@ -787,11 +878,22 @@ func cmdImport(ctx context.Context, args []string) error {
 	source := fs.String("source", "geonames", "source adapter to run")
 	file := fs.String("file", "", "path to the source dump")
 	limit := fs.Int("limit", 0, "maximum records to import (0 = all)")
+	requestID := fs.String("request-id", "", "stable request id for tracing and idempotent retries (generated when omitted)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *file == "" {
 		return fmt.Errorf("--file is required")
+	}
+	payloadHash, err := sha256File(*file)
+	if err != nil {
+		return fmt.Errorf("hash import file: %w", err)
+	}
+	if strings.TrimSpace(*requestID) == "" {
+		*requestID, err = newCLIRequestID()
+		if err != nil {
+			return fmt.Errorf("create request id: %w", err)
+		}
 	}
 
 	store, cfg, err := connect(ctx)
@@ -822,9 +924,11 @@ func cmdImport(ctx context.Context, args []string) error {
 		Regions:        mongo.NewRegionRepo(store),
 		Districts:      mongo.NewDistrictRepo(store),
 		Places:         mongo.NewPlaceRepo(store),
+		Runs:           mongo.NewImportRunRepo(store),
 		DatasetVersion: datasetVersion,
 	}
-	res, err := imp.Run(ctx, adapter, 500)
+	fmt.Printf("  payload sha256: %s\n  request id: %s\n\n", payloadHash, *requestID)
+	res, err := imp.RunWithMetadata(ctx, adapter, 500, payloadHash, *requestID)
 	if res != nil {
 		fmt.Printf("✓ fetched %d · created %d · updated %d · skipped %d · rejected %d\n",
 			res.Fetched, res.Created, res.Updated, res.Skipped, res.Rejected)
@@ -847,6 +951,27 @@ func cmdImport(ctx context.Context, args []string) error {
 	fmt.Println("\n  Records land as REFERENCE. A steward reconciles them against")
 	fmt.Printf("  GNHR/GSS before canonical publication. Environment: %s\n", cfg.Env)
 	return nil
+}
+
+func sha256File(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func newCLIRequestID() (string, error) {
+	var entropy [16]byte
+	if _, err := rand.Read(entropy[:]); err != nil {
+		return "", err
+	}
+	return "cli_" + hex.EncodeToString(entropy[:]), nil
 }
 
 // cmdBoundaries attaches administrative boundary polygons.

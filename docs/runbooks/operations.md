@@ -70,10 +70,18 @@ incident log; secrets and raw authorization headers never enter that log.
 
 ## Backup and restoration drill
 
-Production uses MongoDB Atlas continuous backup with point-in-time recovery.
-At least quarterly, restore a selected recovery point into an isolated scratch
-cluster, compare collection counts and validators, run dataset acceptance and
-API smoke tests, record RPO/RTO, then delete the scratch cluster.
+The production target is MongoDB Atlas continuous backup with point-in-time
+recovery. The current M0 cluster does not provide either feature, so its RPO is
+the age of the latest verified manual dump until the cluster is upgraded to a
+PITR-capable tier. After that upgrade, enable continuous backup and, at least
+quarterly, restore a selected recovery point into an isolated scratch cluster,
+compare collection counts and validators, run dataset acceptance and API smoke
+tests, record RPO/RTO, then delete the scratch cluster.
+
+The archive-based production restoration path has already been exercised and
+measured; see
+[`evidence/restore-drill-production-2026-08-29.md`](evidence/restore-drill-production-2026-08-29.md).
+That drill proves archive restoration, not point-in-time recovery.
 
 For a reproducible local proof of the restore mechanics:
 

@@ -1,0 +1,202 @@
+version: 1
+cases:
+  - id: operation.list-regions
+    required: true
+    operation: listRegions
+    description: Lists a deterministic page of regions and exposes its dataset version.
+    protocols: [rest, grpc, graphql]
+    input: { query: { limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.get-region
+    required: true
+    operation: getRegion
+    protocols: [rest, grpc, graphql]
+    input: { path: { id: gh-region-ashanti } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [id, countryCode, name, status, verificationStatus, provenance, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.list-region-districts
+    required: true
+    operation: listRegionDistricts
+    protocols: [rest, graphql]
+    input: { path: { id: gh-region-ahafo }, query: { limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.list-districts
+    required: true
+    operation: listDistricts
+    protocols: [rest, grpc, graphql]
+    input: { query: { regionId: gh-region-ahafo, limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.get-district
+    required: true
+    operation: getDistrict
+    protocols: [rest, grpc, graphql]
+    input: { path: { id: gh-district-ahafo-asunafo-north } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [id, name, region, status, verificationStatus, provenance, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.list-district-places
+    required: true
+    operation: listDistrictPlaces
+    protocols: [rest, graphql]
+    input: { path: { id: gh-district-ahafo-asunafo-north }, query: { limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.list-places
+    required: true
+    operation: listPlaces
+    protocols: [rest, grpc, graphql]
+    input: { query: { regionId: gh-region-ashanti, limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.get-place
+    required: true
+    operation: getPlace
+    protocols: [rest, grpc, graphql]
+    input: { path: { id: gh-place-kumasi } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [id, name, normalizedName, type, aliases, status, verificationStatus, provenance, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.search
+    required: true
+    operation: search
+    protocols: [rest, grpc, graphql]
+    input: { query: { q: Kumasi, limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: normal, units: 2 }
+  - id: operation.stream-dataset-changes
+    required: true
+    operation: streamDatasetChanges
+    protocols: [grpc]
+    input: { cursor: "" }
+    expect:
+      outcome: success
+      shape: { type: object, required: [change] }
+      quotaCost: { class: dynamic }
+  - id: operation.autocomplete
+    required: true
+    operation: autocomplete
+    protocols: [rest, grpc, graphql]
+    input: { query: { q: Kum, limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: normal, units: 2 }
+  - id: operation.geocode
+    required: true
+    operation: geocode
+    protocols: [rest, grpc, graphql]
+    input: { query: { q: Kumasi, limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: normal, units: 2 }
+  - id: operation.reverse-geocode
+    required: true
+    operation: reverseGeocode
+    protocols: [rest, grpc, graphql]
+    input: { query: { lat: 6.6885, lng: -1.6244 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [datasetVersion] }
+      quotaCost: { class: spatial, units: 4 }
+  - id: operation.nearby
+    required: true
+    operation: nearby
+    protocols: [rest, grpc, graphql]
+    input: { query: { lat: 6.6885, lng: -1.6244, radius: 5000, limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: spatial, units: 4 }
+  - id: operation.get-boundary
+    required: true
+    operation: getBoundary
+    protocols: [rest, grpc, graphql]
+    input: { path: { id: gh-region-ashanti } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [type, geometry, properties] }
+      quotaCost: { class: geometry, minimumUnits: 5, maximumUnits: 10 }
+  - id: operation.list-datasets
+    required: true
+    operation: listDatasets
+    protocols: [rest, graphql]
+    input: {}
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.list-dataset-downloads
+    required: true
+    operation: listDatasetDownloads
+    protocols: [rest]
+    input: { path: { version: "2026.08.3-ulid" } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [version, downloads] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.download-dataset-artifact
+    required: true
+    operation: downloadDatasetArtifact
+    protocols: [rest]
+    input: { path: { version: "2026.08.3-ulid", entity: regions, format: json } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: binary, required: [] }
+      quotaCost: { class: dynamic }
+  - id: operation.list-roads
+    required: true
+    operation: listRoads
+    protocols: [rest]
+    input: {}
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [] }
+      quotaCost: { class: cheap, units: 1 }
+  - id: operation.list-points-of-interest
+    required: true
+    operation: listPointsOfInterest
+    protocols: [rest]
+    input: {}
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [] }
+      quotaCost: { class: cheap, units: 1 }

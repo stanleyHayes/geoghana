@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --external react --external @tanstack/react-query --clean",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "typecheck:examples": "tsc --noEmit --strict --target ES2023 --module ESNext --moduleResolution Bundler --jsx react-jsx --esModuleInterop --skipLibCheck examples/next16/app/page.tsx examples/next16/app/providers.tsx",
+    "test": "pnpm typecheck:examples && vitest run",
     "lint": "echo ok",
     "prepack": "pnpm build"
   },

@@ -1,0 +1,30 @@
+name: Python SDK
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/python
+    strategy:
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --extra dev
+      - run: uv run ruff check .
+      - run: uv run mypy src conformance/runner.py
+      - run: uv run pytest
+      - run: sh scripts/verify_release.sh

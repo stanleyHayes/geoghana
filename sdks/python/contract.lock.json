@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": "v1",
+  "testedDatasetVersion": "2026.08.3-ulid",
+  "contracts": {
+    "openapi": {
+      "path": "contracts/openapi/v1.yaml",
+      "sha256": "0fea9c63a7e2fa64b2bb250acada7540f3b1797652ae8b28f0e6f95311ec0963"
+    },
+    "protobuf": {
+      "path": "proto/ghanageo/v1/geography.proto",
+      "sha256": "93f2448982cec282cf260e0ea1e52151b88c6ca1148dc8eb57c8ba47404ff153"
+    },
+    "conformance": {
+      "digest": "0b19aa446e1b744ea966a20f637f0e391cb84bfbcc4667666fb3644f34fdaf04",
+      "runnerVersion": "1.0.0"
+    }
+  },
+  "generator": {
+    "name": "ghanageo-hand-mapped-openapi-3.1",
+    "version": "1",
+    "pydantic": "2.13.5"
+  },
+  "tools": {
+    "python": ">=3.12,<3.15",
+    "httpx": "0.28.1",
+    "build": "1.6.0",
+    "hatchling": "1.32.0",
+    "mypy": "2.3.1",
+    "ruff": "0.16.5"
+  }
+}

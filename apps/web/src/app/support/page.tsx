@@ -1,12 +1,14 @@
 import { Card, Badge, SupportPanel, SponsorWall } from "@ghanageo/ui";
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { Heart, Server, Database, Download } from "lucide-react";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Support GhanaGeo",
   description:
     "GhanaGeo is free and intends to stay free. What donations fund, what they do not buy, and where the money goes.",
-};
+  path: "/support",
+});
 
 /** Figures are placeholders until real accounting exists, and are labelled as
  *  such. §24 F6 requires funding to be reported publicly; inventing numbers

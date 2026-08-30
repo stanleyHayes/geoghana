@@ -7,7 +7,29 @@ import (
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/account"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
+	domaingeo "github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 )
+
+type boundaryMemory struct {
+	geometry *domaingeo.Geometry
+	evidence []audit.Entry
+}
+
+func (b *boundaryMemory) GetGeometry(context.Context, string) (*domaingeo.Geometry, error) {
+	return b.geometry, nil
+}
+func (b *boundaryMemory) SetGeometryCAS(_ context.Context, _ string, expected, next *domaingeo.Geometry, evidence audit.Entry) (bool, error) {
+	if boundaryETag(expected) != boundaryETag(b.geometry) {
+		return false, nil
+	}
+	b.geometry = next
+	b.evidence = append(b.evidence, evidence)
+	return true, nil
+}
+
+func testPolygon(x float64) *domaingeo.Geometry {
+	return &domaingeo.Geometry{Type: domaingeo.GeomPolygon, Coordinates: [][][]float64{{{x, 5}, {x + .1, 5}, {x + .1, 5.1}, {x, 5.1}, {x, 5}}}}
+}
 
 type recordingSink struct{ entries []audit.Entry }
 
@@ -127,4 +149,34 @@ func TestRecordWithoutSinkIsSafe(t *testing.T) {
 	s := &Service{}
 	s.record(context.Background(), Actor{ID: "u", Role: account.RoleDataAdmin},
 		audit.ActionRecordUpdated, audit.Target{Kind: "region", ID: "r"}, nil, nil, nil)
+}
+
+func TestBoundaryUpdateRequiresCurrentETagAndAudits(t *testing.T) {
+	old, next := testPolygon(-1), testPolygon(-.5)
+	repo := &boundaryMemory{geometry: old}
+	s := (&Service{}).WithBoundaries(repo, repo)
+	a := Actor{ID: "u", Role: account.RoleDataAdmin}
+	if _, err := s.UpdateAdminBoundary(context.Background(), a, "region", "r", `"stale"`, next); err == nil {
+		t.Fatal("stale boundary overwrite was accepted")
+	}
+	out, err := s.UpdateAdminBoundary(context.Background(), a, "region", "r", boundaryETag(old), next)
+	if err != nil {
+		t.Fatalf("valid boundary update: %v", err)
+	}
+	if out.ETag != boundaryETag(next) {
+		t.Fatalf("etag = %s", out.ETag)
+	}
+	if len(repo.evidence) != 1 || repo.evidence[0].Target.Kind != "region_geometry" {
+		t.Fatal("successful update was not audited")
+	}
+}
+
+func TestBoundaryUpdateBlocksSelfIntersection(t *testing.T) {
+	bad := &domaingeo.Geometry{Type: domaingeo.GeomPolygon, Coordinates: [][][]float64{{{-1, 5}, {0, 6}, {-1, 6}, {0, 5}, {-1, 5}}}}
+	repo := &boundaryMemory{geometry: testPolygon(-1)}
+	s := (&Service{}).WithBoundaries(repo, repo)
+	_, err := s.UpdateAdminBoundary(context.Background(), Actor{Role: account.RoleDataAdmin}, "district", "d", boundaryETag(repo.geometry), bad)
+	if err == nil {
+		t.Fatal("self-intersecting polygon was accepted")
+	}
 }

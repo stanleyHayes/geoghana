@@ -23,6 +23,9 @@ var (
 	// recently — a request that was already in flight. Benign; the caller
 	// serves it and simply does not rotate again.
 	ErrSessionSuperseded = errors.New("session token was just rotated")
+	// ErrSessionRotationLost means another request rotated the same source
+	// session first. It is benign and must not be treated as token theft.
+	ErrSessionRotationLost = errors.New("another request rotated this session first")
 )
 
 type sessionDoc struct {
@@ -106,12 +109,28 @@ func (r *SessionRepo) ByToken(ctx context.Context, token string) (account.Sessio
 // Rotate supersedes the old row and inserts the replacement in one logical
 // step. The old row stays so a replay of its token is still detectable.
 func (r *SessionRepo) Rotate(ctx context.Context, oldID string, next account.Session) error {
-	now := time.Now().UTC()
-	if _, err := r.col().UpdateOne(ctx, bson.M{"_id": oldID},
-		bson.M{"$set": bson.M{"supersededAt": now}}); err != nil {
-		return fmt.Errorf("supersede session: %w", err)
+	session, err := r.s.client.StartSession()
+	if err != nil {
+		return fmt.Errorf("start session rotation transaction: %w", err)
 	}
-	return r.Create(ctx, next)
+	defer session.EndSession(ctx)
+	_, err = session.WithTransaction(ctx, func(tx context.Context) (any, error) {
+		now := time.Now().UTC()
+		res, err := r.col().UpdateOne(tx,
+			bson.M{"_id": oldID, "supersededAt": bson.M{"$exists": false}, "revokedAt": bson.M{"$exists": false}},
+			bson.M{"$set": bson.M{"supersededAt": now}})
+		if err != nil {
+			return nil, fmt.Errorf("supersede session: %w", err)
+		}
+		if res.MatchedCount == 0 {
+			return nil, ErrSessionRotationLost
+		}
+		if _, err := r.col().InsertOne(tx, fromSession(next)); err != nil {
+			return nil, fmt.Errorf("insert rotated session: %w", err)
+		}
+		return nil, nil
+	})
+	return err
 }
 
 func (r *SessionRepo) Revoke(ctx context.Context, id string) error {
@@ -193,6 +212,49 @@ func (r *OneTimeTokenRepo) Create(ctx context.Context, t account.OneTimeToken) e
 	return nil
 }
 
+// CreatePasswordReset atomically enforces the per-account delivery cooldown.
+func (r *OneTimeTokenRepo) CreatePasswordReset(ctx context.Context, t account.OneTimeToken, cooldown time.Duration) (bool, error) {
+	// One stable row per account is the serialization point. Concurrent first
+	// requests race on the same _id; concurrent refreshes re-check the age
+	// predicate atomically. Exactly one caller receives permission to send.
+	id := passwordResetRowID(t.AccountID)
+	cutoff := t.CreatedAt.Add(-cooldown)
+	doc := ottDoc{ID: id, AccountID: t.AccountID, Purpose: string(t.Purpose), Hash: t.Hash, ExpiresAt: t.ExpiresAt, CreatedAt: t.CreatedAt}
+	res, err := r.col().ReplaceOne(ctx, bson.M{
+		"_id": id,
+		"$or": bson.A{
+			bson.M{"createdAt": bson.M{"$lt": cutoff}},
+			bson.M{"usedAt": bson.M{"$exists": true}},
+		},
+	}, doc, options.Replace().SetUpsert(true))
+	if mongo.IsDuplicateKeyError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("create password reset token: %w", err)
+	}
+	return res.MatchedCount == 1 || res.UpsertedCount == 1, nil
+}
+
+func passwordResetRowID(accountID string) string {
+	return "password_reset_" + account.HashToken(accountID)
+}
+
+// ReleasePasswordReset removes only the reset token whose delivery definitely
+// failed. Matching both the stable row id and token hash prevents a delayed
+// provider failure from clearing a newer request that has since won issuance.
+func (r *OneTimeTokenRepo) ReleasePasswordReset(ctx context.Context, accountID, tokenHash string) error {
+	_, err := r.col().DeleteOne(ctx, bson.M{
+		"_id": passwordResetRowID(accountID), "accountId": accountID,
+		"purpose": string(account.PurposePasswordReset), "hash": tokenHash,
+		"usedAt": bson.M{"$exists": false},
+	})
+	if err != nil {
+		return fmt.Errorf("release undelivered password reset: %w", err)
+	}
+	return nil
+}
+
 func (r *OneTimeTokenRepo) ByValue(ctx context.Context, value string) (account.OneTimeToken, error) {
 	var d ottDoc
 	err := r.col().FindOne(ctx, bson.M{"hash": account.HashToken(value)}).Decode(&d)
@@ -221,6 +283,52 @@ func (r *OneTimeTokenRepo) MarkUsed(ctx context.Context, id string) error {
 	}
 	if res.MatchedCount == 0 {
 		return account.ErrTokenAlreadyUsed
+	}
+	return nil
+}
+
+// ConsumePasswordReset applies the complete credential transition in one
+// Mongo transaction: consume the token, replace the hash, bump the epoch and
+// mark session rows revoked. Therefore either all reset effects commit or none
+// do; a database error cannot burn the link while leaving the old credential.
+func (r *OneTimeTokenRepo) ConsumePasswordReset(ctx context.Context, tokenID, accountID, passwordHash string) error {
+	session, err := r.s.client.StartSession()
+	if err != nil {
+		return fmt.Errorf("start password reset transaction: %w", err)
+	}
+	defer session.EndSession(ctx)
+
+	_, err = session.WithTransaction(ctx, func(tx context.Context) (any, error) {
+		now := time.Now().UTC()
+		consumed, err := r.col().UpdateOne(tx,
+			bson.M{"_id": tokenID, "accountId": accountID, "purpose": string(account.PurposePasswordReset), "usedAt": bson.M{"$exists": false}},
+			bson.M{"$set": bson.M{"usedAt": now}})
+		if err != nil {
+			return nil, fmt.Errorf("consume password reset token: %w", err)
+		}
+		if consumed.MatchedCount == 0 {
+			return nil, account.ErrTokenAlreadyUsed
+		}
+
+		changed, err := r.s.db.Collection(ColAccounts).UpdateOne(tx,
+			bson.M{"_id": accountID, "disabled": false},
+			bson.M{"$set": bson.M{"passwordHash": passwordHash, "updatedAt": now}, "$inc": bson.M{"sessionEpoch": 1}})
+		if err != nil {
+			return nil, fmt.Errorf("replace password: %w", err)
+		}
+		if changed.MatchedCount == 0 {
+			return nil, ErrAccountNotFound
+		}
+
+		if _, err := r.s.db.Collection(ColSessions).UpdateMany(tx,
+			bson.M{"accountId": accountID, "revokedAt": bson.M{"$exists": false}},
+			bson.M{"$set": bson.M{"revokedAt": now}}); err != nil {
+			return nil, fmt.Errorf("revoke password reset sessions: %w", err)
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return err
 	}
 	return nil
 }

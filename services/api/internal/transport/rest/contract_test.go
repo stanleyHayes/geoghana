@@ -46,7 +46,8 @@ func TestRoutesMatchOpenAPIContract(t *testing.T) {
 
 	implemented := map[string]bool{}
 	for _, route := range []string{
-		"POST /auth/register", "POST /auth/verify", "POST /auth/login",
+		"POST /auth/register", "POST /auth/verify", "POST /auth/password-reset/request",
+		"POST /auth/password-reset/confirm", "POST /auth/login",
 		"POST /auth/mfa/totp", "POST /auth/mfa/recover", "POST /auth/mfa/enrol",
 		"POST /auth/logout", "POST /auth/logout-all", "GET /auth/session", "GET /auth/sessions",
 		"POST /auth/passkeys/register/begin", "POST /auth/passkeys/register/finish",
@@ -68,7 +69,23 @@ func TestRoutesMatchOpenAPIContract(t *testing.T) {
 		"GET /search", "GET /autocomplete", "GET /geocode", "GET /reverse", "GET /boundaries/{}",
 		"GET /datasets", "GET /datasets/{}/downloads", "GET /datasets/{}/downloads/{}.{}",
 		"GET /admin/permissions", "PATCH /admin/regions/{}", "PATCH /admin/districts/{}",
-		"PATCH /admin/places/{}", "POST /admin/places/{}/deprecate",
+		"GET /admin/fair-use/policy", "POST /admin/fair-use/policies", "POST /admin/fair-use/overrides",
+		"PATCH /admin/places/{}",
+		"GET /admin/boundaries/{}/{}", "PUT /admin/boundaries/{}/{}",
+		"POST /admin/geography/{}", "POST /admin/geography/{}/{}/deprecate", "GET /admin/redirects",
+		"GET /admin/places/{}/aliases", "POST /admin/places/{}/aliases",
+		"POST /admin/places/{}/aliases/{}/deprecate",
+		"GET /admin/dashboard", "GET /admin/system-health", "GET /admin/audit-log",
+		"GET /admin/developers/organizations", "GET /admin/developers/accounts",
+		"GET /admin/developers/applications", "GET /admin/developers/keys",
+		"GET /admin/developers/usage", "GET /admin/developers/requests",
+		"POST /admin/developers/keys/{}/suspend", "POST /admin/developers/keys/{}/revoke",
+		"GET /admin/source-runs", "GET /admin/source-runs/{}", "GET /admin/dataset-releases",
+		"GET /admin/dataset-releases/{}/readiness", "POST /admin/dataset-releases/{}/advance",
+		"PUT /admin/dataset-releases/{}/changelog", "POST /admin/dataset-releases/{}/publish",
+		"POST /admin/dataset-releases/{}/rollback",
+		"GET /admin/source-runs/{}/records", "GET /admin/source-runs/{}/records/{}",
+		"GET /admin/source-runs/{}/conflicts", "GET /admin/source-runs/{}/duplicates",
 	} {
 		implemented[route] = true
 	}
@@ -131,6 +148,29 @@ func TestErrorEnvelopeShape(t *testing.T) {
 	}
 }
 
+func TestLogoutMatchesNoContentContract(t *testing.T) {
+	h := New(nil, nil, discardLogger(), nil)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/logout", nil)
+	h.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("logout status = %d, want 204", rec.Code)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("204 response contains a body: %q", rec.Body.String())
+	}
+}
+
+func TestAdminResponsesAreNeverCacheable(t *testing.T) {
+	h := New(nil, nil, discardLogger(), nil)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/admin/dashboard", nil)
+	h.Routes().ServeHTTP(rec, req)
+	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("Cache-Control = %q, want private, no-store", got)
+	}
+}
+
 // TestCORSAllowList proves an unlisted origin receives no CORS header, so the
 // browser blocks it. A wildcard here would be a security bug (Spec 12.4).
 func TestCORSAllowList(t *testing.T) {
@@ -155,6 +195,14 @@ func TestCORSAllowList(t *testing.T) {
 		}
 		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != tc.want {
 			t.Errorf("origin %s: Access-Control-Allow-Origin = %q, want %q", tc.origin, got, tc.want)
+		}
+		if tc.want != "" {
+			methods := rec.Header().Get("Access-Control-Allow-Methods")
+			for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete} {
+				if !strings.Contains(methods, method) {
+					t.Errorf("allowed methods %q omit registered browser method %s", methods, method)
+				}
+			}
 		}
 	}
 }

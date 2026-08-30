@@ -1,9 +1,6 @@
 name: CLI release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       version:
@@ -25,23 +22,25 @@ jobs:
     env:
       API_VERSION: v1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: cli/go.mod
           cache-dependency-path: cli/go.mod
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 11
 
       - run: pnpm install --frozen-lockfile
+      - name: Verify seven-package release ownership
+        run: node scripts/check-sdk-release-ownership.mjs
 
       - name: Resolve and validate version
         id: release
@@ -70,9 +69,24 @@ jobs:
 
       - name: Stage npm package binaries
         run: |
-          cp cli/dist/ghanageo_* packages/cli/bin/
-          npm --prefix packages/cli version "${{ steps.release.outputs.version }}" --no-git-tag-version
-          pnpm --dir packages/cli pack
+          mkdir -p release/cli-package
+          pnpm --dir packages/cli pack --pack-destination release/cli-package
+          tar -xzf release/cli-package/ghanageo-*.tgz -C release/cli-package
+          cp cli/dist/ghanageo_* release/cli-package/package/bin/
+          rm release/cli-package/package/bin/resolve.test.js
+          node scripts/stamp-staged-sdk-package.mjs release/cli-package/package "${{ steps.release.outputs.version }}"
+          (cd release/cli-package/package && npm pack --ignore-scripts --pack-destination ../../ >/dev/null)
+          mv "release/ghanageo-${{ steps.release.outputs.version }}.tgz" packages/cli/
+          if tar -tzf "packages/cli/ghanageo-${{ steps.release.outputs.version }}.tgz" | grep -q 'package/bin/resolve.test.js'; then
+            echo "public umbrella tarball contains resolve.test.js" >&2
+            exit 1
+          fi
+          for artifact in \
+            ghanageo_darwin_amd64 ghanageo_darwin_arm64 \
+            ghanageo_linux_amd64 ghanageo_linux_arm64 ghanageo_linux_arm \
+            ghanageo_windows_amd64.exe ghanageo_windows_arm64.exe; do
+            tar -tzf "packages/cli/ghanageo-${{ steps.release.outputs.version }}.tgz" | grep -qx "package/bin/$artifact"
+          done
 
       - name: Generate Homebrew formula
         run: |
@@ -80,42 +94,9 @@ jobs:
           ./cli/release/homebrew-formula.sh "${{ steps.release.outputs.version }}" \
             cli/dist/checksums.txt > release/ghanageo.rb
 
-      - name: Publish npm package
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance packages/cli/ghanageo-${{ steps.release.outputs.version }}.tgz
-
-      - name: Create GitHub release
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            cli/dist/ghanageo_* cli/dist/checksums.txt \
-            packages/cli/ghanageo-${{ steps.release.outputs.version }}.tgz \
-            --verify-tag --generate-notes --title "GhanaGeo CLI $GITHUB_REF_NAME"
-
-      - name: Update Homebrew tap
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          [[ -n "$TAP_TOKEN" ]] || { echo "HOMEBREW_TAP_TOKEN is required" >&2; exit 1; }
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/ghanageo/homebrew-tap.git" tap
-          mkdir -p tap/Formula
-          cp release/ghanageo.rb tap/Formula/ghanageo.rb
-          cd tap
-          git config user.name "ghanageo-release[bot]"
-          git config user.email "ghanageo-release[bot]@users.noreply.github.com"
-          git add Formula/ghanageo.rb
-          git diff --cached --quiet && exit 0
-          git commit -m "ghanageo $GITHUB_REF_NAME"
-          git push origin HEAD:main
-
       - name: Upload dry-run artifacts
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ghanageo-cli-${{ steps.release.outputs.version }}
           path: |

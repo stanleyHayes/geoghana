@@ -2,12 +2,14 @@ import { Badge } from "@ghanageo/ui";
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { ArrowRight, ArrowUpRight, Database, MapPin, ShieldCheck } from "lucide-react";
 import { VISION, MISSION, CONTEXT, PLATFORM, AUDIENCES, UNVERIFIED } from "@/content/about";
+import { pageMetadata, sandboxOrigin } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "About GhanaGeo — vision, mission and sources",
   description:
     "Why GhanaGeo exists, what it commits to, and the sourced evidence behind every figure we publish.",
-};
+  path: "/about",
+});
 
 export default function About() {
   return (
@@ -109,7 +111,7 @@ export default function About() {
             ))}
             <div className="about-platform__actions">
               <a className="site-button site-button--primary" href="/docs">Read the documentation <ArrowRight size={16} aria-hidden /></a>
-              <a className="site-button" href="http://localhost:3101">Try the API <ArrowUpRight size={16} aria-hidden /></a>
+              <a className="site-button" href={sandboxOrigin}>Try the API <ArrowUpRight size={16} aria-hidden /></a>
             </div>
           </div>
         </section>

@@ -7,6 +7,24 @@
 keeps every credential as a dashboard-supplied secret. Sync the Blueprint only
 after the quality/security checks pass and all `sync: false` values are ready.
 
+CI may lint the Blueprint without deployment credentials using the explicitly
+limited mode below. This is not a production deployment gate:
+
+```sh
+make production-blueprint-check
+```
+
+Before syncing or deploying, run the fail-closed gate with at least one
+production dotenv files. It validates API and worker settings independently,
+including telemetry, paging and error-reporting gates, and rejects blanks or
+placeholders without printing any value. Calling it without either path fails:
+
+```sh
+make production-preflight \
+  API_ENV=services/api/.env.production \
+  WORKER_ENV=services/worker/.env.production
+```
+
 The same Blueprint defines `ghanageo-worker` from the same immutable image.
 Its command is `/ghanageo-worker`; it consumes the transactional outbox and
 rebuilds search after dataset publication or rollback. Verify its queue-depth
@@ -59,6 +77,41 @@ Use pnpm 11 and preserve workspace access from the monorepo root. Populate the
 generated production environment values in each project. Preview deployments
 must use preview API/origin values; never reuse production browser or server
 credentials.
+
+Validate each Vercel handoff before deployment. The named service selects the
+correct frontend requirements, including a populated `NEXT_PUBLIC_SENTRY_DSN`:
+
+```sh
+ruby scripts/production-preflight.rb --env web=apps/web/.env.production
+ruby scripts/production-preflight.rb --env sandbox=apps/sandbox/.env.production
+ruby scripts/production-preflight.rb --env portal=apps/portal/.env.production
+ruby scripts/production-preflight.rb --env admin=apps/admin/.env.production
+```
+
+The marketing project additionally requires:
+
+```text
+NEXT_PUBLIC_GHANAGEO_WEB_URL=https://geo.digitalghana.dev
+NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=https://sandbox.geo.digitalghana.dev
+NEXT_PUBLIC_GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev
+NEXT_PUBLIC_GHANAGEO_INDEXABLE=true
+```
+
+Set `NEXT_PUBLIC_GHANAGEO_INDEXABLE=false` on every preview and staging
+environment. It controls both the robots metadata and `robots.txt`; only the
+canonical production deployment may emit an indexable sitemap. Before switching
+it to `true`, prove the final hostname, TLS certificate and redirects, then run:
+
+```sh
+GHANAGEO_WEB_AUDIT_URL=https://geo.digitalghana.dev \
+GHANAGEO_EXPECTED_ORIGIN=https://geo.digitalghana.dev \
+GHANAGEO_EXPECT_INDEXABLE=true pnpm --filter @ghanageo/web seo:check
+```
+
+Submit `https://geo.digitalghana.dev/sitemap.xml` in Google Search Console only
+after that audit passes. Search Console ownership, crawl discovery and field
+Core Web Vitals require the public DNS target and cannot be proven from a local
+build.
 
 ## Go-live proof
 

@@ -1,0 +1,392 @@
+{
+  "schemaVersion" : 2,
+  "contract" : {
+    "digest" : "0b19aa446e1b744ea966a20f637f0e391cb84bfbcc4667666fb3644f34fdaf04",
+    "runnerVersion" : "1.0.0"
+  },
+  "sdk" : {
+    "language" : "java",
+    "name" : "dev.ghanageo:ghanageo-java",
+    "version" : "2.0.0-SNAPSHOT",
+    "supportedProtocols" : [ "rest" ]
+  },
+  "apiVersion" : "v1",
+  "datasetVersion" : "2026.08.3-ulid",
+  "summary" : {
+    "passed" : 41,
+    "failed" : 0,
+    "skipped" : 0
+  },
+  "evidenceDigest" : "9b850cb20ccb029b96a604b31513128a2a85055a45fa7a9442e5d137db90e5fe",
+  "evidence" : [ {
+    "caseId" : "error.deadline-exceeded",
+    "protocol" : "rest",
+    "requestDigest" : "884c1e8ebb4d10bf217a837143313706b6358ff7772cf01a2ed267a500933d1d",
+    "responseDigest" : "3174dfda9eb6e5fbf4de41113a8e5b46148d18d0d78e4cf2a128e9786d509227"
+  }, {
+    "caseId" : "error.internal",
+    "protocol" : "rest",
+    "requestDigest" : "c0975aec3c595bd89f7634f61dda3d27c40887a2f58e3efbb66ea9a8b3b2dac5",
+    "responseDigest" : "92ab1a3b48802052e1a3d803ee36c8302dad4efd49c83f3c0546a20afe00ec79"
+  }, {
+    "caseId" : "error.invalid-argument",
+    "protocol" : "rest",
+    "requestDigest" : "6aa719daae53920383b78257db707ee66454aef3a7b704c2ad3da878a4b7cbf1",
+    "responseDigest" : "b8e4d022f305a34af5396cf77e9b765002274cbb1611a075a14096949d7111c7"
+  }, {
+    "caseId" : "error.invalid-coordinates",
+    "protocol" : "rest",
+    "requestDigest" : "62f471c88374fef2b61184e8ca604a5ee384e97c6db5fca4a8fd54610631fc70",
+    "responseDigest" : "1c3a2eb27d34d2e582073ebc632aee54758ec3d92620ad43e2a29755808bc17e"
+  }, {
+    "caseId" : "error.key-revoked",
+    "protocol" : "rest",
+    "requestDigest" : "e0be88fb6fd28baf9d18ec0b99f7a3172087a6b4a3d0282cb3ac76c5ad78a27b",
+    "responseDigest" : "6bfd1143169b20414affb55f66ce5ab143c0c40928ed955412e1132fbe8af269"
+  }, {
+    "caseId" : "error.not-found",
+    "protocol" : "rest",
+    "requestDigest" : "7cd735754dee1725351b6fc0eea07cc3653bd9065f162669bde36075a497eff4",
+    "responseDigest" : "4dcb32f91595293a312fc76b997cfce2673baa06293987d4a5855b80480d095c"
+  }, {
+    "caseId" : "error.origin-not-allowed",
+    "protocol" : "rest",
+    "requestDigest" : "aeb302194d481da7a1d9c424facbe16b4700faed8ade460b177b1dda5d2d9366",
+    "responseDigest" : "8c381eb36cfef36e693727582682b08d6c569ed7e8d340cde68db347b46dce51"
+  }, {
+    "caseId" : "error.payload-too-large",
+    "protocol" : "rest",
+    "requestDigest" : "18debb9db3aa33489a9089f64978a5f66808f7faba55d1d44776ee39f79ada34",
+    "responseDigest" : "71915fb475ba6a2dbb59b01743a4d0b97932690ce6dbdcff9e31461bfc89e74e"
+  }, {
+    "caseId" : "error.permission-denied",
+    "protocol" : "rest",
+    "requestDigest" : "a640969227fb83de1ef9f200b00e2bc2145e03e3e5ad58dc8f1d03192f59306f",
+    "responseDigest" : "2a90819d8a401e766f580e476b16966402e20ef499200a3c6cc316b0eb117647"
+  }, {
+    "caseId" : "error.query-too-short",
+    "protocol" : "rest",
+    "requestDigest" : "1d777188ea5c8a5250516ad10abdf07ea7090559bb398507571298c25e686bcd",
+    "responseDigest" : "e151c6c77e55b0e472de7c48485d294f885d4632cbbf5ef7519eb6f82d9601d8"
+  }, {
+    "caseId" : "error.quota-exceeded",
+    "protocol" : "rest",
+    "requestDigest" : "2f52b41559f0ea40d4e7b093eadaf380d276e8abf448b0ed1e8d42e84465f473",
+    "responseDigest" : "011ec9a9b54efa0c5421392f5ef5146f44a71a1b11960dea2a3f10aae7773336"
+  }, {
+    "caseId" : "error.radius-out-of-range",
+    "protocol" : "rest",
+    "requestDigest" : "75fcad9487fd4343e1f2dbc6706e9f20e1537cba0a9874b39ca7502b6c4c38c1",
+    "responseDigest" : "9526084b77ab26eb2c5d41df95838d786244cdc4505630a2840b6d1f5816ebf6"
+  }, {
+    "caseId" : "error.rate-limit-exceeded",
+    "protocol" : "rest",
+    "requestDigest" : "ab26317bd9e8325a9c130e2b767e4374fd11f5567dea16b7ce0d03b3ca29210b",
+    "responseDigest" : "140c290c7a1a573edaa83ee4e8c501d058ea7d159d6e881ec681897db1773cd8"
+  }, {
+    "caseId" : "error.resource-gone",
+    "protocol" : "rest",
+    "requestDigest" : "5598fce0505d446190be4a40e133acf61f35fd43da7a1e8b31a4e5e2b76fe06f",
+    "responseDigest" : "7aa093cd65a24ab6941fe13452f2a6fa54049bfc7bf9a2d59c42cd4f708e3b43"
+  }, {
+    "caseId" : "error.unauthenticated",
+    "protocol" : "rest",
+    "requestDigest" : "727b9fa7f4c392584f7021d246154aa237fb589493576137afa173d8d6eb43cc",
+    "responseDigest" : "6954433508cb9fc6d0b672c81d6bee7f1a2e3d551992d051ea3639389109f787"
+  }, {
+    "caseId" : "operation.autocomplete",
+    "protocol" : "rest",
+    "requestDigest" : "785a578f5edb32a42180bb1ac18237862ddcc7a60a4040b9d933b5e1cdd53575",
+    "responseDigest" : "4500f0e76b4eebc3ba5907ee0ac1079da16bb4962392cac88dc5919c47db6418"
+  }, {
+    "caseId" : "operation.download-dataset-artifact",
+    "protocol" : "rest",
+    "requestDigest" : "ded3cf0bbd7b33a3f96629e42d36a98aa1b69ccae57ef80d0ccabda7c5b465c2",
+    "responseDigest" : "8ffd4643fbb6171fb0dd60deb86dbdbb1020e8a4070597a958a929a76ff21ac6"
+  }, {
+    "caseId" : "operation.geocode",
+    "protocol" : "rest",
+    "requestDigest" : "33048607dde03847db29adbde3a28c514f44bb3a24c651f21dc4090da5e49cb5",
+    "responseDigest" : "6dcb666a6f5e93f10ad64587c21796a91e2cacd91c7415a9ecd91c415aa77e39"
+  }, {
+    "caseId" : "operation.get-boundary",
+    "protocol" : "rest",
+    "requestDigest" : "6d2767030b2e838982ecd0950451eca05dc5f54600c15370269610a0c1773ac9",
+    "responseDigest" : "412b13613e7577d681bcaa8ee7fe24bb2a1bb1f2b958bb13d9537056c6edd81a"
+  }, {
+    "caseId" : "operation.get-district",
+    "protocol" : "rest",
+    "requestDigest" : "2206ff066fd43561fac04a64ca2853ad14521a5774540ebf0bb75c555dbebb3e",
+    "responseDigest" : "c19385f54cf56e324dda8e2666ea90d6d30b2649ec55f0f0e301f0bea1d384fa"
+  }, {
+    "caseId" : "operation.get-place",
+    "protocol" : "rest",
+    "requestDigest" : "34619d24499a9c85eb203e92c84a0f0d87f3bb9a8452992cf3fb6fb894c75dff",
+    "responseDigest" : "b8251bd83aef5bf326d531b4eaf400f3841032ffaef91b9e1ce13ea682138030"
+  }, {
+    "caseId" : "operation.get-region",
+    "protocol" : "rest",
+    "requestDigest" : "76c92e26a91d56f4dcb67a288e350e738e4facbbed7c3199cbac6c140b2fef19",
+    "responseDigest" : "67d0a14344cd1ab1263fa4cb7b00434401ead5b7c03b82498182372e96f9894f"
+  }, {
+    "caseId" : "operation.list-dataset-downloads",
+    "protocol" : "rest",
+    "requestDigest" : "01762926008c4f4b9744b4ace4ddb6b04e320ecb24490a25429ac95256dd9da5",
+    "responseDigest" : "8aa0fbc6097b772d111c0b55d364398012ba5a0e64da13185f1433e16485efcc"
+  }, {
+    "caseId" : "operation.list-datasets",
+    "protocol" : "rest",
+    "requestDigest" : "6a3d7c18a8033cc9ec69ff09f63cb378b3b7d96dadb79e0401186a1b5b44c6eb",
+    "responseDigest" : "b281568d2e7cbe247c700a7127ea4286213520c6317e8803207cc0f3de7bd937"
+  }, {
+    "caseId" : "operation.list-district-places",
+    "protocol" : "rest",
+    "requestDigest" : "e01e385ce9787d337ec157dc4ca61f62f14ac5d0cadff711c488b98234ec808b",
+    "responseDigest" : "a01d4e187acd71d9cccadc62fdbb76c88d4e558e0645625252b0e39c811a19a0"
+  }, {
+    "caseId" : "operation.list-districts",
+    "protocol" : "rest",
+    "requestDigest" : "f54f52286880a6116e6d7888786325247a3ae462f2fdb2d8c1c413217337f543",
+    "responseDigest" : "6856a9b8d1835a0b5803bb0d1b04ed5215cef452312fd24a2881b3e97ab83e9f"
+  }, {
+    "caseId" : "operation.list-places",
+    "protocol" : "rest",
+    "requestDigest" : "2a7c9ace9aa8473139a9e72daa062863445d8a5471e7975464545c6a15afebfc",
+    "responseDigest" : "905d29cbaaa2984be7dff55f13ff1eb6b7b1273bb3b8c5e53329e67464d7cb6a"
+  }, {
+    "caseId" : "operation.list-points-of-interest",
+    "protocol" : "rest",
+    "requestDigest" : "092f1af0251d97f464ae9f79b73b40a517494ce685f2b8c03bfd7226e94fc3c0",
+    "responseDigest" : "d8f035032c2f6b9d457ee4d790c1104202a4aff6bbbed5e90d5b1cf1e0708b2f"
+  }, {
+    "caseId" : "operation.list-region-districts",
+    "protocol" : "rest",
+    "requestDigest" : "6a000f53eb7de70f605f2b3f194d9710c2a132a7d1d3f55021b3a7f3d048ef47",
+    "responseDigest" : "d457a0b967eb449729c783da7b0def4dbbc9bbfb0b4a94a558eebb77cffbff54"
+  }, {
+    "caseId" : "operation.list-regions",
+    "protocol" : "rest",
+    "requestDigest" : "b5d8727880a6c39b3d5e9896e49f5f04791029441f4fb72747ebfa7635239a81",
+    "responseDigest" : "97ccb212694f959b442de2c421aa37f6b2d095021cde7fb4717ae1f3095064c5"
+  }, {
+    "caseId" : "operation.list-roads",
+    "protocol" : "rest",
+    "requestDigest" : "98d15a438a6cf776f3a4aa8a5c67164ddc45798b0ec46ad7a753457f9ee4c2c2",
+    "responseDigest" : "a5fdab1900e31b16892909c519e8d70118e515d1e4a764b8626e6f755fa950ff"
+  }, {
+    "caseId" : "operation.nearby",
+    "protocol" : "rest",
+    "requestDigest" : "ab64af82337421a23a79cf1d1058a282bd5cdde8f5ccf18a25901d3264261678",
+    "responseDigest" : "98978f30b7284ea396046486e3b0456f66553a7378ff307cfec7857cc9598aa0"
+  }, {
+    "caseId" : "operation.reverse-geocode",
+    "protocol" : "rest",
+    "requestDigest" : "b79af479f5bd2251ddddc62754c84557c16e53b39a5c6c14292dd3b342b99a14",
+    "responseDigest" : "5ac850f25525b1e0802ebf1850cccdd33fc6ae383708db3530cb124d0dae75b8"
+  }, {
+    "caseId" : "operation.search",
+    "protocol" : "rest",
+    "requestDigest" : "0d589383c93b9f56dfbe57a26d2bc461b53056f830169648dcee39331cb7ef18",
+    "responseDigest" : "0fe89f4df166601bb3e8206037cf1bba3a3fad7faf7bb19754d75adfaf3da931"
+  }, {
+    "caseId" : "semantic.anonymous-default",
+    "protocol" : "rest",
+    "requestDigest" : "77e53f8adcb968690520146500a63fc00f3bd9698f4e9e3899ab709c3e080c19",
+    "responseDigest" : "97ccb212694f959b442de2c421aa37f6b2d095021cde7fb4717ae1f3095064c5"
+  }, {
+    "caseId" : "semantic.autocomplete-orthography",
+    "protocol" : "rest",
+    "requestDigest" : "1e20c1f1e9a3f660601eaddc6e4028f1ec4db94d368a12b696f9dce34dfbe9d1",
+    "responseDigest" : "70edd948caff68d138f726f1514c607b862c0f9c45e242800be4b64ba8eaf054"
+  }, {
+    "caseId" : "semantic.cancellation-propagates",
+    "protocol" : "rest",
+    "requestDigest" : "2386a73ab0cc2d670ba4549a42f3160ac4db835f598359562309fb624abe92a0",
+    "responseDigest" : "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  }, {
+    "caseId" : "semantic.cursor-pagination",
+    "protocol" : "rest",
+    "requestDigest" : "e5fb9cff0554b7f76d7c274e9075becea32ad369236e8acfc77e174c0ef3848c",
+    "responseDigest" : "be0d1cd0c68543c17571b1fa48a59fe12d4e1daedf6b02a879ab58cc9a9f51b4"
+  }, {
+    "caseId" : "semantic.dataset-version-on-pages",
+    "protocol" : "rest",
+    "requestDigest" : "0fc3200eceb880ec4157c29d9ece14257e018597c2a4c35a94cd15c175b1bea6",
+    "responseDigest" : "97ccb212694f959b442de2c421aa37f6b2d095021cde7fb4717ae1f3095064c5"
+  }, {
+    "caseId" : "semantic.reverse-outside-ghana",
+    "protocol" : "rest",
+    "requestDigest" : "9d2c1d4714108c5f011276667035470c500a5bd43ca314f6147de103a55f14f9",
+    "responseDigest" : "36144f74fb9828b22d9a3f20d4ab4c739902da89f1ae3d3a8c9a1aa5171f8b22"
+  }, {
+    "caseId" : "semantic.search-protocol-parity",
+    "protocol" : "rest",
+    "requestDigest" : "8c247fa373e20ffe653a228f2de12dd5627f940d21b3cf8fa8083c5a7b3f6f3e",
+    "responseDigest" : "b8eab01dc137d17bf4e61236c685f89f6144ea7ccda58aed9b4c29cd33f53822"
+  } ],
+  "results" : [ {
+    "caseId" : "error.deadline-exceeded",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.internal",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.invalid-argument",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.invalid-coordinates",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.key-revoked",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.not-found",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.origin-not-allowed",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.payload-too-large",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.permission-denied",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.query-too-short",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.quota-exceeded",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.radius-out-of-range",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.rate-limit-exceeded",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.resource-gone",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "error.unauthenticated",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.autocomplete",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.download-dataset-artifact",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.geocode",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.get-boundary",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.get-district",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.get-place",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.get-region",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-dataset-downloads",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-datasets",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-district-places",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-districts",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-places",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-points-of-interest",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-region-districts",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-regions",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.list-roads",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.nearby",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.reverse-geocode",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "operation.search",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "semantic.anonymous-default",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "semantic.autocomplete-orthography",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "semantic.cancellation-propagates",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "semantic.cursor-pagination",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "semantic.dataset-version-on-pages",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "semantic.reverse-outside-ghana",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  }, {
+    "caseId" : "semantic.search-protocol-parity",
+    "status" : "passed",
+    "protocols" : [ "rest" ]
+  } ]
+}

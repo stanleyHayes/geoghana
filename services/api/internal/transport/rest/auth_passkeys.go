@@ -49,6 +49,7 @@ func (h *Handler) passkeyRegisterFinish(w http.ResponseWriter, r *http.Request) 
 	// The body is the raw authenticator response, which the library parses
 	// straight off the request — so it is passed through untouched rather
 	// than decoded and re-encoded here.
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	pk, err := h.accounts.FinishPasskeyRegistration(r.Context(), sess.AccountID, challengeID, name, r)
 	if err != nil {
 		writeErr(w, r, err)
@@ -85,6 +86,9 @@ func (h *Handler) passkeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, apierr.New(apierr.InvalidArgument, "challengeId is required."))
 		return
 	}
+	// WebAuthn consumes the raw request directly, so decodeJSON's normal body
+	// cap does not apply. Bound public assertion payloads before parsing.
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	res, err := h.accounts.FinishPasskeyLogin(r.Context(), challengeID, r.UserAgent(), clientIP(r), r)
 	if err != nil {
 		writeErr(w, r, err)

@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { AliasWorkspace } from "@/components/geography-admin-controls";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/geography/aliases"]!} />;
+  return <AliasWorkspace />;
 }

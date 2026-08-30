@@ -9,8 +9,10 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	adminops "github.com/ghanageo/ghanageo/services/api/internal/domain/adminops"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/v2/event"
@@ -27,16 +29,20 @@ import (
 )
 
 type Telemetry struct {
-	registry *prometheus.Registry
-	provider *sdktrace.TracerProvider
-	requests *prometheus.CounterVec
-	latency  *prometheus.HistogramVec
-	deps     *prometheus.HistogramVec
-	rate     *prometheus.CounterVec
-	cache    *prometheus.CounterVec
-	queue    *prometheus.GaugeVec
-	etlLag   prometheus.Histogram
-	indexLag prometheus.Histogram
+	registry     *prometheus.Registry
+	provider     *sdktrace.TracerProvider
+	requests     *prometheus.CounterVec
+	latency      *prometheus.HistogramVec
+	deps         *prometheus.HistogramVec
+	rate         *prometheus.CounterVec
+	cache        *prometheus.CounterVec
+	queue        *prometheus.GaugeVec
+	etlLag       prometheus.Histogram
+	indexLag     prometheus.Histogram
+	requestCount atomic.Int64
+	errorCount   atomic.Int64
+	cacheHits    atomic.Int64
+	cacheMisses  atomic.Int64
 }
 
 func New(ctx context.Context, serviceName, version string, log *slog.Logger) (*Telemetry, error) {
@@ -106,12 +112,37 @@ func (t *Telemetry) Handler() http.Handler {
 func (t *Telemetry) ObserveRequest(protocol, operation, status string, elapsed time.Duration) {
 	t.requests.WithLabelValues(protocol, operation, status).Inc()
 	t.latency.WithLabelValues(protocol, operation).Observe(elapsed.Seconds())
+	t.requestCount.Add(1)
+	serverError := strings.HasPrefix(status, "5")
+	if protocol == "grpc" {
+		switch status {
+		case "Internal", "Unknown", "Unavailable", "DataLoss":
+			serverError = true
+		}
+	}
+	if serverError {
+		t.errorCount.Add(1)
+	}
 }
 func (t *Telemetry) ObserveDependency(dependency, operation, result string, elapsed time.Duration) {
 	t.deps.WithLabelValues(dependency, operation, result).Observe(elapsed.Seconds())
 }
-func (t *Telemetry) ObserveRateLimit(result string)    { t.rate.WithLabelValues(result).Inc() }
-func (t *Telemetry) ObserveCache(cache, result string) { t.cache.WithLabelValues(cache, result).Inc() }
+func (t *Telemetry) ObserveRateLimit(result string) { t.rate.WithLabelValues(result).Inc() }
+func (t *Telemetry) ObserveCache(cache, result string) {
+	t.cache.WithLabelValues(cache, result).Inc()
+	if result == "hit" {
+		t.cacheHits.Add(1)
+	}
+	if result == "miss" {
+		t.cacheMisses.Add(1)
+	}
+}
+
+// AdminMetrics is a bounded process-lifetime aggregate for the authenticated
+// health UI. It intentionally exposes neither Prometheus labels nor routes.
+func (t *Telemetry) AdminMetrics() adminops.RuntimeMetrics {
+	return adminops.RuntimeMetrics{RequestCount: t.requestCount.Load(), ErrorCount: t.errorCount.Load(), CacheHits: t.cacheHits.Load(), CacheMisses: t.cacheMisses.Load()}
+}
 func (t *Telemetry) SetQueueDepth(pending, processing, dead int64) {
 	t.queue.WithLabelValues("pending").Set(float64(pending))
 	t.queue.WithLabelValues("processing").Set(float64(processing))

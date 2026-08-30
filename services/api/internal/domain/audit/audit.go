@@ -73,9 +73,12 @@ const (
 	ActionDatasetPublished                 Action = "dataset.published"
 	ActionDatasetExported                  Action = "dataset.exported"
 	ActionDatasetRolledBk                  Action = "dataset.rolled_back"
+	ActionDatasetLifecycleChanged          Action = "dataset.lifecycle_changed"
+	ActionDatasetChangelogUpdated          Action = "dataset.changelog_updated"
 	ActionKeyCreated                       Action = "key.created"
 	ActionKeyRotated                       Action = "key.rotated"
 	ActionKeyRevoked                       Action = "key.revoked"
+	ActionKeySuspended                     Action = "key.suspended"
 	ActionOrganizationCreated              Action = "organization.created"
 	ActionOrganizationInvited              Action = "organization.member_invited"
 	ActionOrganizationJoined               Action = "organization.member_joined"
@@ -89,6 +92,14 @@ const (
 	ActionReindexed                        Action = "search.reindexed"
 	ActionRecordUpdated                    Action = "record.updated"
 	ActionRecordDeprecated                 Action = "record.deprecated"
+	ActionChangeRequestSubmitted           Action = "change_request.submitted"
+	ActionChangeRequestReviewStarted       Action = "change_request.review_started"
+	ActionChangeRequestChangesRequested    Action = "change_request.changes_requested"
+	ActionChangeRequestApproved            Action = "change_request.approved"
+	ActionChangeRequestRejected            Action = "change_request.rejected"
+	ActionChangeRequestCommented           Action = "change_request.commented"
+	ActionFairUsePolicyAppended            Action = "fair_use.policy_appended"
+	ActionFairUseOverrideAppended          Action = "fair_use.override_appended"
 )
 
 // Target is what the action was performed on.

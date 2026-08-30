@@ -164,3 +164,13 @@ func TestFailClosedWhenConfigured(t *testing.T) {
 		t.Error("with failOpen disabled an outage must surface as an error")
 	}
 }
+
+func TestRedisHitRateParsesOnlyBoundedStats(t *testing.T) {
+	rate := redisHitRate("# Stats\r\nkeyspace_hits:75\r\nkeyspace_misses:25\r\nsecret:value\r\n")
+	if rate == nil || *rate != 75 {
+		t.Fatalf("redisHitRate = %v, want 75", rate)
+	}
+	if got := redisHitRate("keyspace_hits:0\nkeyspace_misses:0\n"); got != nil {
+		t.Fatalf("empty activity must not fake a hit rate: %v", *got)
+	}
+}

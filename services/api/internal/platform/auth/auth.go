@@ -13,6 +13,7 @@ import (
 
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/identity"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/apierr"
+	"github.com/ghanageo/ghanageo/services/api/internal/platform/fairuse"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/securityalert"
 )
 
@@ -48,6 +49,12 @@ type Authenticator struct {
 	sandbox bool
 	now     func() time.Time
 	alerts  securityalert.Reporter
+	fairUse *fairuse.Resolver
+}
+
+func (a *Authenticator) WithFairUseResolver(resolver *fairuse.Resolver) *Authenticator {
+	a.fairUse = resolver
+	return a
 }
 
 func New(keys KeyLookup, limiter Limiter, sandbox bool) *Authenticator {
@@ -147,6 +154,18 @@ func (a *Authenticator) Authorize(
 	}
 
 	allowance := identity.AllowanceFor(id, a.sandbox)
+	if a.fairUse != nil {
+		resolved := a.fairUse.Resolve(ctx, id, a.sandbox, cost)
+		allowance = resolved.Allowance
+		if !resolved.Allowed {
+			// Preserve the established limiter response contract even when a
+			// live policy disables an entire cost class before Redis is charged.
+			decision := Decision{Allowed: false, Limit: allowance.BurstUnits, Remaining: allowance.BurstUnits, RetryAfter: 1}
+			return ctx, decision, apierr.New(apierr.RateLimitExceeded,
+				"This request cost class is disabled by the current fair-use policy.").
+				WithDetail("costClass", string(cost))
+		}
+	}
 	decision, err := a.limiter.Allow(ctx, id, allowance, cost)
 	if err != nil {
 		return ctx, Decision{}, apierr.Wrap(apierr.Internal, "Could not apply fair-use limits.", err)

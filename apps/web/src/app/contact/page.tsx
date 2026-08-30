@@ -1,5 +1,8 @@
 import { MarketingFooter, MarketingHeader } from "@/components/site-chrome";
 import { ArrowUpRight, Building2, Mail, MessageSquareText, ShieldAlert } from "lucide-react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata({ title: "Contact", description: "Contact GhanaGeo about location data, corrections, public-sector integrations, partnerships or security reports.", path: "/contact" });
 
 const contacts=[
   {icon:MessageSquareText,title:"Product and data questions",copy:"Coverage, licensing, corrections and integration guidance.",href:"mailto:support@digitalghana.dev",label:"support@digitalghana.dev"},

@@ -1,0 +1,85 @@
+version: 1
+cases:
+  - id: semantic.search-protocol-parity
+    required: true
+    operation: search
+    description: REST, gRPC and GraphQL normalize the same ranked identities for the same query.
+    protocols: [rest, grpc, graphql]
+    input: { query: { q: Kumasi, limit: 5 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: normal, units: 2 }
+      semantics: [protocolResultsEquivalent, datasetVersionPresent]
+  - id: semantic.dataset-version-on-pages
+    required: true
+    operation: listRegions
+    description: Every normalized page exposes the independently versioned dataset it came from.
+    protocols: [rest, grpc, graphql]
+    input: { query: { limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+      semantics: [datasetVersionPresent]
+  - id: semantic.cursor-pagination
+    required: true
+    operation: listPlaces
+    description: A cursor resumes without duplicate identities and remains opaque to callers.
+    protocols: [rest, grpc, graphql]
+    input: { fixture: two-page-place-sequence, query: { limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion, nextCursor] }
+      quotaCost: { class: cheap, units: 1 }
+      semantics: [stableCursorPagination, datasetVersionPresent]
+  - id: semantic.autocomplete-orthography
+    required: true
+    operation: autocomplete
+    description: The generalized combobox behavior preserves Ghanaian display orthography while matching normalized input.
+    protocols: [rest, grpc, graphql]
+    input: { query: { q: Mamp, limit: 10 }, fixture: ghanaian-orthography }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: normal, units: 2 }
+      semantics: [preservesGhanaianOrthography, datasetVersionPresent]
+  - id: semantic.anonymous-default
+    required: true
+    operation: listRegions
+    description: A public read works without an SDK embedding or requiring a default API key.
+    protocols: [rest, grpc, graphql]
+    input: { auth: omitted, query: { limit: 2 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [data, datasetVersion] }
+      quotaCost: { class: cheap, units: 1 }
+      semantics: [anonymousByDefault, datasetVersionPresent]
+  - id: semantic.cancellation-propagates
+    required: true
+    operation: search
+    description: Cancellation from any language runner terminates the public request instead of returning a late result.
+    protocols: [rest, grpc, graphql]
+    input: { fixture: delayed-response, cancelAfterMilliseconds: 10, query: { q: Kumasi } }
+    expect:
+      outcome: success
+      shape: { type: object, required: [] }
+      quotaCost: { class: normal, units: 2 }
+      semantics: [cancellationPropagates]
+  - id: semantic.reverse-outside-ghana
+    required: true
+    operation: reverseGeocode
+    description: Valid coordinates outside Ghana produce an empty normalized result rather than an error.
+    protocols: [rest, grpc, graphql]
+    input: { query: { lat: 51.5072, lng: -0.1276 } }
+    expect:
+      outcome: success
+      httpStatus: 200
+      shape: { type: object, required: [datasetVersion] }
+      quotaCost: { class: spatial, units: 4 }
+      semantics: [emptyOutsideGhana, datasetVersionPresent]

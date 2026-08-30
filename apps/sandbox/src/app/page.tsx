@@ -5,10 +5,10 @@ import { useGhanaGeoClient } from "@ghanageo/react";
 import { ArrowLeft, Braces, Check, ChevronRight, Clock3, Code2, Copy, ExternalLink, FlaskConical, Gauge, Play, Search, Sparkles, Terminal } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ResponseMap } from "./response-map";
+import { portalOrigin, webOrigin } from "@/lib/public-origins";
 
 const API = resolveApiBase(process.env.NEXT_PUBLIC_GHANAGEO_API_URL);
 const GRAPHQL = process.env.NEXT_PUBLIC_GHANAGEO_GRAPHQL_URL ?? API.replace(/\/v1\/?$/, "/graphql");
-const PORTAL = process.env.NEXT_PUBLIC_GHANAGEO_PORTAL_URL ?? "http://localhost:3102";
 type Protocol = "rest" | "graphql" | "grpc";
 const SAMPLES = [
   { label: "Osu", path: "/search?q=osu", group: "Search", why: "Exact locality search" },
@@ -126,7 +126,7 @@ export default function Sandbox() {
   const complexity = useMemo(() => protocol === "graphql" ? estimateGraphqlComplexity(path) : null, [path, protocol]);
   const portalHref = useMemo(() => {
     const params = new URLSearchParams({ from: "sandbox", protocol, request: path, payload });
-    return `${PORTAL}?${params.toString()}`;
+    return `${portalOrigin}?${params.toString()}`;
   }, [path, payload, protocol]);
 
   async function loadGraphqlSchema() {
@@ -236,7 +236,7 @@ export default function Sandbox() {
     <div className="sandbox-shell" data-intensity="balanced">
       <SkipLink />
       <header className="sandbox-header">
-        <a className="sandbox-brand" href="http://localhost:3100" aria-label="Back to GhanaGeo">
+        <a className="sandbox-brand" href={webOrigin} aria-label="Back to GhanaGeo">
           <span className="sandbox-brand__mark" aria-hidden>GG</span>
           <span><strong>GhanaGeo</strong><small>API sandbox</small></span>
         </a>
@@ -246,12 +246,12 @@ export default function Sandbox() {
         <div className="sandbox-header__actions">
           <span className="sandbox-live"><i aria-hidden /> Public API</span>
           <ThemeMenu />
-          <a className="sandbox-home" href="http://localhost:3100" aria-label="Back to GhanaGeo website"><ArrowLeft size={15} aria-hidden /> <span>Website</span></a>
+          <a className="sandbox-home" href={webOrigin} aria-label="Back to GhanaGeo website"><ArrowLeft size={15} aria-hidden /> <span>Website</span></a>
         </div>
       </header>
 
       <main id="main" className="sandbox-main">
-        <aside className="sandbox-sidebar" aria-label="Sample requests">
+        <aside className="sandbox-sidebar" aria-label="Sample requests" tabIndex={0}>
           <div className="sandbox-sidebar__intro"><p>Request library</p><span>{protocol === "rest" ? `${SAMPLES.length} useful starting points` : `${protocol === "graphql" ? "GraphQL" : "gRPC"} live workspace`}</span></div>
           <div className="sandbox-filter"><Search size={15} aria-hidden /><span>Curated examples</span><kbd>{SAMPLES.length}</kbd></div>
           {protocol === "rest" ? <div className="sandbox-samples">
@@ -266,7 +266,7 @@ export default function Sandbox() {
           {history.length > 0 ? <div className="sandbox-history"><p>Recent runs</p>{history.map((run) => <button key={`${run.protocol}-${run.request}-${run.at}`} type="button" onClick={() => { setProtocol(run.protocol); setPath(run.request); setPayload(run.payload); }}><span>{run.label.split("?")[0]}</span><small>{run.status ?? "offline"} · {run.ms} ms</small></button>)}</div> : null}
         </aside>
 
-        <section className="sandbox-workbench">
+        <section className="sandbox-workbench" aria-label="API request workbench" tabIndex={0}>
           <div className="sandbox-workbench__head">
             <div><p className="sandbox-kicker"><Sparkles size={14} aria-hidden /> No account or API key</p><h1>Make a real request.</h1><p>Explore Ghana&rsquo;s location data against the public API, then copy the exact code into your project.</p></div>
             <a href={portalHref}>Create developer account <ExternalLink size={14} aria-hidden /></a>
@@ -304,7 +304,7 @@ export default function Sandbox() {
         </section>
       </main>
 
-      <footer className="sandbox-footer"><p><FlaskConical size={15} aria-hidden /> Anonymous requests use stricter fair-use limits. They never use privileged credentials.</p><nav aria-label="Sandbox footer"><a href="http://localhost:3100/docs">API docs</a><a href="http://localhost:3100/about">Data sources</a><a href="https://github.com" rel="noopener noreferrer">GitHub <ExternalLink size={13} aria-hidden /></a></nav></footer>
+      <footer className="sandbox-footer"><p><FlaskConical size={15} aria-hidden /> Anonymous requests use stricter fair-use limits. They never use privileged credentials.</p><nav aria-label="Sandbox footer"><a href={`${webOrigin}/docs`}>API docs</a><a href={`${webOrigin}/about`}>Data sources</a><a href="https://github.com" rel="noopener noreferrer">GitHub <ExternalLink size={13} aria-hidden /></a></nav></footer>
     </div>
   );
 }

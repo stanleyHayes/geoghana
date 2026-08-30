@@ -26,7 +26,22 @@ type Service struct {
 	version   string
 
 	// Attached by WithMutations; nil in read-only deployments.
-	auditSink AuditSink
+	auditSink          AuditSink
+	regionBoundaries   ports.BoundaryRepository
+	districtBoundaries ports.BoundaryRepository
+	admin              ports.AdminGeographyRepository
+}
+
+func (s *Service) WithAdminRepository(r ports.AdminGeographyRepository) *Service {
+	s.admin = r
+	return s
+}
+
+// WithBoundaries enables the privileged boundary workflow. Keeping this
+// explicit allows read-only deployments and unit tests to omit write access.
+func (s *Service) WithBoundaries(r, d ports.BoundaryRepository) *Service {
+	s.regionBoundaries, s.districtBoundaries = r, d
+	return s
 }
 
 func NewService(

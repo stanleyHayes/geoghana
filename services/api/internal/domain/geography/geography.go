@@ -230,11 +230,14 @@ func (d District) Validate() error {
 // Alias is an alternative name for a place: colloquial, abbreviated or
 // in another Ghanaian language.
 type Alias struct {
+	ID              string
+	PlaceID         string
 	Value           string
 	NormalizedValue string
 	AliasType       string
 	Language        string
 	IsPreferred     bool
+	Status          Status
 }
 
 // Place is a locality in human geography.
@@ -285,6 +288,7 @@ func (p Place) Validate() error {
 // Redirect preserves a merged or deprecated ID so old identifiers keep
 // resolving instead of 404ing (Spec 18, plan GEO-3.3).
 type Redirect struct {
+	Kind     string
 	OldID    string
 	NewID    string
 	Reason   string

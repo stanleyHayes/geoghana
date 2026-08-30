@@ -4,8 +4,11 @@ package ports
 
 import (
 	"context"
+	"time"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
+	ingestdomain "github.com/ghanageo/ghanageo/services/api/internal/domain/ingest"
 )
 
 // Page is a cursor-paginated result. Cursor pagination lives in the port
@@ -83,11 +86,49 @@ type PlaceRepository interface {
 	Nearby(ctx context.Context, c geography.Coordinate, radiusMeters int, limit int) ([]geography.Place, error)
 }
 
+// ImportRunRepository owns the durable ingestion unit of work. Record commits
+// atomically persist the canonical place, its privacy-safe source reference,
+// and the run counters, so an interrupted import can be retried safely.
+type ImportRunRepository interface {
+	Queue(context.Context, ingestdomain.Run) (ingestdomain.Run, bool, error)
+	Start(context.Context, string, time.Time) error
+	CommitRecord(context.Context, ingestdomain.RawRecord, *geography.Place) (created bool, err error)
+	Complete(context.Context, string, time.Time, int64, int64) error
+	Fail(context.Context, string, ingestdomain.Error, time.Time) error
+}
+
 // RedirectRepository resolves deprecated and merged identifiers so old IDs
 // keep working (Spec 18).
 type RedirectRepository interface {
 	Resolve(ctx context.Context, oldID string) (*geography.Redirect, error)
 	Put(ctx context.Context, r geography.Redirect) error
+}
+
+// BoundaryRepository is the privileged boundary-write contract. The expected
+// geometry makes updates compare-and-swap: a steward cannot silently overwrite
+// a boundary changed since it was loaded.
+type BoundaryRepository interface {
+	GetGeometry(ctx context.Context, id string) (*geography.Geometry, error)
+	SetGeometryCAS(ctx context.Context, id string, expected, next *geography.Geometry, evidence audit.Entry) (bool, error)
+}
+
+// AdminGeographyRepository owns privileged canonical writes. Implementations
+// commit the canonical change, redirect/alias projection and audit evidence in
+// one database transaction.
+type AdminGeographyRepository interface {
+	CreateRegion(context.Context, geography.Region, audit.Entry) error
+	CreateDistrict(context.Context, geography.District, audit.Entry) error
+	CreatePlace(context.Context, geography.Place, audit.Entry) error
+	CreateRoad(context.Context, geography.Road, audit.Entry) error
+	CreatePOI(context.Context, geography.POI, audit.Entry) error
+	UpdateRegion(context.Context, geography.Region, audit.Entry) error
+	UpdateDistrict(context.Context, geography.District, audit.Entry) error
+	UpdatePlace(context.Context, geography.Place, audit.Entry) error
+	Deprecate(context.Context, string, string, string, string, audit.Entry) error
+	ListRedirects(context.Context, ListParams) (Page[geography.Redirect], error)
+	ListAliases(context.Context, string) ([]geography.Alias, error)
+	CreateAlias(context.Context, geography.Alias, audit.Entry) error
+	DeprecateAlias(context.Context, string, string, audit.Entry) error
 }
 
 // SearchPort abstracts the search engine. Two implementations exist:

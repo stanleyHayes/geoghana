@@ -11,9 +11,9 @@ export type GhanaGeoProviderProps = PropsWithChildren<{
 }>;
 
 export function GhanaGeoProvider({ children, client, options, queryClient }: GhanaGeoProviderProps) {
-  const resolvedClient = useMemo(() => client ?? new GhanaGeoClient(options), [client, options?.baseUrl, options?.apiKey, options?.fetcher]);
+  const resolvedClient = useMemo(() => client ?? new GhanaGeoClient(options), [client, options?.baseUrl, options?.apiKey, options?.fetcher, options?.retry, options?.telemetry]);
   const resolvedQueryClient = useMemo(() => queryClient ?? new QueryClient({
-    defaultOptions: { queries: { staleTime: 5 * 60_000, retry: 2, refetchOnWindowFocus: false } },
+    defaultOptions: { queries: { staleTime: 5 * 60_000, retry: false, refetchOnWindowFocus: false } },
   }), [queryClient]);
 
   return (

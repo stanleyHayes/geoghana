@@ -1,0 +1,15 @@
+name: ghanageo
+description: Official null-safe, Dart-only client SDK for the GhanaGeo API.
+version: 0.1.0
+homepage: https://geo.digitalghana.dev
+repository: https://github.com/ghanageo/ghanageo/tree/main/sdks/dart
+issue_tracker: https://github.com/ghanageo/ghanageo/issues
+topics: [ghana, geocoding, geography, maps, api-client]
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+dependencies:
+  http: ^1.5.0
+dev_dependencies:
+  crypto: ^3.0.6
+  lints: ^5.1.1
+  test: ^1.25.15

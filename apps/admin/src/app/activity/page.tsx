@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { ActivityFeed } from "@/components/admin-operations";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/activity"]!} />;
+  return <ActivityFeed />;
 }

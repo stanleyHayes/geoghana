@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
+import { headers } from "next/headers";
 import { JetBrains_Mono, Outfit } from "next/font/google";
 import { ThemeProvider, themeInitScript } from "@ghanageo/ui";
-import { AdminShell } from "@/components/admin-shell";
+import { AuthenticatedAdmin } from "@/components/authenticated-admin";
 import { SessionProvider } from "@/components/session";
 import "./globals.css";
 
@@ -23,15 +25,24 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "GhanaGeo Admin",
   description: "Curate, review, reconcile, publish and audit Ghana's canonical location data.",
+  robots: { index: false, follow: false, nocache: true },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// Operator HTML and RSC payloads can contain privileged operational data.
+// Make the route tree explicitly non-cacheable in Next's final render policy;
+// proxy headers alone can be replaced by the App Router while streaming.
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await connection();
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
       <head>
         {/* Blocking and inline, before any painted content. A deferred script
             runs after first paint, which is the bug this avoids. */}
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
       </head>
       <body>
         <ThemeProvider>
@@ -40,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Who is signed in and what they may do. The permission list
               gates what the console RENDERS; the API enforces it again. */}
           <SessionProvider>
-            <AdminShell>{children}</AdminShell>
+            <AuthenticatedAdmin>{children}</AuthenticatedAdmin>
           </SessionProvider>
         </ThemeProvider>
       </body>

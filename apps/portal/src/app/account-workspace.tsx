@@ -4,10 +4,13 @@ import {
   AlertCircle,
   Check,
   Copy,
+  Eye,
+  EyeOff,
   KeyRound,
   LoaderCircle,
   LogIn,
   LogOut,
+  Mail,
   Plus,
   Play,
   RefreshCw,
@@ -20,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { OrganizationAccess } from "./organization-access";
 import { UsageAnalytics } from "./usage-analytics";
+import { sandboxOrigin } from "@/lib/public-origins";
 
 const API =
   // resolveApiBase, not the raw env var: NEXT_PUBLIC_* is inlined at BUILD
@@ -108,6 +112,7 @@ export function AccountWorkspace() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [orgId, setOrgId] = useState("");
   const [apps, setApps] = useState<Application[]>([]);
@@ -346,8 +351,7 @@ export function AccountWorkspace() {
           body: JSON.stringify({ query: preserved.request, variables: JSON.parse(preserved.payload || "{}") }),
         });
       } else {
-        const sandbox = process.env.NEXT_PUBLIC_GHANAGEO_SANDBOX_URL ?? "http://localhost:3101";
-        response = await fetch(`${sandbox}/api/grpc`, {
+        response = await fetch(`${sandboxOrigin}/api/grpc`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ method: preserved.request, payload: JSON.parse(preserved.payload || "{}") }),
@@ -411,20 +415,22 @@ export function AccountWorkspace() {
           </div>
           <label>
             Email
-            <input name="email" type="email" autoComplete="email" required />
+            <span className="portal-input-wrap"><Mail aria-hidden /><input name="email" type="email" autoComplete="email" placeholder="name@example.com" required /></span>
           </label>
           <label>
             Password
-            <input
+            <span className="portal-input-wrap"><KeyRound aria-hidden /><input
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
               }
+              placeholder={mode === "login" ? "Enter your password" : "Create a secure password"}
               minLength={12}
               required
-            />
+            /><button type="button" className="portal-password-toggle" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>{showPassword ? <EyeOff aria-hidden /> : <Eye aria-hidden />}</button></span>
           </label>
+          {mode === "login" ? <a className="account-forgot" href="/forgot-password">Forgot password?</a> : null}
           <button className="portal-primary" disabled={busy}>
             {busy ? (
               <LoaderCircle className="spin" size={16} />

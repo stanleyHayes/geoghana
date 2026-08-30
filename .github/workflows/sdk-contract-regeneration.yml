@@ -1,0 +1,58 @@
+name: SDK contract regeneration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - contracts/**
+      - proto/**
+      - tools/conformance/**
+      - sdks/**/contract.lock*
+      - sdks/go/generate.sh
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  exported-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version-file: sdks/go/go.mod }
+      - name: Install pinned protobuf generators
+        run: |
+          curl -fsSLo /tmp/protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v33.2/protoc-33.2-linux-x86_64.zip
+          echo "b24b53f87c151bfd48b112fe4c3a6e6574e5198874f38036aff41df3456b8caf  /tmp/protoc.zip" | shasum -a 256 -c -
+          unzip -q /tmp/protoc.zip -d "$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          GOBIN="$HOME/.local/bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          GOBIN="$HOME/.local/bin" go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - name: Regenerate exportable SDK roots and locks
+        run: ruby scripts/regenerate-sdk-contracts.rb
+      - name: Verify regenerated outputs
+        run: ./scripts/verify-sdk-contract-locks.sh && sdks/go/verify.sh
+      - name: Commit only changed generated evidence and open a PR
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if git diff --quiet; then echo "contract exports already current"; exit 0; fi
+          branch="automation/sdk-contracts-${GITHUB_RUN_ID}"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git switch -c "$branch"
+          git add contracts/conformance/operations.generated.yaml sdks/*/contract.lock sdks/*/contract.lock.json sdks/go/generate.sh sdks/go/proto
+          git commit -m "chore(sdks): regenerate contract exports"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "chore(sdks): regenerate contract exports" --body "Automated regeneration from contract commit $GITHUB_SHA. Configured external SDK repositories receive matching export PRs in the next step."
+      - name: Export regenerated roots and open external SDK PRs
+        env:
+          GH_TOKEN: ${{ secrets.SDK_EXTERNAL_REPOSITORIES_TOKEN }}
+          SDK_EXTERNAL_REPOSITORIES: ${{ vars.SDK_EXTERNAL_REPOSITORIES }}
+        run: |
+          [[ -n "$GH_TOKEN" && -n "$SDK_EXTERNAL_REPOSITORIES" ]] || { echo "external SDK repository token/map missing" >&2; exit 1; }
+          ruby -rjson -e 'required=%w[python go dart java dotnet php]; data=JSON.parse(ENV.fetch("SDK_EXTERNAL_REPOSITORIES")); abort "missing external SDK repositories" unless required.all? { |key| data[key]&.include?("/") }; required.each { |key| puts "#{key}\t#{data.fetch(key)}" }' > /tmp/sdk-repositories.tsv
+          while IFS=$'\t' read -r family repository; do [[ "$(gh api "repos/$repository" --jq .permissions.push)" == true ]] || { echo "no push permission for $repository" >&2; exit 1; }; done < /tmp/sdk-repositories.tsv
+          while IFS=$'\t' read -r family repository; do ./scripts/sync-external-sdk-pr.sh "$family" "$repository" "automation/contracts-${GITHUB_RUN_ID}"; done < /tmp/sdk-repositories.tsv

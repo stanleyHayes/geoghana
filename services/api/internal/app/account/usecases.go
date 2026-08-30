@@ -66,6 +66,8 @@ type RegisterResult struct {
 	Message string
 }
 
+var errPasswordResetCooldown = errors.New("password reset cooldown active")
+
 func (s *Service) Register(ctx context.Context, email, password string) (RegisterResult, error) {
 	const sameEitherWay = "If that address can receive mail, a verification link is on its way."
 
@@ -111,10 +113,26 @@ func (s *Service) issueAndSend(ctx context.Context, a account.Account, p account
 	if err != nil {
 		return apierr.Wrap(apierr.Internal, "Could not issue a token.", err)
 	}
-	if err := s.tokens.Create(ctx, iss.Token); err != nil {
+	if p == account.PurposePasswordReset {
+		created, createErr := s.tokens.CreatePasswordReset(ctx, iss.Token, passwordResetCooldown)
+		if createErr != nil {
+			return apierr.Wrap(apierr.Internal, "Could not issue a token.", createErr)
+		}
+		if !created {
+			return errPasswordResetCooldown
+		}
+	} else if err := s.tokens.Create(ctx, iss.Token); err != nil {
 		return apierr.Wrap(apierr.Internal, "Could not issue a token.", err)
 	}
 	if s.mail == nil {
+		if p == account.PurposePasswordReset {
+			// Reset tokens grant account access and must never enter logs, even
+			// in local development. Configure the local mail sink to exercise
+			// this flow.
+			s.log.WarnContext(ctx, "password reset mail not sent: no mailer configured",
+				"accountId", a.ID)
+			return errors.New("password reset mailer is not configured")
+		}
 		// No mailer configured (local development). The token is logged so a
 		// developer can complete the flow — and it is logged at WARN with an
 		// explicit note, so this can never be mistaken for production
@@ -125,10 +143,83 @@ func (s *Service) issueAndSend(ctx context.Context, a account.Account, p account
 	}
 	switch p {
 	case account.PurposePasswordReset:
-		return s.mail.SendPasswordReset(ctx, a.Email, iss.Value)
+		if err := s.mail.SendPasswordReset(ctx, a.Email, iss.Value); err != nil {
+			// The caller never received this capability. Release only this exact
+			// hashed row so an immediate retry is possible; a newer winner cannot
+			// be deleted by a late provider response.
+			if releaseErr := s.tokens.ReleasePasswordReset(ctx, a.ID, iss.Token.Hash); releaseErr != nil {
+				s.log.WarnContext(ctx, "undelivered password reset could not be released",
+					"accountId", a.ID, "err", releaseErr)
+			}
+			return err
+		}
+		return nil
 	default:
 		return s.mail.SendVerification(ctx, a.Email, iss.Value)
 	}
+}
+
+const passwordResetCooldown = 15 * time.Minute
+
+// RequestPasswordReset sends a reset link when the address belongs to an
+// account. Its response is deliberately identical for unknown, malformed,
+// disabled, throttled, and temporarily undeliverable addresses.
+func (s *Service) RequestPasswordReset(ctx context.Context, email, ip string) RegisterResult {
+	const sameEitherWay = "If that address belongs to an account, a password reset link is on its way."
+	if account.ValidateEmail(email) != nil {
+		return RegisterResult{Message: sameEitherWay}
+	}
+	a, err := s.accounts.ByEmail(ctx, email)
+	if err != nil || a.Disabled {
+		return RegisterResult{Message: sameEitherWay}
+	}
+	if err := s.issueAndSend(ctx, *a, account.PurposePasswordReset); err != nil {
+		if errors.Is(err, errPasswordResetCooldown) {
+			s.recordSecurityEvent(ctx, *a, "auth.password_reset_throttled", ip, err)
+			return RegisterResult{Message: sameEitherWay}
+		}
+		// Delivery failures are operationally visible but never reflected to
+		// the caller, otherwise account existence becomes observable.
+		s.log.WarnContext(ctx, "password reset delivery failed", "accountId", a.ID, "err", err)
+		return RegisterResult{Message: sameEitherWay}
+	}
+	s.recordSecurityEvent(ctx, *a, "auth.password_reset_requested", ip, nil)
+	return RegisterResult{Message: sameEitherWay}
+}
+
+// ConfirmPasswordReset consumes a single-use reset token, applies the shared
+// password policy, changes the credential, and revokes every existing session.
+func (s *Service) ConfirmPasswordReset(ctx context.Context, value, password, ip string) error {
+	if err := account.ValidatePassword(password); err != nil {
+		return apierr.New(apierr.InvalidArgument, err.Error())
+	}
+	if len(value) < 32 || len(value) > 256 {
+		return apierr.New(apierr.InvalidArgument, "That password reset link has expired or been used.")
+	}
+	t, err := s.tokens.ByValue(ctx, value)
+	if err != nil || t.Redeem(value, account.PurposePasswordReset, time.Now().UTC()) != nil {
+		return apierr.New(apierr.InvalidArgument, "That password reset link has expired or been used.")
+	}
+	a, err := s.accounts.ByID(ctx, t.AccountID)
+	if err != nil || a.Disabled {
+		return apierr.New(apierr.InvalidArgument, "That password reset link has expired or been used.")
+	}
+	hash, err := account.HashPassword(password)
+	if err != nil {
+		return apierr.Wrap(apierr.Internal, "Could not reset the password.", err)
+	}
+	// The adapter consumes the token, changes the credential, bumps the epoch,
+	// and revokes session rows in one transaction. Its conditional consume
+	// means two concurrent submissions cannot both succeed.
+	if err := s.tokens.ConsumePasswordReset(ctx, t.ID, a.ID, hash); err != nil {
+		if !errors.Is(err, account.ErrTokenAlreadyUsed) {
+			return apierr.Wrap(apierr.Internal, "Could not reset the password.", err)
+		}
+		s.recordSecurityEvent(ctx, *a, "auth.password_reset_replayed", ip, err)
+		return apierr.New(apierr.InvalidArgument, "That password reset link has expired or been used.")
+	}
+	s.recordSecurityEvent(ctx, *a, "auth.password_reset_completed", ip, nil)
+	return nil
 }
 
 // VerifyEmail consumes a verification token.
@@ -314,10 +405,8 @@ func (s *Service) elevate(
 	return LoginResult{Token: iss.Token, ExpiresAt: iss.Session.ExpiresAt}, nil
 }
 
-// Authenticate verifies a session token and rotates it.
-//
-// Rotation on every use is what makes a stolen token short-lived and its reuse
-// detectable. The caller must send the returned token back to the client.
+// Authenticate verifies a session token and rotates it when its refresh
+// interval has elapsed. The caller sends a non-empty returned token back.
 func (s *Service) Authenticate(ctx context.Context, token string) (account.Session, account.Account, string, error) {
 	now := time.Now().UTC()
 
@@ -329,11 +418,18 @@ func (s *Service) Authenticate(ctx context.Context, token string) (account.Sessi
 		return account.Session{}, account.Account{}, "", mapSessionErr(err)
 	}
 
+	if !sess.DueForRotation(now) {
+		return sess, a, "", nil
+	}
 	next, newToken, err := sess.Rotate(now)
 	if err != nil {
 		return account.Session{}, account.Account{}, "", apierr.Wrap(apierr.Internal, "Could not refresh the session.", err)
 	}
-	if err := s.sessions.Rotate(ctx, sess.ID, next); err != nil {
+	if err := s.sessions.Rotate(ctx, sess.ID, next); errors.Is(err, mongoadapter.ErrSessionRotationLost) {
+		// A parallel request won. This request may complete, but must not
+		// overwrite the winner's Set-Cookie response with another branch.
+		return sess, a, "", nil
+	} else if err != nil {
 		return account.Session{}, account.Account{}, "", apierr.Wrap(apierr.Internal, "Could not refresh the session.", err)
 	}
 	return next, a, newToken, nil
@@ -377,13 +473,15 @@ func (s *Service) AuthenticateForEnrolment(
 	// makes parallel requests from one browser supersede each other and look
 	// like theft.
 	if !sess.DueForRotation(now) {
-		return sess, a, token, nil
+		return sess, a, "", nil
 	}
 	next, newToken, err := sess.Rotate(now)
 	if err != nil {
 		return account.Session{}, account.Account{}, "", apierr.Wrap(apierr.Internal, "Could not refresh the session.", err)
 	}
-	if err := s.sessions.Rotate(ctx, sess.ID, next); err != nil {
+	if err := s.sessions.Rotate(ctx, sess.ID, next); errors.Is(err, mongoadapter.ErrSessionRotationLost) {
+		return sess, a, "", nil
+	} else if err != nil {
 		return account.Session{}, account.Account{}, "", apierr.Wrap(apierr.Internal, "Could not refresh the session.", err)
 	}
 	return next, a, newToken, nil

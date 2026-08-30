@@ -7,14 +7,25 @@ import { AsyncState, VerificationBadge, useApi } from "@/components/data";
 import { RecordEditor, SavedNotice } from "@/components/record-editor";
 import { SignInPanel } from "@/components/session";
 import {
-  VERIFICATION_OPTIONS, fetchDistrict, updateDistrict, type DistrictRecord,
+  BoundaryEditor,
+  RetirementPanel,
+} from "@/components/geography-admin-controls";
+import {
+  VERIFICATION_OPTIONS,
+  fetchDistrict,
+  updateDistrict,
+  type DistrictRecord,
 } from "@/lib/admin-api";
 
 const DISTRICT_TYPES = [
   { value: "METROPOLITAN", label: "Metropolitan" },
   { value: "MUNICIPAL", label: "Municipal" },
   { value: "DISTRICT", label: "District" },
-  { value: "UNSPECIFIED", label: "Not recorded", hint: "The seed source did not say" },
+  {
+    value: "UNSPECIFIED",
+    label: "Not recorded",
+    hint: "The seed source did not say",
+  },
 ];
 
 export default function DistrictDetail() {
@@ -38,37 +49,68 @@ export default function DistrictDetail() {
       <SavedNotice at={savedAt} />
       <AsyncState state={state}>
         {(d) => (
-          <RecordEditor
-            title={d.name}
-            recordId={d.id}
-            onSave={async (changes) => {
-              await updateDistrict(d.id, changes);
-              setRev((v) => v + 1);
-              setSavedAt(Date.now());
-            }}
-            fields={[
-              { key: "name", label: "Name", value: d.name },
-              { key: "type", label: "Type", value: d.type ?? "UNSPECIFIED", options: DISTRICT_TYPES },
-              { key: "capital", label: "Capital", value: d.capital ?? "" },
-              { key: "code", label: "Official code", value: d.code ?? "" },
-              {
-                key: "regionId", label: "Region", value: d.region?.id ?? "",
-                hint: "Moving a district between regions changes what every place inside it reports.",
-              },
-              {
-                key: "verificationStatus", label: "Verification",
-                value: d.verificationStatus, options: VERIFICATION_OPTIONS,
-              },
-            ]}
-            footer={
-              <div className="gg-stack-row" style={{ marginTop: "var(--space-4)" }}>
-                <VerificationBadge status={d.verificationStatus} />
-                <span style={{ fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>
-                  {d.region?.name ?? "no region"} · source {d.provenance?.sourceId ?? "not recorded"}
-                </span>
-              </div>
-            }
-          />
+          <div style={{ display: "grid", gap: "var(--space-5)" }}>
+            <div id="editor">
+              <RecordEditor
+                title={d.name}
+                recordId={d.id}
+                onSave={async (changes) => {
+                  await updateDistrict(d.id, changes);
+                  setRev((v) => v + 1);
+                  setSavedAt(Date.now());
+                }}
+                fields={[
+                  { key: "name", label: "Name", value: d.name },
+                  {
+                    key: "type",
+                    label: "Type",
+                    value: d.type ?? "UNSPECIFIED",
+                    options: DISTRICT_TYPES,
+                  },
+                  { key: "capital", label: "Capital", value: d.capital ?? "" },
+                  { key: "code", label: "Official code", value: d.code ?? "" },
+                  {
+                    key: "regionId",
+                    label: "Region",
+                    value: d.region?.id ?? "",
+                    hint: "Moving a district between regions changes what every place inside it reports.",
+                  },
+                  {
+                    key: "verificationStatus",
+                    label: "Verification",
+                    value: d.verificationStatus,
+                    options: VERIFICATION_OPTIONS,
+                  },
+                ]}
+                footer={
+                  <div
+                    className="gg-stack-row"
+                    style={{ marginTop: "var(--space-4)" }}
+                  >
+                    <VerificationBadge status={d.verificationStatus} />
+                    <span
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        color: "var(--fg-muted)",
+                      }}
+                    >
+                      {d.region?.name ?? "no region"} · source{" "}
+                      {d.provenance?.sourceId ?? "not recorded"}
+                    </span>
+                  </div>
+                }
+              />
+            </div>
+            <BoundaryEditor kind="district" id={d.id} />
+            <div id="retire">
+              <RetirementPanel
+                kind="districts"
+                id={d.id}
+                status={d.status}
+                onChanged={() => setRev((v) => v + 1)}
+              />
+            </div>
+          </div>
         )}
       </AsyncState>
     </>

@@ -1,6 +1,6 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { FairUseConsole } from "@/components/fair-use-console";
+import { RequirePermission } from "@/components/session";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/developers/plans"]!} />;
+  return <RequirePermission permission="fairuse:manage"><FairUseConsole /></RequirePermission>;
 }

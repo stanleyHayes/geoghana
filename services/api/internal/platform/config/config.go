@@ -36,7 +36,15 @@ type Config struct {
 	SecurityAlertWebhookURL    string
 	SecurityAlertWebhookSecret string
 	// AllowedOrigins is a CORS allow-list, never a wildcard (Spec 12.4).
-	AllowedOrigins []string
+	AllowedOrigins          []string
+	TrustProxyHeaders       bool
+	TrustedProxyCIDRs       []string
+	RequireHTTPS            bool
+	ResendAPIKey            string
+	ResendFromEmail         string
+	ResendAPIURL            string
+	AllowTestResendEndpoint bool
+	PortalURL               string
 }
 
 func Load() Config {
@@ -73,6 +81,14 @@ func Load() Config {
 		SecurityAlertWebhookSecret: os.Getenv("SECURITY_ALERT_WEBHOOK_SECRET"),
 		AllowedOrigins: strings.Split(env("API_ALLOWED_ORIGINS",
 			"http://localhost:3103,http://localhost:3102,http://localhost:3101,http://localhost:3100"), ","),
+		TrustProxyHeaders:       envBool("API_TRUST_PROXY_HEADERS", false),
+		TrustedProxyCIDRs:       splitNonEmpty(os.Getenv("API_TRUSTED_PROXY_CIDRS")),
+		RequireHTTPS:            envBool("API_REQUIRE_HTTPS", false),
+		ResendAPIKey:            os.Getenv("RESEND_API_KEY"),
+		ResendFromEmail:         os.Getenv("RESEND_FROM_EMAIL"),
+		ResendAPIURL:            env("RESEND_API_URL", "https://api.resend.com/emails"),
+		AllowTestResendEndpoint: envBool("GHANAGEO_ALLOW_TEST_RESEND_ENDPOINT", false),
+		PortalURL:               env("GHANAGEO_PORTAL_URL", "http://localhost:3102"),
 	}
 }
 
@@ -98,4 +114,22 @@ func env(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func envBool(k string, def bool) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(k)))
+	if v == "" {
+		return def
+	}
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func splitNonEmpty(value string) []string {
+	var result []string
+	for _, item := range strings.Split(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }

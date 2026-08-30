@@ -24,6 +24,8 @@ func TestPermissionMatrixMatchesAppendixC(t *testing.T) {
 		PermSuspendKey:       {true, false, false, false, true, false},
 		PermEditPlans:        {true, false, false, false, false, false},
 		PermManageRoles:      {true, false, false, false, false, false},
+		PermViewOperations:   {true, true, true, true, true, true},
+		PermViewAudit:        {true, true, false, false, false, true},
 	}
 	for perm, want := range matrix {
 		for i, role := range roles {
@@ -43,7 +45,7 @@ func TestUnknownRolesAndPermissionsAreDenied(t *testing.T) {
 		t.Error("an unknown permission was granted")
 	}
 	// An ordinary developer has no console access whatsoever.
-	for _, p := range []Permission{PermViewGeography, PermEditGeography, PermViewOrganization} {
+	for _, p := range []Permission{PermViewGeography, PermEditGeography, PermViewOrganization, PermViewOperations, PermViewAudit} {
 		if Can(RoleDeveloper, p) {
 			t.Errorf("a plain developer holds %s", p)
 		}

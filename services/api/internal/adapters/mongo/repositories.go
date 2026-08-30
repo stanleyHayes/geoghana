@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/ghanageo/ghanageo/services/api/internal/domain/audit"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/geography"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/normalize"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
@@ -84,9 +85,12 @@ func paginate[D any, T any](
 
 // ---- Regions ----
 
-type RegionRepo struct{ col *mongo.Collection }
+type RegionRepo struct {
+	s   *Store
+	col *mongo.Collection
+}
 
-func NewRegionRepo(s *Store) *RegionRepo { return &RegionRepo{col: s.db.Collection(ColRegions)} }
+func NewRegionRepo(s *Store) *RegionRepo { return &RegionRepo{s: s, col: s.db.Collection(ColRegions)} }
 
 func (r *RegionRepo) List(ctx context.Context, p ports.ListParams) (ports.Page[geography.Region], error) {
 	p = p.Normalize()
@@ -140,10 +144,13 @@ func (r *RegionRepo) Count(ctx context.Context) (int64, error) {
 
 // ---- Districts ----
 
-type DistrictRepo struct{ col *mongo.Collection }
+type DistrictRepo struct {
+	s   *Store
+	col *mongo.Collection
+}
 
 func NewDistrictRepo(s *Store) *DistrictRepo {
-	return &DistrictRepo{col: s.db.Collection(ColDistricts)}
+	return &DistrictRepo{s: s, col: s.db.Collection(ColDistricts)}
 }
 
 func (r *DistrictRepo) List(ctx context.Context, f ports.DistrictFilter) (ports.Page[geography.District], error) {
@@ -351,6 +358,7 @@ func NewRedirectRepo(s *Store) *RedirectRepo {
 func (r *RedirectRepo) Resolve(ctx context.Context, oldID string) (*geography.Redirect, error) {
 	var d struct {
 		ID       string `bson:"_id"`
+		Kind     string `bson:"kind"`
 		NewID    string `bson:"newId"`
 		Reason   string `bson:"reason"`
 		MergedAt string `bson:"mergedAt"`
@@ -361,12 +369,12 @@ func (r *RedirectRepo) Resolve(ctx context.Context, oldID string) (*geography.Re
 		}
 		return nil, err
 	}
-	return &geography.Redirect{OldID: d.ID, NewID: d.NewID, Reason: d.Reason, MergedAt: d.MergedAt}, nil
+	return &geography.Redirect{OldID: d.ID, Kind: d.Kind, NewID: d.NewID, Reason: d.Reason, MergedAt: d.MergedAt}, nil
 }
 
 func (r *RedirectRepo) Put(ctx context.Context, in geography.Redirect) error {
 	_, err := r.col.ReplaceOne(ctx, bson.M{"_id": in.OldID}, bson.M{
-		"_id": in.OldID, "newId": in.NewID, "reason": in.Reason, "mergedAt": in.MergedAt,
+		"_id": in.OldID, "kind": map[bool]string{true: in.Kind, false: "place"}[in.Kind != ""], "newId": in.NewID, "reason": in.Reason, "mergedAt": in.MergedAt,
 	}, options.Replace().SetUpsert(true))
 	return err
 }
@@ -389,6 +397,49 @@ func (r *RegionRepo) SetGeometry(ctx context.Context, id string, g *geography.Ge
 	return nil
 }
 
+func (r *RegionRepo) GetGeometry(ctx context.Context, id string) (*geography.Geometry, error) {
+	var d regionDoc
+	if err := r.col.FindOne(ctx, bson.M{"_id": id}, options.FindOne().SetProjection(bson.M{"geometry": 1})).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return geomFrom(d.Geometry), nil
+}
+
+func geometryCASFilter(id string, expected *geography.Geometry) bson.M {
+	if expected == nil {
+		return bson.M{"_id": id, "$or": bson.A{bson.M{"geometry": bson.M{"$exists": false}}, bson.M{"geometry": nil}}}
+	}
+	return bson.M{"_id": id, "geometry": geomOf(expected)}
+}
+
+func atomicGeometryCAS(ctx context.Context, s *Store, col *mongo.Collection, id string, expected, next *geography.Geometry, evidence audit.Entry) (bool, error) {
+	session, err := s.client.StartSession()
+	if err != nil {
+		return false, err
+	}
+	defer session.EndSession(ctx)
+	auditAppendMu.Lock()
+	defer auditAppendMu.Unlock()
+	matched := false
+	_, err = session.WithTransaction(ctx, func(tx context.Context) (any, error) {
+		res, x := col.UpdateOne(tx, geometryCASFilter(id, expected), bson.M{"$set": bson.M{"geometry": geomOf(next)}})
+		if x != nil || res.MatchedCount == 0 {
+			return nil, x
+		}
+		matched = true
+		_, x = NewAuditRepo(s).append(tx, evidence)
+		return nil, x
+	})
+	return matched && err == nil, err
+}
+
+func (r *RegionRepo) SetGeometryCAS(ctx context.Context, id string, expected, next *geography.Geometry, evidence audit.Entry) (bool, error) {
+	return atomicGeometryCAS(ctx, r.s, r.col, id, expected, next, evidence)
+}
+
 // SetGeometry attaches a validated boundary polygon to a district.
 func (r *DistrictRepo) SetGeometry(ctx context.Context, id string, g *geography.Geometry) error {
 	res, err := r.col.UpdateOne(ctx, bson.M{"_id": id},
@@ -400,6 +451,21 @@ func (r *DistrictRepo) SetGeometry(ctx context.Context, id string, g *geography.
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *DistrictRepo) GetGeometry(ctx context.Context, id string) (*geography.Geometry, error) {
+	var d districtDoc
+	if err := r.col.FindOne(ctx, bson.M{"_id": id}, options.FindOne().SetProjection(bson.M{"geometry": 1})).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return geomFrom(d.Geometry), nil
+}
+
+func (r *DistrictRepo) SetGeometryCAS(ctx context.Context, id string, expected, next *geography.Geometry, evidence audit.Entry) (bool, error) {
+	return atomicGeometryCAS(ctx, r.s, r.col, id, expected, next, evidence)
 }
 
 // AssignDistrictsByContainment fills in each place's district using PostGIS-style

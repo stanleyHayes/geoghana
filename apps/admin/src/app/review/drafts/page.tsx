@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { ReviewWorkspace } from "@/components/review-workspace";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/review/drafts"]!} />;
+  return <ReviewWorkspace mode="drafts" />;
 }

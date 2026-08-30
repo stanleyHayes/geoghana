@@ -1,0 +1,5 @@
+.build-tools/
+.gradle/
+**/build/
+**/target/
+java-conformance-report.json

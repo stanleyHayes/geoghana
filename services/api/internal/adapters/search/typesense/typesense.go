@@ -21,6 +21,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	adminops "github.com/ghanageo/ghanageo/services/api/internal/domain/adminops"
 	"github.com/ghanageo/ghanageo/services/api/internal/domain/normalize"
 	"github.com/ghanageo/ghanageo/services/api/internal/platform/observability"
 	"github.com/ghanageo/ghanageo/services/api/internal/ports"
@@ -33,6 +34,27 @@ type Client struct {
 	apiKey    string
 	http      *http.Client
 	telemetry *observability.Telemetry
+}
+
+// Probe reads collection metadata without exposing Typesense's URL, key, raw
+// response, or schema to the browser-facing admin endpoint.
+func (c *Client) Probe(ctx context.Context) adminops.ProbeResult {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	started := time.Now()
+	result := adminops.ProbeResult{Status: "unavailable", Detail: "search probe failed"}
+	var metadata struct {
+		NumDocuments int64 `json:"num_documents"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/collections/"+Collection, nil, &metadata); err != nil {
+		result.LatencyMS = time.Since(started).Milliseconds()
+		return result
+	}
+	result.Status = "healthy"
+	result.Detail = "search collection is readable"
+	result.DocumentCount = &metadata.NumDocuments
+	result.LatencyMS = time.Since(started).Milliseconds()
+	return result
 }
 
 func New(baseURL, apiKey string, telemetry ...*observability.Telemetry) *Client {

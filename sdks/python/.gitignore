@@ -1,0 +1,10 @@
+.venv/
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+python-conformance-report.json

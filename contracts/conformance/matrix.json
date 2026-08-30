@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runners": [
+    { "name": "ghanageo", "protocols": ["rest"], "requiredReports": 3, "language": "python" },
+    { "name": "github.com/ghanageo/ghanageo-go", "protocols": ["rest"], "requiredReports": 1, "language": "go" },
+    { "name": "github.com/ghanageo/ghanageo-go/proto", "protocols": ["grpc"], "requiredReports": 1, "language": "go" },
+    { "name": "ghanageo", "protocols": ["rest"], "requiredReports": 1, "language": "dart" },
+    { "name": "dev.ghanageo:ghanageo-java", "protocols": ["rest"], "requiredReports": 1, "language": "java" },
+    { "name": "GhanaGeo", "protocols": ["rest"], "requiredReports": 1, "language": "C#" },
+    { "name": "ghanageo/ghanageo-php", "protocols": ["rest"], "requiredReports": 4, "language": "PHP" },
+    { "name": "@ghanageo/client", "protocols": ["rest", "graphql"], "requiredReports": 1, "language": "typescript" }
+  ]
+}

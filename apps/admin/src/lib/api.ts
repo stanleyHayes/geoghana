@@ -1,5 +1,3 @@
-import { resolveApiBase } from "@ghanageo/ui";
-
 /**
  * Typed access to the GhanaGeo REST API for admin screens.
  *
@@ -9,7 +7,9 @@ import { resolveApiBase } from "@ghanageo/ui";
  * first, as a screen we cannot build.
  */
 
-const BASE = resolveApiBase(process.env.NEXT_PUBLIC_GHANAGEO_API_URL);
+// Public reads use the same-origin Next proxy as protected admin calls. This
+// avoids fragile cross-origin browser requests while preserving the exact API.
+const BASE = "/api/v1";
 
 export interface Provenance {
   sourceId: string;
@@ -24,6 +24,7 @@ export interface Region {
   capital?: string;
   status: string;
   verificationStatus: string;
+  centroid?: Coordinate;
   provenance?: Provenance;
   datasetVersion?: string;
 }
@@ -35,6 +36,7 @@ export interface District {
   region?: { id: string; name: string };
   status: string;
   verificationStatus: string;
+  centroid?: Coordinate;
   provenance?: Provenance;
 }
 
@@ -45,11 +47,82 @@ export interface Place {
   region?: { id: string; name: string };
   district?: { id: string; name: string };
   aliases?: { value: string; type: string }[];
-  centroid?: { latitude: number; longitude: number };
+  centroid?: Coordinate;
   population?: number;
   status: string;
   verificationStatus: string;
   provenance?: Provenance;
+}
+
+export interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
+
+export interface BoundaryFeature {
+  type: "Feature";
+  geometry: {
+    type:
+      | "Point"
+      | "LineString"
+      | "Polygon"
+      | "MultiPoint"
+      | "MultiLineString"
+      | "MultiPolygon";
+    coordinates: unknown[];
+  };
+  properties: {
+    id?: string;
+    name?: string;
+    kind?: string;
+    datasetVersion?: string;
+    attribution?: string;
+  };
+}
+
+export interface Road {
+  id: string;
+  name: string;
+  ref?: string;
+  class: string;
+  district?: { id: string; name?: string };
+  region?: { id: string; name?: string };
+}
+
+export interface PointOfInterest {
+  id: string;
+  name: string;
+  class: string;
+  category?: string;
+  district?: { id: string; name?: string };
+  region?: { id: string; name?: string };
+  centroid?: { latitude: number; longitude: number };
+}
+
+export interface DatasetArtifact {
+  entity: string;
+  format: string;
+  sizeBytes: number;
+  sha256: string;
+  recordCount: number;
+  url: string;
+}
+
+export interface DatasetVersion {
+  version: string;
+  status: string;
+  publishedAt?: string;
+  changelog?: string;
+  counts?: Record<string, number>;
+  downloads: DatasetArtifact[];
+  license: string;
+  attribution: string;
+}
+
+export interface OSMPage<T> {
+  data: T[];
+  attribution: string;
+  license: string;
 }
 
 export interface Page<T> {
@@ -88,15 +161,20 @@ export async function apiGet<T>(
   params: Record<string, string | number | undefined> = {},
   signal?: AbortSignal,
 ): Promise<T> {
-  const url = new URL(`${BASE}${path}`);
+  const query = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
+    if (v !== undefined && v !== "") query.set(k, String(v));
   }
-  const res = await fetch(url, signal ? { signal } : {});
+  const suffix = query.size ? `?${query.toString()}` : "";
+  const res = await fetch(`${BASE}${path}${suffix}`, signal ? { signal } : {});
   const body = await res.json().catch(() => null);
   if (!res.ok) {
     const e = body?.error;
-    throw new ApiError(e?.code ?? "INTERNAL", e?.message ?? `Request failed (${res.status})`, e?.requestId);
+    throw new ApiError(
+      e?.code ?? "INTERNAL",
+      e?.message ?? `Request failed (${res.status})`,
+      e?.requestId,
+    );
   }
   return body as T;
 }
@@ -116,10 +194,17 @@ export async function apiGet<T>(
  * swallowed — see `complete` on the result.
  */
 export async function fetchAll<T>(
-  fetchPage: (cursor: string | undefined, signal?: AbortSignal) => Promise<Page<T>>,
+  fetchPage: (
+    cursor: string | undefined,
+    signal?: AbortSignal,
+  ) => Promise<Page<T>>,
   signal?: AbortSignal,
   maxPages = 25,
-): Promise<{ data: T[]; datasetVersion?: string | undefined; complete: boolean }> {
+): Promise<{
+  data: T[];
+  datasetVersion?: string | undefined;
+  complete: boolean;
+}> {
   const data: T[] = [];
   let cursor: string | undefined;
   let datasetVersion: string | undefined;
@@ -139,8 +224,18 @@ export const listRegions = (p: ListParams, s?: AbortSignal) =>
 export const listDistricts = (p: ListParams, s?: AbortSignal) =>
   apiGet<Page<District>>("/districts", p, s);
 
-export const listRegionDistricts = (id: string, p: ListParams, s?: AbortSignal) =>
+export const listRegionDistricts = (
+  id: string,
+  p: ListParams,
+  s?: AbortSignal,
+) =>
   apiGet<Page<District>>(`/regions/${encodeURIComponent(id)}/districts`, p, s);
+
+export const listDistrictPlaces = (
+  id: string,
+  p: ListParams,
+  s?: AbortSignal,
+) => apiGet<Page<Place>>(`/districts/${encodeURIComponent(id)}/places`, p, s);
 
 export const listPlaces = (p: ListParams, s?: AbortSignal) =>
   apiGet<Page<Place>>("/places", p, s);
@@ -148,5 +243,17 @@ export const listPlaces = (p: ListParams, s?: AbortSignal) =>
 export const getPlace = (id: string, s?: AbortSignal) =>
   apiGet<{ data: Place }>(`/places/${encodeURIComponent(id)}`, {}, s);
 
+export const getBoundary = (id: string, s?: AbortSignal) =>
+  apiGet<BoundaryFeature>(`/boundaries/${encodeURIComponent(id)}`, {}, s);
+
 export const searchPlaces = (q: string, p: ListParams, s?: AbortSignal) =>
   apiGet<Page<Place>>("/search", { q, ...p }, s);
+
+export const listRoads = (p: ListParams, s?: AbortSignal) =>
+  apiGet<OSMPage<Road>>("/roads", p, s);
+
+export const listPointsOfInterest = (p: ListParams, s?: AbortSignal) =>
+  apiGet<OSMPage<PointOfInterest>>("/pois", p, s);
+
+export const listDatasets = (s?: AbortSignal) =>
+  apiGet<{ data: DatasetVersion[] }>("/datasets", {}, s);

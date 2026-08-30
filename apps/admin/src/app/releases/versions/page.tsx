@@ -1,6 +1,5 @@
-import { PlannedScreen } from "@/components/screen";
-import { SCREENS } from "@/config/screens";
+import { DatasetReleases } from "@/components/admin-operations";
 
 export default function Screen() {
-  return <PlannedScreen {...SCREENS["/releases/versions"]!} />;
+  return <DatasetReleases />;
 }
