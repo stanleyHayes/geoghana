@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { TOOL_NAV, resolvePublicOrigin } from "./site";
 
-const fallback = "https://sandbox.geo.digitalghana.dev";
+const fallback = "https://sandbox-geo.digitalghana.dev";
 
 describe("resolvePublicOrigin", () => {
   it("never exports localhost as the non-development tool navigation default", () => {
     expect(TOOL_NAV.map(({ href }) => href)).toEqual([
-      "https://sandbox.geo.digitalghana.dev",
-      "https://console.geo.digitalghana.dev",
+      "https://sandbox-geo.digitalghana.dev",
+      "https://console-geo.digitalghana.dev",
     ]);
   });
 

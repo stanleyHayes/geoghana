@@ -66,7 +66,7 @@ Technical Notes · Definition of Done · Estimates · Dependencies.
   `$geoIntersects` results. Geometry validity is a blocking Go-layer gate.
 - `NEXT_PUBLIC_*` is inlined at **build** time and `next build` runs in
   production mode, so it bakes in `.env.production` — which points at
-  `api.geo.digitalghana.dev`, a domain that does not exist yet. A locally
+  `api-geo.digitalghana.dev`, a domain that does not exist yet. A locally
   served production build could therefore never reach the API and every data
   screen read "unreachable" no matter what was running. The clients resolve
   the base URL at runtime when the page is served from localhost.

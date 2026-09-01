@@ -22,9 +22,9 @@ info:
     url: https://geo.digitalghana.dev
 
 servers:
-  - url: https://api.geo.digitalghana.dev/v1
+  - url: https://api-geo.digitalghana.dev/v1
     description: Production
-  - url: https://sandbox.geo.digitalghana.dev/v1
+  - url: https://sandbox-geo.digitalghana.dev/v1
     description: Sandbox — capped dataset, aggressive limits
   - url: "http://localhost:8180/v1"
     description: Local development

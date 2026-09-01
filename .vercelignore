@@ -1,0 +1,15 @@
+.git
+.github
+.dev-logs
+.raven
+.ruff_cache
+.turbo
+**/.next
+**/node_modules
+**/dist
+release
+data/exports
+docs/runbooks/evidence
+sdks
+services
+cli

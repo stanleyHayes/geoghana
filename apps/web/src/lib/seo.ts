@@ -15,11 +15,11 @@ function httpUrl(value: string | undefined, fallback: string): URL {
 export const siteOrigin = httpUrl(process.env.NEXT_PUBLIC_GHANAGEO_WEB_URL, FALLBACK_ORIGIN).origin;
 export const sandboxOrigin = httpUrl(
   process.env.NEXT_PUBLIC_GHANAGEO_SANDBOX_URL,
-  process.env.NODE_ENV === "development" ? "http://localhost:3101" : "https://sandbox.geo.digitalghana.dev",
+  process.env.NODE_ENV === "development" ? "http://localhost:3101" : "https://sandbox-geo.digitalghana.dev",
 ).origin;
 export const portalOrigin = httpUrl(
   process.env.NEXT_PUBLIC_GHANAGEO_PORTAL_URL,
-  process.env.NODE_ENV === "development" ? "http://localhost:3102" : "https://console.geo.digitalghana.dev",
+  process.env.NODE_ENV === "development" ? "http://localhost:3102" : "https://console-geo.digitalghana.dev",
 ).origin;
 export const isIndexable = process.env.NEXT_PUBLIC_GHANAGEO_INDEXABLE === "true";
 

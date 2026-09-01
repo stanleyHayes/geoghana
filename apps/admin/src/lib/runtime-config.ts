@@ -1,6 +1,6 @@
-const PRODUCTION_API_ORIGIN = "https://api.geo.digitalghana.dev";
+const PRODUCTION_API_ORIGIN = "https://api-geo.digitalghana.dev";
 const PRODUCTION_WEB_ORIGIN = "https://geo.digitalghana.dev";
-const PRODUCTION_PORTAL_ORIGIN = "https://console.geo.digitalghana.dev";
+const PRODUCTION_PORTAL_ORIGIN = "https://console-geo.digitalghana.dev";
 
 function validatedOrigin(value: string | undefined, fallback: string, production: boolean): string {
   if (!value) return fallback;

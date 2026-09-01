@@ -40,8 +40,8 @@ declare const process:
     }
   | undefined;
 
-const PRODUCTION_SANDBOX_ORIGIN = "https://sandbox.geo.digitalghana.dev";
-const PRODUCTION_PORTAL_ORIGIN = "https://console.geo.digitalghana.dev";
+const PRODUCTION_SANDBOX_ORIGIN = "https://sandbox-geo.digitalghana.dev";
+const PRODUCTION_PORTAL_ORIGIN = "https://console-geo.digitalghana.dev";
 const DEVELOPMENT_SANDBOX_ORIGIN = "http://localhost:3101";
 const DEVELOPMENT_PORTAL_ORIGIN = "http://localhost:3102";
 

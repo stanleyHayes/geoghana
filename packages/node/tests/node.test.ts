@@ -7,6 +7,6 @@ describe("Node helpers", () => {
     expect(client.baseUrl).toBe("https://example.test/v1");
   });
   it("supports anonymous server access", () => {
-    expect(createServerClientFromEnv({}).baseUrl).toContain("api.geo.digitalghana.dev/v1");
+    expect(createServerClientFromEnv({}).baseUrl).toContain("api-geo.digitalghana.dev/v1");
   });
 });

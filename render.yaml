@@ -31,7 +31,7 @@ services:
       - key: API_EXPORT_DIR
         value: /var/lib/ghanageo/exports
       - key: API_ALLOWED_ORIGINS
-        value: https://geo.digitalghana.dev,https://sandbox.geo.digitalghana.dev,https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev
+        value: https://geo.digitalghana.dev,https://sandbox-geo.digitalghana.dev,https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev
       - key: API_TRUST_PROXY_HEADERS
         value: "true"
       - key: API_TRUSTED_PROXY_CIDRS
@@ -41,7 +41,7 @@ services:
       - key: API_PASSKEY_RPID
         value: digitalghana.dev
       - key: API_PASSKEY_ORIGINS
-        value: https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev
+        value: https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev
       - key: API_LOG_LEVEL
         value: info
       - key: OTEL_TRACES_EXPORTER
@@ -61,7 +61,7 @@ services:
       - key: RESEND_FROM_EMAIL
         sync: false
       - key: GHANAGEO_PORTAL_URL
-        value: https://console.geo.digitalghana.dev
+        value: https://console-geo.digitalghana.dev
       - key: SENTRY_DSN
         sync: false
     disk:

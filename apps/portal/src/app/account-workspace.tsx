@@ -28,7 +28,7 @@ import { sandboxOrigin } from "@/lib/public-origins";
 const API =
   // resolveApiBase, not the raw env var: NEXT_PUBLIC_* is inlined at BUILD
   // time and `next build` runs in production mode, so this baked in
-  // api.geo.digitalghana.dev — a domain that does not exist yet — and every
+  // api-geo.digitalghana.dev — a domain that does not exist yet — and every
   // request from a locally served build failed with ERR_NAME_NOT_RESOLVED.
   resolveApiBase(process.env.NEXT_PUBLIC_GHANAGEO_API_URL);
 type Session = {

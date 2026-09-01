@@ -24,7 +24,7 @@ final class GhanaGeoClient {
     this.maxDownloadBytes = 128 * 1024 * 1024,
     http.Client? httpClient,
     DatasetChangesTransport? datasetChangesTransport,
-  })  : baseUrl = baseUrl ?? Uri.parse('https://api.geo.digitalghana.dev/v1'),
+  })  : baseUrl = baseUrl ?? Uri.parse('https://api-geo.digitalghana.dev/v1'),
         retry = retry < 0 ? 0 : (retry > 5 ? 5 : retry),
         _http = httpClient ?? http.Client(),
         _datasetChangesTransport = datasetChangesTransport;

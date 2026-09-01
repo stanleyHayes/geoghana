@@ -27,7 +27,7 @@ use Psr\Log\NullLogger;
 
 final class Client
 {
-    public const DEFAULT_BASE_URL = 'https://api.geo.digitalghana.dev/v1';
+    public const DEFAULT_BASE_URL = 'https://api-geo.digitalghana.dev/v1';
 
     public const DEFAULT_MAX_BODY_BYTES = 8_388_608;
 

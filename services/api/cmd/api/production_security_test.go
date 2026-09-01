@@ -69,7 +69,7 @@ func TestProductionMailerRejectsUnsafeEndpointsWithoutLeakingCredentials(t *test
 	const credential = "super-secret-provider-credential"
 	base := config.Config{
 		Env: "production", ResendAPIKey: credential, ResendFromEmail: "mail@example.com",
-		PortalURL: "https://console.geo.digitalghana.dev",
+		PortalURL: "https://console-geo.digitalghana.dev",
 	}
 	for _, tc := range []struct {
 		name, endpoint string
@@ -94,7 +94,7 @@ func TestProductionMailerRejectsUnsafeEndpointsWithoutLeakingCredentials(t *test
 
 func TestProductionMailerRejectsUnsafePortalURLsWithoutLeakingCredentials(t *testing.T) {
 	const credential = "super-secret-provider-credential"
-	for _, portal := range []string{"http://console.geo.digitalghana.dev", "https://", "https://user:pass@console.geo.digitalghana.dev"} {
+	for _, portal := range []string{"http://console-geo.digitalghana.dev", "https://", "https://user:pass@console-geo.digitalghana.dev"} {
 		_, err := newAccountMailer(config.Config{
 			Env: "production", ResendAPIKey: credential, ResendFromEmail: "mail@example.com",
 			ResendAPIURL: productionResendEndpoint, PortalURL: portal,
@@ -111,7 +111,7 @@ func TestProductionMailerRejectsUnsafePortalURLsWithoutLeakingCredentials(t *tes
 func TestProductionPasskeyConfigurationFailsClosed(t *testing.T) {
 	valid := config.Config{
 		Env: "production", PasskeyRPID: "digitalghana.dev",
-		PasskeyOrigins: []string{"https://console.geo.digitalghana.dev", "https://admin.geo.digitalghana.dev"},
+		PasskeyOrigins: []string{"https://console-geo.digitalghana.dev", "https://admin-geo.digitalghana.dev"},
 	}
 	if err := validateProductionIdentityConfig(valid); err != nil {
 		t.Fatalf("valid production identity config rejected: %v", err)
@@ -122,7 +122,7 @@ func TestProductionPasskeyConfigurationFailsClosed(t *testing.T) {
 	}{
 		{"localhost RPID", func(c *config.Config) { c.PasskeyRPID = "localhost" }},
 		{"missing origins", func(c *config.Config) { c.PasskeyOrigins = nil }},
-		{"HTTP origin", func(c *config.Config) { c.PasskeyOrigins = []string{"http://console.geo.digitalghana.dev"} }},
+		{"HTTP origin", func(c *config.Config) { c.PasskeyOrigins = []string{"http://console-geo.digitalghana.dev"} }},
 		{"malformed origin", func(c *config.Config) { c.PasskeyOrigins = []string{"https://"} }},
 		{"RPID mismatch", func(c *config.Config) { c.PasskeyOrigins = []string{"https://console.attacker.example"} }},
 	} {
