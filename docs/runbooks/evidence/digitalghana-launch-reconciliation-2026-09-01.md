@@ -52,3 +52,18 @@ The first `ghanageo-web` deployment was blocked before build because the inherit
 - Supply 14 missing API/worker provider values identified by the real production preflight.
 - Provision Render API, worker and Key Value only when the required database/search/mail/telemetry/security configuration is available.
 - Repair hosted GitHub checks, complete alert delivery, backup/PITR and rollback evidence before stable launch.
+
+## Frontend production result
+
+All four independently deployed Next.js surfaces are now `READY`, attached to canonical first-level hosts, protected by a valid `*.digitalghana.dev` Let's Encrypt certificate, and return HTTP 200:
+
+| Surface | Vercel deployment | Canonical host | Smoke |
+|---|---|---|---|
+| Marketing/docs | `dpl_5B3GW9GPL8braM9CK3GMcUXeQ8hf` | `geo.digitalghana.dev` | `/` and `/docs` return 200 |
+| Sandbox | `dpl_5vhQ4gMsoM9XXkWpErDCNkpLY6tW` | `sandbox-geo.digitalghana.dev` | `/` returns 200 |
+| Developer console | `dpl_JBskTppZSSbjVknpJpXfXJAAjUvw` | `console-geo.digitalghana.dev` | `/` returns 200 |
+| Admin | `dpl_H7PrRhYBZjS1vkLsL9694Bft37jo` | `admin-geo.digitalghana.dev` | `/login` returns 200 |
+
+Certificate evidence for every host: subject `CN=*.digitalghana.dev`, issuer Let's Encrypt `YR1`, validity 2026-09-01 through 2026-11-30.
+
+This proves the frontend deployment boundary only. Sandbox live requests, portal authentication/data and admin operations still depend on `api-geo.digitalghana.dev`, which is not provisioned and remains an explicit launch blocker.
