@@ -29,6 +29,8 @@ Dated historical evidence remains unchanged. Compatibility redirects for any pre
 
 Each Next.js surface deploys from the monorepo root with a dedicated configuration in `infra/vercel/`. Root-level Next.js framework detection is pinned to the same `16.3.3` version used by the applications. `.vercelignore` excludes unrelated service, SDK, cache and evidence trees from frontend uploads while retaining workspace packages.
 
+Vercel build commands select each application with its dependency closure (`@ghanageo/<app>...`) so clean remote builds compile workspace packages before the Next.js application. A sandbox build using only the leaf filter correctly failed because `@ghanageo/react` had no pre-existing local `dist`; the dependency-closure command removes that hidden local-cache assumption.
+
 ## Verification completed
 
 - Render Blueprint validation: passed; 2 services and 1 Key Value action recognized.
