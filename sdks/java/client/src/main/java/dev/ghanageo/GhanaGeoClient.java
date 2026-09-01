@@ -38,7 +38,7 @@ import java.util.function.Function;
 
 /** Thread-safe synchronous and asynchronous GhanaGeo REST client. */
 public final class GhanaGeoClient implements AutoCloseable {
-  public static final String DEFAULT_BASE_URL = "https://api.geo.digitalghana.dev/v1";
+  public static final String DEFAULT_BASE_URL = "https://api-geo.digitalghana.dev/v1";
   private static final Set<Integer> RETRYABLE = Set.of(429, 502, 503, 504);
   private final URI baseUri; private final String apiKey; private final HttpClient http;
   private final ObjectMapper json; private final int maxRetries; private final Duration retryDelay;

@@ -2,10 +2,10 @@
 
 **Project key:** `GEO`
 **Version:** 1.0
-**Last updated:** 2026-08-29
+**Last updated:** 2026-09-01
 **Governed by:** `GhanaGeo_End_to_End_Build_Specification_v2.docx` (product/technical source of truth), `AI_Development_Workflow_Training_Manual.docx`, `AI_Native_Software_Engineering_Operations_Manual.docx`
 **Audience:** AI coding agents and engineers building GhanaGeo in parallel
-**Status:** Sprint 0 complete. Data core, REST v1 and the design system run and are verified. Contracts (EP-02) are the next critical path.
+**Status:** V1 implementation and local verification are substantially complete. Public launch is not complete: the authenticated provider inventory on 2026-09-01 found no GhanaGeo Vercel projects or Render services, production configuration remains fail-closed, and hosted GitHub checks are failing before execution. GEO-30.1 is the active critical path.
 
 > This is the single source of truth for **how the work is decomposed and sequenced**.
 > The Build Specification says **what and why** to build. This plan says **who builds it, in what order, against which contracts, and how to avoid stepping on each other.**
@@ -84,8 +84,13 @@ This section tracks work currently in-flight and recently completed. The active 
 
 **Decision taken without escalating.** Typesense is the `SearchPort` implementation for local and CI; Atlas Search remains a swappable second implementation. This removes the managed-service dependency from the critical path (RK-6).
 
+**2026-09-01 — Digital Ghana launch lane.** The owner approved the federated Digital Ghana portfolio architecture and authorized implementation of all product subdomains. Codex claimed `GEO-30.1` on `feature/GEO-30.1-digitalghana-launch`. Read-only authenticated inventory found no `ghanageo*` Vercel projects, no GhanaGeo Render services in workspace `tea-cspvc3ggph6c739fskn0`, wildcard Vercel DNS without working TLS/application attachment, and hosted GitHub workflows failing before substantive execution. No provider readiness is inferred from `render.yaml` or wildcard DNS.
+
+**2026-09-01 — GEO-30.1 implementation checkpoint.** Canonical operational hosts were migrated together to `api-geo`, `grpc-geo`, `sandbox-geo`, `console-geo` and `admin-geo`; four Vercel projects and workspace-aware deployment configs now exist. Typecheck (17/17), tests (13/13), route/link audit, environment-generation regression, Blueprint validation and production-preflight regression all pass. The first web deployment was retained as `BLOCKED`, not live, because its inherited Git author email lacked Vercel team access; the repository-local identity is corrected for the new branch commit. Evidence: `docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md`.
+
 | Story                       | Epic                           | Status                         | Agent                                        | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | --------------------------- | ------------------------------ | ------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GEO-30.1                    | EP-30 Digital Ghana Launch     | 🚧 **In progress**             | Codex (L0/L8–L12)                            | Reconcile stale plan state; validate the exact release; provision independently deployed web/sandbox/portal/admin and API/worker infrastructure; attach approved `digitalghana.dev` hosts; close DNS/TLS/CORS/passkey/health/alert/backup/rollback gates with evidence. Provider secrets are never fabricated and a resolving wildcard is not a deployment. |
 | —                           | EP-00 Planning                 | ✅ **Done**                    | Claude                                       | `agent_plan.md` + `DESIGN_SYSTEM.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | GEO-1.1                     | EP-01 Foundation               | ✅ **Done**                    | Claude                                       | Monorepo, pnpm workspace, Turborepo, `go.work`, source material relocated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | GEO-1.2                     | EP-01 Foundation               | ✅ **Done**                    | Claude                                       | `CLAUDE.md` + `AGENTS.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -1705,11 +1710,11 @@ every SDK default and every developer's stored configuration.
 ```
 digitalghana.dev                        the platform — what exists, who runs it
 └── geo.digitalghana.dev                GhanaGeo: marketing, docs, changelog, status
-    ├── api.geo.digitalghana.dev        REST /v1 and GraphQL
-    ├── grpc.geo.digitalghana.dev:443   gRPC and ConnectRPC
-    ├── sandbox.geo.digitalghana.dev    public playground, capped dataset
-    ├── console.geo.digitalghana.dev    developer portal
-    └── admin.geo.digitalghana.dev      admin and data stewardship
+    ├── api-geo.digitalghana.dev        REST /v1 and GraphQL
+    ├── grpc-geo.digitalghana.dev:443   gRPC and ConnectRPC
+    ├── sandbox-geo.digitalghana.dev    public playground, capped dataset
+    ├── console-geo.digitalghana.dev    developer portal
+    └── admin-geo.digitalghana.dev      admin and data stewardship
 ```
 
 A second product takes `<product>.digitalghana.dev` and the same internal
@@ -1726,7 +1731,7 @@ API host later is a breaking change for every consumer.
 (`packages/ui`), one status page, one support and funding surface (§24). A
 developer should need one account for the whole platform, not one per product.
 
-**Public surfaces:** `https://geo.digitalghana.dev` (marketing/docs) · `https://api.geo.digitalghana.dev/v1` (REST) · `https://api.geo.digitalghana.dev/graphql` · `grpc.geo.digitalghana.dev:443` · `https://sandbox.geo.digitalghana.dev` · `https://console.geo.digitalghana.dev` (portal) · `https://admin.geo.digitalghana.dev`.
+**Public surfaces:** `https://geo.digitalghana.dev` (marketing/docs) · `https://api-geo.digitalghana.dev/v1` (REST) · `https://api-geo.digitalghana.dev/graphql` · `grpc-geo.digitalghana.dev:443` · `https://sandbox-geo.digitalghana.dev` · `https://console-geo.digitalghana.dev` (portal) · `https://admin-geo.digitalghana.dev`.
 
 ---
 

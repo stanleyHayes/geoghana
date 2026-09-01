@@ -1075,7 +1075,7 @@ Owned centrally at `apps/admin/src/config/navigation.ts` (lane L11, §8 of the p
 
 ### 14.5 Admin navigation — the complete IA
 
-Roles: **SA** Super Admin · **DA** Data Admin · **DR** Data Reviewer · **DC** Data Contributor · **DS** Developer Support · **SEC** Security/Auditor. Routes are relative to `admin.geo.digitalghana.dev`.
+Roles: **SA** Super Admin · **DA** Data Admin · **DR** Data Reviewer · **DC** Data Contributor · **DS** Developer Support · **SEC** Security/Auditor. Routes are relative to `admin-geo.digitalghana.dev`.
 
 Two global route rules: every list route accepts `?view=<savedViewId>`, and **every route accepts `?v=<datasetVersion>`** so any screen is linkable at a specific dataset version. Entity routes use the internal ULID, never the human code (plan R7).
 

@@ -4,7 +4,7 @@
  *
  * `NEXT_PUBLIC_*` is inlined at BUILD time, and `next build` runs in
  * production mode — so every production build bakes in `.env.production`,
- * which points at api.geo.digitalghana.dev. That domain does not exist yet,
+ * which points at api-geo.digitalghana.dev. That domain does not exist yet,
  * so a locally served production build could never reach the API and every
  * screen reading it showed "unreachable" regardless of what was running.
  * The URL was decided before the machine it would run on was known.

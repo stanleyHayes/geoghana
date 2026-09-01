@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const DefaultBaseURL = "https://api.geo.digitalghana.dev/v1"
+const DefaultBaseURL = "https://api-geo.digitalghana.dev/v1"
 
 type Client struct {
 	BaseURL string

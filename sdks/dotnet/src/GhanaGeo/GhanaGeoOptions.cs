@@ -2,7 +2,7 @@ namespace GhanaGeo;
 
 public sealed class GhanaGeoOptions
 {
-    public Uri BaseAddress { get; set; } = new("https://api.geo.digitalghana.dev/v1/");
+    public Uri BaseAddress { get; set; } = new("https://api-geo.digitalghana.dev/v1/");
     public string? ApiKey { get; set; }
     public int MaximumRetries { get; set; } = 2;
     public TimeSpan MaximumRetryDelay { get; set; } = TimeSpan.FromSeconds(30);

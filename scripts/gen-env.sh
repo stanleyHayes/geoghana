@@ -184,7 +184,7 @@ write "$PROD_ENV" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\"" \
 "RESEND_API_KEY=$PROD_RESEND_API_KEY" \
 "RESEND_FROM_EMAIL=noreply@digitalghana.dev" \
-"GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev" \
+"GHANAGEO_PORTAL_URL=https://console-geo.digitalghana.dev" \
 "SECURITY_ALERT_WEBHOOK_URL=$PROD_SECURITY_ALERT_WEBHOOK_URL" \
 "SECURITY_ALERT_WEBHOOK_SECRET=$PROD_SECURITY_ALERT_WEBHOOK_SECRET" \
 "" \
@@ -196,7 +196,7 @@ write "$PROD_ENV" \
 "SESSION_SECRET=$PROD_SESSION_SECRET" \
 "" \
 "# --- Public hosts ---" \
-"API_ALLOWED_ORIGINS=\"https://geo.digitalghana.dev,https://sandbox.geo.digitalghana.dev,https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev\"" \
+"API_ALLOWED_ORIGINS=\"https://geo.digitalghana.dev,https://sandbox-geo.digitalghana.dev,https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev\"" \
 "API_HTTP_PORT=8080" \
 "API_GRPC_PORT=9090" \
 "API_LOG_LEVEL=info"
@@ -237,7 +237,7 @@ write "services/api/.env.production" \
 "API_TRUSTED_PROXY_CIDRS=PASTE_RENDER_EDGE_PROXY_CIDRS" \
 "API_REQUIRE_HTTPS=true" \
 "API_PASSKEY_RPID=digitalghana.dev" \
-"API_PASSKEY_ORIGINS=\"https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev\"" \
+"API_PASSKEY_ORIGINS=\"https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev\"" \
 "API_HTTP_PORT=8080" \
 "API_GRPC_PORT=9090" \
 "" \
@@ -251,7 +251,7 @@ write "services/api/.env.production" \
 "TYPESENSE_URL=\"$PROD_TYPESENSE_URL\"" \
 "TYPESENSE_API_KEY=$PROD_TYPESENSE_API_KEY" \
 "" \
-"API_ALLOWED_ORIGINS=\"https://geo.digitalghana.dev,https://sandbox.geo.digitalghana.dev,https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev\"" \
+"API_ALLOWED_ORIGINS=\"https://geo.digitalghana.dev,https://sandbox-geo.digitalghana.dev,https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev\"" \
 "" \
 "INTERNAL_SERVICE_TOKEN=$PROD_INTERNAL_SERVICE_TOKEN" \
 "" \
@@ -261,7 +261,7 @@ write "services/api/.env.production" \
 "SENTRY_DSN=\"$PROD_SENTRY_DSN\"" \
 "RESEND_API_KEY=$PROD_RESEND_API_KEY" \
 "RESEND_FROM_EMAIL=noreply@digitalghana.dev" \
-"GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev" \
+"GHANAGEO_PORTAL_URL=https://console-geo.digitalghana.dev" \
 "SECURITY_ALERT_WEBHOOK_URL=$PROD_SECURITY_ALERT_WEBHOOK_URL" \
 "SECURITY_ALERT_WEBHOOK_SECRET=$PROD_SECURITY_ALERT_WEBHOOK_SECRET"
 
@@ -379,12 +379,12 @@ next_app() {
 "NODE_ENV=production" \
 "" \
 "# --- Public: baked into the browser bundle. Nothing secret here. ---" \
-"NEXT_PUBLIC_GHANAGEO_API_URL=\"https://api.geo.digitalghana.dev/v1\"" \
-"NEXT_PUBLIC_GHANAGEO_GRAPHQL_URL=\"https://api.geo.digitalghana.dev/graphql\"" \
+"NEXT_PUBLIC_GHANAGEO_API_URL=\"https://api-geo.digitalghana.dev/v1\"" \
+"NEXT_PUBLIC_GHANAGEO_GRAPHQL_URL=\"https://api-geo.digitalghana.dev/graphql\"" \
 "NEXT_PUBLIC_SITE_URL=\"https://$host\"" \
 "NEXT_PUBLIC_GHANAGEO_WEB_URL=\"https://geo.digitalghana.dev\"" \
-"NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=\"https://sandbox.geo.digitalghana.dev\"" \
-"NEXT_PUBLIC_GHANAGEO_PORTAL_URL=\"https://console.geo.digitalghana.dev\"" \
+"NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=\"https://sandbox-geo.digitalghana.dev\"" \
+"NEXT_PUBLIC_GHANAGEO_PORTAL_URL=\"https://console-geo.digitalghana.dev\"" \
 "NEXT_PUBLIC_GHANAGEO_INDEXABLE=$([[ \"$dir\" == \"apps/web\" ]] && echo true || echo false)" \
 "NEXT_PUBLIC_ENVIRONMENT=production" \
 "" \
@@ -403,9 +403,9 @@ next_app() {
 }
 
 next_app apps/web      3100 "geo.digitalghana.dev"         "GhanaGeo marketing and docs"
-next_app apps/sandbox  3101 "sandbox.geo.digitalghana.dev" "GhanaGeo sandbox"
-next_app apps/portal   3102 "console.geo.digitalghana.dev" "GhanaGeo developer portal"
-next_app apps/admin    3103 "admin.geo.digitalghana.dev"   "GhanaGeo admin"
+next_app apps/sandbox  3101 "sandbox-geo.digitalghana.dev" "GhanaGeo sandbox"
+next_app apps/portal   3102 "console-geo.digitalghana.dev" "GhanaGeo developer portal"
+next_app apps/admin    3103 "admin-geo.digitalghana.dev"   "GhanaGeo admin"
 
 echo
 echo "Done. Files are chmod 600 and covered by .gitignore."

@@ -52,8 +52,8 @@ required_values = {
     "API_TRUST_PROXY_HEADERS" => "true",
     "API_REQUIRE_HTTPS" => "true",
     "API_PASSKEY_RPID" => "digitalghana.dev",
-    "API_PASSKEY_ORIGINS" => "https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev",
-    "GHANAGEO_PORTAL_URL" => "https://console.geo.digitalghana.dev"
+    "API_PASSKEY_ORIGINS" => "https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev",
+    "GHANAGEO_PORTAL_URL" => "https://console-geo.digitalghana.dev"
   },
   "ghanageo-worker" => { "GHANAGEO_ENV" => "production" }
 }.freeze

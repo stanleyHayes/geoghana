@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 // @ts-expect-error Node's TypeScript test runner requires the source extension.
 import { resolvePublicOrigin } from "./public-origins.ts";
 
-const fallback = "https://console.geo.digitalghana.dev";
+const fallback = "https://console-geo.digitalghana.dev";
 
 describe("portal resolvePublicOrigin", () => {
   it("accepts only exact credential-free HTTPS public origins in production", () => {

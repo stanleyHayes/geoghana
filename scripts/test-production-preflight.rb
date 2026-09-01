@@ -51,7 +51,7 @@ api_env = <<~ENV
   API_TRUST_PROXY_HEADERS=true
   API_REQUIRE_HTTPS=true
   API_PASSKEY_RPID=digitalghana.dev
-  API_PASSKEY_ORIGINS=https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev
+  API_PASSKEY_ORIGINS=https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev
   MONGO_URI=#{SECRET_SENTINEL}-mongo
   REDIS_URL=#{SECRET_SENTINEL}-redis
   TYPESENSE_URL=https://typesense.invalid
@@ -59,7 +59,7 @@ api_env = <<~ENV
   INTERNAL_SERVICE_TOKEN=#{SECRET_SENTINEL}-internal
   RESEND_API_KEY=#{SECRET_SENTINEL}-resend
   RESEND_FROM_EMAIL=noreply@digitalghana.dev
-  GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev
+  GHANAGEO_PORTAL_URL=https://console-geo.digitalghana.dev
   API_TRUSTED_PROXY_CIDRS=192.0.2.0/24
   OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.invalid
   OTEL_EXPORTER_OTLP_HEADERS=#{SECRET_SENTINEL}-otel
@@ -80,12 +80,12 @@ worker_env = <<~ENV
 ENV
 
 frontend_env = <<~ENV
-  NEXT_PUBLIC_GHANAGEO_API_URL=https://api.geo.digitalghana.dev/v1
-  NEXT_PUBLIC_GHANAGEO_GRAPHQL_URL=https://api.geo.digitalghana.dev/graphql
+  NEXT_PUBLIC_GHANAGEO_API_URL=https://api-geo.digitalghana.dev/v1
+  NEXT_PUBLIC_GHANAGEO_GRAPHQL_URL=https://api-geo.digitalghana.dev/graphql
   NEXT_PUBLIC_SITE_URL=https://geo.digitalghana.dev
   NEXT_PUBLIC_GHANAGEO_WEB_URL=https://geo.digitalghana.dev
-  NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=https://sandbox.geo.digitalghana.dev
-  NEXT_PUBLIC_GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev
+  NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=https://sandbox-geo.digitalghana.dev
+  NEXT_PUBLIC_GHANAGEO_PORTAL_URL=https://console-geo.digitalghana.dev
   NEXT_PUBLIC_SENTRY_DSN=https://public@sentry.invalid/3
 ENV
 

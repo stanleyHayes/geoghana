@@ -26,6 +26,6 @@ export const webOrigin = resolvePublicOrigin(
 
 export const sandboxOrigin = resolvePublicOrigin(
   process.env.NEXT_PUBLIC_GHANAGEO_SANDBOX_URL,
-  development ? "http://localhost:3101" : "https://sandbox.geo.digitalghana.dev",
+  development ? "http://localhost:3101" : "https://sandbox-geo.digitalghana.dev",
   development,
 );

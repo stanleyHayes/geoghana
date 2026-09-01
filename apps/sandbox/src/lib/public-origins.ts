@@ -26,6 +26,6 @@ export const webOrigin = resolvePublicOrigin(
 
 export const portalOrigin = resolvePublicOrigin(
   process.env.NEXT_PUBLIC_GHANAGEO_PORTAL_URL,
-  development ? "http://localhost:3102" : "https://console.geo.digitalghana.dev",
+  development ? "http://localhost:3102" : "https://console-geo.digitalghana.dev",
   development,
 );

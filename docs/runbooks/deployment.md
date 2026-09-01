@@ -65,7 +65,7 @@ alert configuration as the HTTP process. The binary binds the gRPC server to
 `PORT`, publishes the standard gRPC health service and reflection, and does not
 start an unused HTTP listener in this mode.
 
-Do not add `grpc.geo.digitalghana.dev` DNS until `grpcurl` proves health,
+Do not add `grpc-geo.digitalghana.dev` DNS until `grpcurl` proves health,
 reflection, anonymous reads, keyed scope enforcement, 429 behavior and the
 resumable change stream through the public TLS endpoint.
 
@@ -76,9 +76,11 @@ Create four projects from the same repository with these root directories:
 | Project | Root | Domain |
 |---|---|---|
 | Marketing/docs | `apps/web` | `geo.digitalghana.dev` |
-| Sandbox | `apps/sandbox` | `sandbox.geo.digitalghana.dev` |
-| Developer console | `apps/portal` | `console.geo.digitalghana.dev` |
-| Admin | `apps/admin` | `admin.geo.digitalghana.dev` |
+| Sandbox | `apps/sandbox` | `sandbox-geo.digitalghana.dev` |
+| Developer console | `apps/portal` | `console-geo.digitalghana.dev` |
+| Admin | `apps/admin` | `admin-geo.digitalghana.dev` |
+
+The four Vercel projects deploy from the repository root so workspace packages remain available. Use the matching checked-in configuration under `infra/vercel/{web,sandbox,portal,admin}.json`; do not set an app directory as an isolated Vercel root and then lose workspace dependencies.
 
 Use pnpm 11 and preserve workspace access from the monorepo root. Populate the
 generated production environment values in each project. Preview deployments
@@ -99,8 +101,8 @@ The marketing project additionally requires:
 
 ```text
 NEXT_PUBLIC_GHANAGEO_WEB_URL=https://geo.digitalghana.dev
-NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=https://sandbox.geo.digitalghana.dev
-NEXT_PUBLIC_GHANAGEO_PORTAL_URL=https://console.geo.digitalghana.dev
+NEXT_PUBLIC_GHANAGEO_SANDBOX_URL=https://sandbox-geo.digitalghana.dev
+NEXT_PUBLIC_GHANAGEO_PORTAL_URL=https://console-geo.digitalghana.dev
 NEXT_PUBLIC_GHANAGEO_INDEXABLE=true
 ```
 

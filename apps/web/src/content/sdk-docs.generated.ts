@@ -136,6 +136,6 @@ export const SDK_EXAMPLES = [
     "retry": "Explicit --retry for safe reads",
     "pagination": "Follow nextCursor explicitly",
     "errors": "HTTP status plus JSON error envelope",
-    "code": "#!/usr/bin/env sh\nset -eu\n\ncurl --fail --silent --show-error \\\n  \"${GHANAGEO_API_URL:-https://api.geo.digitalghana.dev}/v1/search?q=Kumasi&limit=5\""
+    "code": "#!/usr/bin/env sh\nset -eu\n\ncurl --fail --silent --show-error \\\n  \"${GHANAGEO_API_URL:-https://api-geo.digitalghana.dev}/v1/search?q=Kumasi&limit=5\""
   }
 ] as const;

@@ -32,7 +32,7 @@ done
 [[ -z "$(value "$fixture_root/services/api/.env.production" SESSION_SECRET)" ]]
 [[ "$(value "$fixture_root/services/api/.env.production" API_TRUSTED_PROXY_CIDRS)" == "PASTE_RENDER_EDGE_PROXY_CIDRS" ]]
 [[ "$(value "$fixture_root/services/api/.env.production" API_PASSKEY_RPID)" == "digitalghana.dev" ]]
-[[ "$(value "$fixture_root/services/api/.env.production" API_PASSKEY_ORIGINS)" == "https://console.geo.digitalghana.dev,https://admin.geo.digitalghana.dev" ]]
+[[ "$(value "$fixture_root/services/api/.env.production" API_PASSKEY_ORIGINS)" == "https://console-geo.digitalghana.dev,https://admin-geo.digitalghana.dev" ]]
 [[ "$(value "$fixture_root/services/api/.env.production" GHANAGEO_SERVE_MODE)" == "http" ]]
 [[ "$(value "$fixture_root/services/api/.env.production" OTEL_EXPORTER_OTLP_ENDPOINT)" == "PASTE_OTEL_EXPORTER_OTLP_ENDPOINT" ]]
 [[ "$(value "$fixture_root/services/api/.env.production" OTEL_EXPORTER_OTLP_HEADERS)" == "PASTE_OTEL_EXPORTER_OTLP_HEADERS" ]]
@@ -50,8 +50,8 @@ for app in web sandbox portal admin; do
   [[ "$(value "$file" SESSION_SECRET)" == "$prod_session" ]]
   [[ "$(value "$file" INTERNAL_SERVICE_TOKEN)" == "$prod_token" ]]
   [[ "$(value "$file" NEXT_PUBLIC_GHANAGEO_WEB_URL)" == "https://geo.digitalghana.dev" ]]
-  [[ "$(value "$file" NEXT_PUBLIC_GHANAGEO_SANDBOX_URL)" == "https://sandbox.geo.digitalghana.dev" ]]
-  [[ "$(value "$file" NEXT_PUBLIC_GHANAGEO_PORTAL_URL)" == "https://console.geo.digitalghana.dev" ]]
+  [[ "$(value "$file" NEXT_PUBLIC_GHANAGEO_SANDBOX_URL)" == "https://sandbox-geo.digitalghana.dev" ]]
+  [[ "$(value "$file" NEXT_PUBLIC_GHANAGEO_PORTAL_URL)" == "https://console-geo.digitalghana.dev" ]]
 done
 
 [[ -z "$(value "$fixture_root/.env" AUTH_SECRET)" ]]

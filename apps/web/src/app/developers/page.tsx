@@ -5,9 +5,9 @@ import { pageMetadata, sandboxOrigin } from "@/lib/seo";
 export const metadata = pageMetadata({ title: "Developers", description: "Start using GhanaGeo with REST, GraphQL, gRPC, TypeScript and React. Public read APIs work without an account.", path: "/developers" });
 
 const paths = [
-  { icon: Terminal, label: "REST", command: "curl 'https://api.geo.digitalghana.dev/v1/search?q=osu'", note: "The shortest path from an idea to a sourced result." },
+  { icon: Terminal, label: "REST", command: "curl 'https://api-geo.digitalghana.dev/v1/search?q=osu'", note: "The shortest path from an idea to a sourced result." },
   { icon: Braces, label: "GraphQL", command: "query { search(query: \"Osu\") { nodes { place { id name } } } }", note: "Traverse nested administrative geography in one request." },
-  { icon: Radio, label: "gRPC", command: "grpcurl api.geo.digitalghana.dev:443 list", note: "Typed HTTP/2 contracts, reflection, deadlines and stable status codes." },
+  { icon: Radio, label: "gRPC", command: "grpcurl api-geo.digitalghana.dev:443 list", note: "Typed HTTP/2 contracts, reflection, deadlines and stable status codes." },
   { icon: Package, label: "npm + React", command: "pnpm add @ghanageo/react", note: "Typed hooks and client primitives with dataset-version metadata." },
 ] as const;
 
