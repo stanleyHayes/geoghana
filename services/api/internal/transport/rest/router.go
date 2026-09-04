@@ -280,6 +280,11 @@ func (h *Handler) Routes() http.Handler {
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(adminPrivateResponse)
 			r.Get("/permissions", h.adminPermissions)
+			// The containment lever. role:manage was defined and granted but had
+			// no caller, so a suspect account could not be stopped and every
+			// operator had to be SUPER_ADMIN.
+			r.Post("/staff/{id}/role", h.adminSetStaffRole)
+			r.Post("/staff/{id}/disabled", h.adminSetStaffDisabled)
 			r.Get("/fair-use/policy", h.adminFairUsePolicy)
 			r.Post("/fair-use/policies", h.adminAppendFairUsePolicy)
 			r.Post("/fair-use/overrides", h.adminAppendFairUseOverride)

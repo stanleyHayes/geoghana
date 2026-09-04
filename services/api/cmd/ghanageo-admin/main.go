@@ -62,7 +62,7 @@ Usage:
   ghanageo-admin dataset history
   ghanageo-admin dataset publish  --version <v>
   ghanageo-admin dataset rollback --to <v>
-  GHANAGEO_ADMIN_PASSWORD=<secret> ghanageo-admin accounts bootstrap-admin --email <address> [--reset-mfa]
+  GHANAGEO_ADMIN_PASSWORD=<secret> ghanageo-admin accounts bootstrap-admin --email <address> [--role ROLE] [--reset-mfa]
   ghanageo migrate
 `)
 }
@@ -159,8 +159,17 @@ func cmdBootstrapAdmin(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("bootstrap-admin", flag.ContinueOnError)
 	email := fs.String("email", "", "email address for the local super-admin")
 	resetMFA := fs.Bool("reset-mfa", false, "clear existing MFA credentials so the administrator must enrol again")
+	// Without this every operator provisioned here was SUPER_ADMIN, so the
+	// read-only SECURITY_AUDITOR separation the RBAC table argues for could not
+	// be granted to anyone without editing MongoDB by hand.
+	roleName := fs.String("role", string(accountdomain.RoleSuperAdmin),
+		"role to grant: SUPER_ADMIN, SECURITY_AUDITOR or DEVELOPER_SUPPORT")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	role := accountdomain.Role(strings.ToUpper(strings.TrimSpace(*roleName)))
+	if !role.Valid() || role == accountdomain.RoleDeveloper {
+		return fmt.Errorf("--role must be one of SUPER_ADMIN, SECURITY_AUDITOR, DEVELOPER_SUPPORT (got %q)", *roleName)
 	}
 	normalizedEmail := accountdomain.NormalizeEmail(*email)
 	if err := accountdomain.ValidateEmail(normalizedEmail); err != nil {
@@ -193,11 +202,11 @@ func cmdBootstrapAdmin(ctx context.Context, args []string) error {
 		}
 		if createErr := repo.Create(ctx, accountdomain.Account{
 			ID: id, Email: normalizedEmail, EmailVerified: true,
-			PasswordHash: hash, Role: accountdomain.RoleSuperAdmin,
+			PasswordHash: hash, Role: role,
 		}); createErr != nil {
 			return createErr
 		}
-		fmt.Printf("✓ created verified SUPER_ADMIN account %s\n", normalizedEmail)
+		fmt.Printf("✓ created verified %s account %s\n", role, normalizedEmail)
 		return nil
 	}
 	if err != nil {
@@ -206,7 +215,7 @@ func cmdBootstrapAdmin(ctx context.Context, args []string) error {
 	if err := repo.SetPasswordHash(ctx, existing.ID, hash); err != nil {
 		return err
 	}
-	if err := repo.SetRole(ctx, existing.ID, accountdomain.RoleSuperAdmin); err != nil {
+	if err := repo.SetRole(ctx, existing.ID, role); err != nil {
 		return err
 	}
 	if err := repo.MarkEmailVerified(ctx, existing.ID); err != nil {
