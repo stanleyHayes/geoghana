@@ -27,6 +27,8 @@ type accountDoc struct {
 	RecoveryCodes []string     `bson:"recoveryCodes,omitempty"`
 	Passkeys      []passkeyDoc `bson:"passkeys,omitempty"`
 	SessionEpoch  int          `bson:"sessionEpoch"`
+	FailedLogins  int          `bson:"failedLogins,omitempty"`
+	LockedUntil   *time.Time   `bson:"lockedUntil,omitempty"`
 	CreatedAt     time.Time    `bson:"createdAt"`
 	UpdatedAt     time.Time    `bson:"updatedAt"`
 }
@@ -56,7 +58,8 @@ func (d accountDoc) toDomain() account.Account {
 		ID: d.ID, Email: d.Email, EmailVerified: d.EmailVerified,
 		PasswordHash: d.PasswordHash, Role: account.Role(d.Role),
 		Disabled: d.Disabled, TOTPSecret: d.TOTPSecret, Passkeys: keys,
-		SessionEpoch: d.SessionEpoch, CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
+		SessionEpoch: d.SessionEpoch, FailedLogins: d.FailedLogins, LockedUntil: d.LockedUntil,
+		CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
 	}
 }
 
@@ -182,6 +185,40 @@ func (r *AccountRepo) BumpSessionEpoch(ctx context.Context, id string) error {
 
 func (r *AccountRepo) SetRole(ctx context.Context, id string, role account.Role) error {
 	return r.set(ctx, id, bson.M{"role": string(role)})
+}
+
+// RecordFailedLogin increments the counter and locks the account once it passes
+// the limit. The increment and the lock are one update so concurrent guesses
+// cannot race past the threshold.
+func (r *AccountRepo) RecordFailedLogin(ctx context.Context, id string, now time.Time) error {
+	res := r.col().FindOneAndUpdate(ctx,
+		bson.M{"_id": id},
+		bson.M{"$inc": bson.M{"failedLogins": 1}, "$set": bson.M{"updatedAt": now}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	var doc accountDoc
+	if err := res.Decode(&doc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return ErrAccountNotFound
+		}
+		return fmt.Errorf("record failed login: %w", err)
+	}
+	if doc.FailedLogins < account.MaxFailedLogins {
+		return nil
+	}
+	until := now.Add(account.LoginLockout)
+	return r.set(ctx, id, bson.M{"lockedUntil": until})
+}
+
+// ClearFailedLogins forgets the counter after a successful sign-in.
+func (r *AccountRepo) ClearFailedLogins(ctx context.Context, id string) error {
+	_, err := r.col().UpdateOne(ctx, bson.M{"_id": id},
+		bson.M{"$set": bson.M{"failedLogins": 0, "updatedAt": time.Now().UTC()},
+			"$unset": bson.M{"lockedUntil": ""}})
+	if err != nil {
+		return fmt.Errorf("clear failed logins: %w", err)
+	}
+	return nil
 }
 
 func (r *AccountRepo) SetDisabled(ctx context.Context, id string, disabled bool) error {

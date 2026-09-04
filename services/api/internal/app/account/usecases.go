@@ -271,9 +271,29 @@ func (s *Service) Login(ctx context.Context, email, password, ua, ip string) (Lo
 		_ = account.VerifyPassword(password, account.DummyHash)
 		return LoginResult{}, deny
 	}
+	if a.PasswordLocked(now) {
+		// Still hash, so a locked account is not measurably faster to probe than
+		// an unlocked one, and answer with the same words as a wrong password:
+		// telling an attacker they found a real account and tripped its lock is
+		// two facts they did not have.
+		_ = account.VerifyPassword(password, account.DummyHash)
+		s.recordSecurityEvent(ctx, *a, "auth.login_locked", ip, nil)
+		return LoginResult{}, deny
+	}
 	if err := account.VerifyPassword(password, a.PasswordHash); err != nil {
 		s.recordSecurityEvent(ctx, *a, "auth.login_failed", ip, err)
+		if recErr := s.accounts.RecordFailedLogin(ctx, a.ID, now); recErr != nil {
+			s.log.WarnContext(ctx, "failed login not counted", "account", a.ID, "err", recErr)
+		}
 		return LoginResult{}, deny
+	}
+	// The password was right, so the run of failures is over. Cleared before the
+	// remaining checks: those refuse for reasons a correct password should not
+	// keep accumulating a lockout for.
+	if a.FailedLogins > 0 || a.LockedUntil != nil {
+		if clrErr := s.accounts.ClearFailedLogins(ctx, a.ID); clrErr != nil {
+			s.log.WarnContext(ctx, "failed login counter not cleared", "account", a.ID, "err", clrErr)
+		}
 	}
 	if err := a.CanSignIn(); err != nil {
 		if errors.Is(err, account.ErrEmailNotVerified) {

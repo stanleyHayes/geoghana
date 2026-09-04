@@ -83,8 +83,29 @@ type Account struct {
 	// rejected on its next use, so "sign out everywhere" is a single write and
 	// cannot half-succeed.
 	SessionEpoch int
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// FailedLogins counts consecutive wrong passwords. Reset on success.
+	FailedLogins int
+	// LockedUntil pauses password sign-in after too many wrong tries. Nil means
+	// not locked. Passkeys are unaffected: they are not guessable, so locking
+	// them would punish the stronger factor for the weaker one's failures.
+	LockedUntil *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// MaxFailedLogins is how many consecutive wrong passwords are tolerated before
+// the account pauses password sign-in.
+//
+// Password reset already carries a 15-minute per-account cooldown, so an
+// unlimited login counter was an inconsistency rather than a stated position.
+const MaxFailedLogins = 8
+
+// LoginLockout is how long password sign-in pauses once the limit is reached.
+const LoginLockout = 15 * time.Minute
+
+// PasswordLocked reports whether password sign-in is currently paused.
+func (a Account) PasswordLocked(now time.Time) bool {
+	return a.LockedUntil != nil && now.Before(*a.LockedUntil)
 }
 
 // Passkey is a registered WebAuthn credential.
