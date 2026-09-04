@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -44,6 +45,7 @@ type Handler struct {
 	developer      *appdeveloper.Service
 	usage          usageDomain.Repository
 	telemetry      *observability.Telemetry
+	metricsToken   string
 	adminOps       *appadminops.Service
 	adminIdentity  *appadminidentity.Service
 	changeRequests *appchangerequest.Service
@@ -74,6 +76,29 @@ func (h *Handler) WithUsage(repository usageDomain.Repository) *Handler {
 func (h *Handler) WithTelemetry(telemetry *observability.Telemetry) *Handler {
 	h.telemetry = telemetry
 	return h
+}
+
+// WithMetricsToken supplies the bearer token that guards /metrics. Without it the
+// endpoint is not registered.
+func (h *Handler) WithMetricsToken(token string) *Handler {
+	h.metricsToken = token
+	return h
+}
+
+// requireMetricsToken admits a scrape that presents the configured bearer token.
+//
+// The comparison is constant time so a wrong token cannot be narrowed by timing,
+// and a refusal says nothing about what is behind it.
+func requireMetricsToken(token string, next http.Handler) http.Handler {
+	expected := []byte(token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		presented := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		if subtle.ConstantTimeCompare([]byte(presented), expected) != 1 {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // WithAccounts attaches account authentication. Absent in unit tests, where
@@ -156,8 +181,12 @@ func (h *Handler) Routes() http.Handler {
 	r.Use(h.csrf)
 
 	r.Get("/health", h.health)
-	if h.telemetry != nil {
-		r.Handle("/metrics", h.telemetry.Handler())
+	// Telemetry is exposed only when a token is configured to guard it. Metrics
+	// carry no per-caller labels, but they do publish traffic volume, latency
+	// distribution, error counts and queue depth, and they are the only
+	// admin-adjacent endpoint that would otherwise answer to anyone.
+	if h.telemetry != nil && h.metricsToken != "" {
+		r.Handle("/metrics", requireMetricsToken(h.metricsToken, h.telemetry.Handler()))
 	}
 
 	if h.graphql != nil {

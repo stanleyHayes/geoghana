@@ -189,6 +189,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 		WithDeveloper(developerSvc).
 		WithUsage(usageRepo).
 		WithTelemetry(telemetry).
+		WithMetricsToken(cfg.MetricsToken).
 		WithFairUse(fairUseSvc).
 		WithAdminIdentity(appadminidentity.NewService(mongoadapter.NewAdminIdentityRepo(store))).
 		WithAdminOps(appadminops.NewService(mongoadapter.NewAdminOpsRepo(store).WithHealthDependencies(limiter, searchClient, telemetry))).

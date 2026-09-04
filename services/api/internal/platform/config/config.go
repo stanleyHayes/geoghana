@@ -30,6 +30,10 @@ type Config struct {
 	// credential registered for one RPID cannot be used on another, which is
 	// what makes passkeys phishing-resistant, so it must be the real
 	// registrable domain and never a wildcard.
+	// MetricsToken guards /metrics. Unset means the endpoint is not served at
+	// all: an unauthenticated scrape target is the one admin-adjacent surface
+	// with no caller identity, so it fails closed like the rest of this API.
+	MetricsToken               string
 	PasskeyRPID                string
 	PasskeyOrigins             []string
 	LogLevel                   string
@@ -77,6 +81,7 @@ func Load() Config {
 		PasskeyOrigins: strings.Split(env("API_PASSKEY_ORIGINS",
 			"http://localhost:3100,http://localhost:3102,http://localhost:3103,http://localhost:8180"), ","),
 		LogLevel:                   env("API_LOG_LEVEL", "info"),
+		MetricsToken:               os.Getenv("METRICS_TOKEN"),
 		SecurityAlertWebhookURL:    os.Getenv("SECURITY_ALERT_WEBHOOK_URL"),
 		SecurityAlertWebhookSecret: os.Getenv("SECURITY_ALERT_WEBHOOK_SECRET"),
 		AllowedOrigins: strings.Split(env("API_ALLOWED_ORIGINS",
