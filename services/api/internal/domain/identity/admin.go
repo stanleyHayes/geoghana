@@ -72,9 +72,14 @@ func RedactKey(k APIKey) AdminKey {
 	return AdminKey{
 		ID: k.ID, ApplicationID: k.ApplicationID, OrganizationID: k.OrganizationID,
 		Name: k.Name, Class: k.Class, Environment: k.Environment, Prefix: k.Prefix,
-		Scopes:         append([]Scope(nil), k.Scopes...),
-		AllowedOrigins: append([]string(nil), k.AllowedOrigins...), AllowedIPs: append([]string(nil), k.AllowedIPs...),
-		CreatedAt: k.CreatedAt, ExpiresAt: k.ExpiresAt, LastUsedAt: k.LastUsedAt,
+		// append to an empty slice, not a nil one. append([]T(nil)) returns nil
+		// for an empty input, which marshals to `null` rather than `[]`, and a
+		// client that trusts the contract then calls .join on null. A key with no
+		// scopes is a normal thing to create.
+		Scopes:         append(make([]Scope, 0, len(k.Scopes)), k.Scopes...),
+		AllowedOrigins: append(make([]string, 0, len(k.AllowedOrigins)), k.AllowedOrigins...),
+		AllowedIPs:     append(make([]string, 0, len(k.AllowedIPs)), k.AllowedIPs...),
+		CreatedAt:      k.CreatedAt, ExpiresAt: k.ExpiresAt, LastUsedAt: k.LastUsedAt,
 		RevokedAt: k.RevokedAt, SuspendedAt: k.SuspendedAt,
 		RevokedReason: k.RevokedReason, SuspendedReason: k.SuspendedReason,
 	}

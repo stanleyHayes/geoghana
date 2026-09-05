@@ -472,7 +472,7 @@ function DirectoryTable({
                   {row.state}
                 </Badge>
               </td>
-              <td>{row.scopes.join(" · ") || "None"}</td>
+              <td>{row.scopes?.join(" · ") || "None"}</td>
               <td>{formatDate(row.lastUsedAt)}</td>
               <td>
                 <TableActions label={`Actions for ${row.name}`}>
