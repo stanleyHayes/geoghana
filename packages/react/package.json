@@ -5,9 +5,17 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "examples", "README.md"],
+  "files": [
+    "dist",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --external react --external @tanstack/react-query --clean",
@@ -37,5 +45,8 @@
     "typescript": "5.9.3",
     "vitest": "4.1.11"
   },
-  "publishConfig": { "access": "public", "provenance": true }
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

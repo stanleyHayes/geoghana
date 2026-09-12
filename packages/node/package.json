@@ -5,9 +5,20 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "engines": { "node": ">=20" },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
@@ -15,7 +26,17 @@
     "lint": "echo ok",
     "prepack": "pnpm build"
   },
-  "dependencies": { "@ghanageo/client": "workspace:^" },
-  "devDependencies": { "@types/node": "24.10.1", "tsup": "8.5.1", "typescript": "5.9.3", "vitest": "4.1.11" },
-  "publishConfig": { "access": "public", "provenance": true }
+  "dependencies": {
+    "@ghanageo/client": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

@@ -56,3 +56,18 @@ only be implemented after a signed licence or written integration agreement is
 filed here and countersigned by the Engineering Lead. Even then, the licence
 would permit *lookup*, never *redistribution*, and the CI exclusion test
 (GEO-21.7) stays enabled permanently.
+
+## Outbound licensing — what GhanaGeo publishes
+
+Two licences apply, deliberately, and they are not the same one.
+
+| What | Licence | Why |
+|---|---|---|
+| The repository: API, worker, apps, contracts, tooling | **Apache-2.0** | See [`LICENSE`](../LICENSE) and [`NOTICE`](../NOTICE). Apache-2.0's explicit patent grant suits the server and the canonical contracts. |
+| Published client SDKs: `@ghanageo/core`, `client`, `react`, `node`, `proto` and the `ghanageo` CLI | **MIT** | A permissive client library alongside an Apache-2.0 service is a deliberate choice: it keeps the barrier to adopting GhanaGeo in someone else's product as low as possible, including inside projects whose own policies make Apache-2.0 awkward. |
+| `@ghanageo/data` | **CC BY 4.0** | It ships data, not library code, so a data licence is the honest one. Upstream terms still apply: GeoNames requires attribution, and OpenStreetMap-derived content carries ODbL 1.0 attribution and share-alike. Those override this licence where they conflict. |
+
+Each package carries its own `LICENSE` file and lists it in `files`, so the terms
+travel with the tarball rather than living only here. A contributor adding a new
+published package should make the same explicit choice rather than inheriting a
+scaffold default.

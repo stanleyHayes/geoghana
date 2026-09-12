@@ -1,0 +1,20 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) 2026 Digital Ghana contributors
+
+This package distributes data, not library code, and is licensed under the
+Creative Commons Attribution 4.0 International License. You may share and adapt
+the material for any purpose, including commercially, provided you give
+appropriate credit, link to the licence, and indicate if changes were made.
+
+Full licence text: https://creativecommons.org/licenses/by/4.0/legalcode
+
+ATTRIBUTION AND UPSTREAM TERMS
+
+The bundled geography derives from sources with their own attribution
+requirements, recorded in docs/licensing-register.md of the GhanaGeo
+repository. GeoNames data is CC BY 4.0 and must be attributed to GeoNames.
+OpenStreetMap data is ODbL 1.0: attribute OpenStreetMap contributors and
+observe the licence's share-alike terms for derived databases. Those upstream
+terms apply in addition to this licence and always override it where they
+conflict.

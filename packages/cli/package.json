@@ -1,17 +1,42 @@
 {
   "name": "ghanageo",
   "version": "0.1.0",
-  "description": "Ghana's location data, from your terminal. Free — no account, no API key.",
-  "keywords": ["ghana", "geocoding", "geography", "cli", "regions", "districts", "mmda", "africa"],
+  "description": "Ghana's location data, from your terminal. Free \u2014 no account, no API key.",
+  "keywords": [
+    "ghana",
+    "geocoding",
+    "geography",
+    "cli",
+    "regions",
+    "districts",
+    "mmda",
+    "africa"
+  ],
   "license": "MIT",
   "homepage": "https://geo.digitalghana.dev",
-  "repository": { "type": "git", "url": "https://github.com/ghanageo/ghanageo" },
-  "bin": { "ghanageo": "bin/ghanageo.js" },
-  "files": ["bin/", "dist/", "README.md"],
-  "exports": {
-    ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs", "require": "./dist/index.cjs" }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ghanageo/ghanageo"
   },
-  "engines": { "node": ">=18" },
+  "bin": {
+    "ghanageo": "bin/ghanageo.js"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -19,7 +44,17 @@
     "test": "node bin/resolve.test.js && vitest run",
     "prepack": "pnpm build"
   },
-  "dependencies": { "@ghanageo/client": "workspace:^", "@ghanageo/data": "workspace:^" },
-  "devDependencies": { "tsup": "8.5.1", "typescript": "5.9.3", "vitest": "4.1.11" },
-  "publishConfig": { "access": "public", "provenance": true }
+  "dependencies": {
+    "@ghanageo/client": "workspace:^",
+    "@ghanageo/data": "workspace:^"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }
