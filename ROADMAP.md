@@ -65,7 +65,7 @@ These are the only things between the current state and a public V1. Most are bl
 
 | Gate | Blocking dependency | Board item |
 |---|---|---|
-| Green SDK release-conformance CI | The six-language SDK matrix fails at `check_contract` across Go, Python, Dart, Java, .NET and PHP. `render.yaml` uses `autoDeployTrigger: checksPass`, so auto-deploy stays off until this is green | EP-23 |
+| Green SDK release-conformance CI | The six-language SDK matrix fails at `check_contract` across Go, Python, Dart, Java, .NET and PHP. This no longer gates deployment — `autoDeployTrigger` was moved from `checksPass` to `commit` on 2026-09-12 — so a red matrix now reaches production instead of holding it back. Restore `checksPass` once it is green | EP-23 |
 | Persistent storage for search and exports | The deployed Typesense node keeps its index in `/tmp` and dataset exports write to `/tmp`; both are lost on restart. Needs disks, which `render.yaml` declares but the CLI cannot create | [`docs/runbooks/api-production-deployment.md`](docs/runbooks/api-production-deployment.md) |
 | Native gRPC at `grpc-geo.digitalghana.dev` | Render does not serve native gRPC externally; needs an HTTP/2-native container host, then `grpcurl` proof of health, reflection, anonymous reads, scope enforcement, `429` behaviour and the resumable change stream before DNS is added | [`docs/runbooks/deployment.md`](docs/runbooks/deployment.md) |
 | Close the CORS, passkey, data-path, alert, backup and rollback gates | The API is deployed, so these are now real verification work rather than blocked | GEO-30.1 |

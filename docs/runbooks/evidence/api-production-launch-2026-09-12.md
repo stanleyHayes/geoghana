@@ -63,8 +63,10 @@ Worker identity confirmed from its own logs: `"service":"ghanageo-worker"`.
 - Typesense keeps its index in `/tmp` and dataset exports write to `/tmp`; both
   are lost on restart, and search returns `INTERNAL` until a reindex is run.
 - Typesense is not represented in `render.yaml`.
-- Auto-deploy is off on the API and worker: `render.yaml` uses
-  `autoDeployTrigger: checksPass` and the SDK release-conformance matrix is red.
+- Auto-deploy was off on the API and worker at launch (`autoDeployTrigger:
+  checksPass` with a red SDK release-conformance matrix). Later the same day the
+  owner moved it to `commit` on the blueprint and both services, so pushes to
+  `main` now deploy regardless of CI state.
 - Observability and alerting (`OTEL_EXPORTER_OTLP_*`, `SENTRY_DSN`,
   `SECURITY_ALERT_WEBHOOK_*`) are unset.
 - Native gRPC on `grpc-geo.digitalghana.dev` is still not deployed.

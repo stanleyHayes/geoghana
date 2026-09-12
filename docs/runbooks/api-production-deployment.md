@@ -79,9 +79,13 @@ Still true, and worth closing before this is called stable:
 - **Typesense is not in `render.yaml`.** It is a self-hosted private service
   rather than a managed cluster. Add it to the blueprint so the topology stays
   reproducible.
-- **Auto-deploy is off** on the API and worker, so a push does not redeploy
-  them. `render.yaml` uses `autoDeployTrigger: checksPass`, and the repository's
-  SDK conformance checks are currently red.
+- **Auto-deploy is on and ungated.** `autoDeployTrigger` was moved from
+  `checksPass` to `commit` on 2026-09-12, on the blueprint and on both live
+  services, so every push to `main` redeploys the API and worker. Because the SDK
+  release-conformance matrix is currently red, this means a failing build no
+  longer holds a deploy back: `main` goes to production whatever CI says. That is
+  a deliberate temporary choice. Move it back to `checksPass` once the matrix is
+  green.
 - Observability and alerting (`OTEL_EXPORTER_OTLP_*`, `SENTRY_DSN`,
   `SECURITY_ALERT_WEBHOOK_*`) remain unset.
 

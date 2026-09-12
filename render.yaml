@@ -7,7 +7,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: commit
     envVars:
       - key: GHANAGEO_ENV
         value: production
@@ -77,7 +77,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     dockerCommand: /ghanageo-worker
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: commit
     envVars:
       - key: GHANAGEO_ENV
         value: production
