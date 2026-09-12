@@ -3,7 +3,11 @@ WORKDIR /src
 COPY go.work go.work.sum ./
 COPY services/api/go.mod services/api/go.sum ./services/api/
 COPY services/worker/go.mod services/worker/go.sum ./services/worker/
-RUN cd services/api && go mod download && cd ../worker && go mod download
+# go.work also declares ./cli, which .dockerignore deliberately keeps out of the
+# build context: this image ships the API and worker only. Drop it from the
+# workspace instead of widening the context, or the workspace fails to load.
+RUN go work edit -dropuse ./cli \
+    && cd services/api && go mod download && cd ../worker && go mod download
 COPY services/api/ ./services/api/
 COPY services/worker/ ./services/worker/
 RUN cd services/api \

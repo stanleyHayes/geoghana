@@ -10,7 +10,7 @@ downloads — rather than living only in this file.
 |---|---|---|---|---|
 | **GeoNames** | CC BY 4.0 | ✅ Yes, with attribution | **Ingested** — 15,925 populated places | `internal/adapters/ingest/geonames` |
 | Ghana Statistical Service | Official government files; terms to confirm per dataset | ⚠️ Verify before publication | Not started (GEO-4.6) | — |
-| OpenStreetMap (Geofabrik Ghana) | ODbL 1.0 | ✅ Yes, with attribution and share-alike | Not started (GEO-4.7) | — |
+| **OpenStreetMap (Geofabrik Ghana)** | ODbL 1.0 | ✅ Yes, with attribution and share-alike | **Ingested** — 13 district boundaries, 19,728 roads, 19,686 POIs | `internal/adapters/ingest/osm` |
 | Ghana National Household Registry | Government reference data; reuse terms unconfirmed | ⚠️ Staging only | Not started (GEO-4.5) | — |
 | Community submissions | Contributor terms, evidence required | ✅ After steward review | Not started | — |
 | **GhanaPostGPS** | **Proprietary — Ghana Post owns digital addresses** | ❌ **BLOCKED** | **Never. No licence.** | Port only, no implementation |

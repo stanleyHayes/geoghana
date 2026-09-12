@@ -1,4 +1,13 @@
 #!/usr/bin/env ruby
+
+# These scripts read UTF-8 Markdown and JSON. Ruby derives its default external
+# encoding from the locale, so on a machine with LANG unset it defaults to
+# US-ASCII and every read of a file containing an em dash raises
+# ArgumentError: invalid byte sequence. Pin the encoding so the checks behave
+# the same for every contributor regardless of their shell locale.
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
+
 # frozen_string_literal: true
 
 require "optparse"

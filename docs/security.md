@@ -1,6 +1,6 @@
 # Security and patching policy
 
-Report vulnerabilities privately to `security@digitalghana.dev`. Do not open a
+Report vulnerabilities privately through GitHub by opening a draft advisory at <https://github.com/stanleyHayes/geoghana/security/advisories/new>. Do not open a
 public issue containing credentials, exploit details or personal data. We aim
 to acknowledge reports within two working days, provide a severity assessment
 within five, and coordinate disclosure after a fix is available.
