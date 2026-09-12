@@ -2,13 +2,19 @@
 
 This roadmap is **directional, not a commitment**. It contains no dates, because the items that remain are mostly gated on external state — provider accounts, registry credentials, a cluster tier, a legal agreement — and a date on any of those would be fiction. The machine-readable state of every story lives in the task board at §1a of [`agent_plan.md`](agent_plan.md), which is the source of truth; this file is the readable summary.
 
-Current lifecycle: **externally blocked**. V1 is implemented and locally verified, four production frontends are live, and the public API is not deployed.
+Current lifecycle: **beta**. V1 is implemented and locally verified, four production frontends are live, and the public REST/GraphQL API went live at `api-geo.digitalghana.dev` on 2026-09-12.
 
 ---
 
 ## Now — shipped and verified
 
-Everything below is marked done on the task board with recorded evidence, except where a line names a partially closed item — GEO-30.1 is in progress and only its frontend boundary has shipped, and the application-security suite is tracked as Spec §22.3 story GEO-23.3, which carries no board row of its own.
+Everything below is marked done on the task board with recorded evidence, except where a line names a partially closed item — the application-security suite is tracked as Spec §22.3 story GEO-23.3, which carries no board row of its own.
+
+**Production deployment**
+
+- [x] Four frontends live on canonical hosts with valid TLS (GEO-30.1)
+- [x] Public REST/GraphQL API live at `api-geo.digitalghana.dev` on 2026-09-12, backed by MongoDB Atlas, Render Key Value and a self-hosted Typesense node, with 16,201 documents indexed and search returning scored results — see [`docs/runbooks/api-production-deployment.md`](docs/runbooks/api-production-deployment.md)
+- [x] Background worker live on its own entrypoint
 
 **Contracts and foundation**
 
@@ -55,13 +61,14 @@ Everything below is marked done on the task board with recorded evidence, except
 
 ## Next — the open gates
 
-These are the only things between the current state and a public V1. Every one is blocked on something outside this repository.
+These are the only things between the current state and a public V1. Most are blocked on something outside this repository.
 
 | Gate | Blocking dependency | Board item |
 |---|---|---|
-| Deploy the public API at `api-geo.digitalghana.dev` | 14 API/worker provider values still reported missing by the real production preflight; production Redis and Typesense (or Atlas Search) not provisioned | GEO-30.1 |
+| Green SDK release-conformance CI | The six-language SDK matrix fails at `check_contract` across Go, Python, Dart, Java, .NET and PHP. `render.yaml` uses `autoDeployTrigger: checksPass`, so auto-deploy stays off until this is green | EP-23 |
+| Persistent storage for search and exports | The deployed Typesense node keeps its index in `/tmp` and dataset exports write to `/tmp`; both are lost on restart. Needs disks, which `render.yaml` declares but the CLI cannot create | [`docs/runbooks/api-production-deployment.md`](docs/runbooks/api-production-deployment.md) |
 | Native gRPC at `grpc-geo.digitalghana.dev` | Render does not serve native gRPC externally; needs an HTTP/2-native container host, then `grpcurl` proof of health, reflection, anonymous reads, scope enforcement, `429` behaviour and the resumable change stream before DNS is added | [`docs/runbooks/deployment.md`](docs/runbooks/deployment.md) |
-| Close the CORS, passkey, data-path, alert, backup and rollback gates | All depend on the API being deployed first | GEO-30.1 |
+| Close the CORS, passkey, data-path, alert, backup and rollback gates | The API is deployed, so these are now real verification work rather than blocked | GEO-30.1 |
 | Continuous backup and point-in-time restore | An Atlas M10 cluster tier — M0 does not offer PITR. The restore mechanics themselves are already proven | GEO-22.1 |
 | Production alert delivery | `SECURITY_ALERT_WEBHOOK_URL` and `SECURITY_ALERT_WEBHOOK_SECRET` pointing at a real incident receiver | GEO-22.1 |
 | Publish the seven V1 npm packages | npm release credentials. The packages build, test, pack and pass drift checks; publication is an external launch action | V1 Definition of Done |

@@ -1,101 +1,93 @@
 # GhanaGeo API production deployment
 
-Status as of 2026-09-12. This runbook records what is provisioned, what is still
-blocked, and exactly how to finish. It replaces guesswork about why
-`api-geo.digitalghana.dev` does not serve.
+Live since 2026-09-12. This runbook records the deployed topology, how it was
+unblocked, and where it still deviates from `render.yaml`.
 
-## What is provisioned
+## Deployed topology
 
-| Resource | Render ID | State | Notes |
+| Resource | Render ID | Live deploy | Notes |
 |---|---|---|---|
-| `ghanageo-typesense` | `srv-daiiji1594qs738tpot0` | **live** | Private service, Typesense 29.0, frankfurt. Reachable only on Render's internal network at `ghanageo-typesense:10000`. |
-| `ghanageo-redis` | `red-daiicmvqj5pc73a8b7lg` | **available** | Key Value 8.1.4, 256mb, frankfurt, `noeviction`, journal+snapshot persistence. |
-| `ghanageo-api` | `srv-daiidlnqj5pc73a8esb0` | **build succeeds, start fails** | Docker web service from this repository, frankfurt, health check `/health`. |
-| `ghanageo-worker` | `srv-daiif2u7bikc738prt50` | **build succeeds, runs the wrong binary** | See "Worker entrypoint" below. |
+| `ghanageo-api` | `srv-daiidlnqj5pc73a8esb0` | `dep-daij5srm8hqs73d36ajg` | Docker web service from this repository, frankfurt, health check `/health`. |
+| `ghanageo-worker` | `srv-daiif2u7bikc738prt50` | `dep-daij6crm8hqs73d384a0` | Same image, `dockerCommand: /ghanageo-worker`. |
+| `ghanageo-typesense` | `srv-daiiji1594qs738tpot0` | `dep-daiijip594qs738tprog` | Private service, Typesense 29.0, reachable only at `ghanageo-typesense:10000`. |
+| `ghanageo-redis` | `red-daiicmvqj5pc73a8b7lg` | — | Key Value 8.1.4, 256mb, `noeviction`, journal+snapshot. |
 
-The container image builds cleanly on Render. That was not previously true: the
-Dockerfile could not build at all until the `go.work`/`.dockerignore` conflict
-was fixed, so no credential would have produced a running service before.
+Canonical hostname `api-geo.digitalghana.dev` is a Vercel DNS CNAME to
+`ghanageo-api.onrender.com`, registered as a verified Render custom domain
+(`cdm-daij2nh594qs738vhev0`). TLS at launch: `CN=api-geo.digitalghana.dev`,
+issuer Google Trust Services `WE1`, valid 2026-09-12 to 2026-12-11.
 
-## Blocker 1 — transactional mail (blocks the API)
+## Verification at launch
 
-The API starts, validates its production configuration and exits:
+```
+GET https://api-geo.digitalghana.dev/health
+{"datasetVersion":"2026.08.3-ulid","status":"ok"}
+```
 
-    {"level":"ERROR","msg":"fatal","err":"transactional mail configuration missing: RESEND_API_KEY, RESEND_FROM_EMAIL"}
+`/v1/regions`, `/v1/districts` and `POST /graphql` all answer 200. `/v1/search`
+returns scored results with a `matchReason` and full region/district hierarchy.
 
-This is deliberate. `services/api/cmd/api/production_security.go` fails closed
-when `GHANAGEO_ENV=production` and transactional mail is unconfigured, because
-the developer console sends real email. Do not work around it by lowering
-`GHANAGEO_ENV`: that same switch also relaxes HTTPS enforcement and passkey
-origin validation.
+The Typesense index is populated by a one-off job against the API service:
 
-To resolve it:
+```sh
+render jobs create srv-daiidlnqj5pc73a8esb0 --start-command "/ghanageo-admin data reindex"
+```
 
-1. Create a Resend account and verify `digitalghana.dev` as a sending domain.
-   Note that the domain currently publishes **no MX records at all**; sending
-   needs the SPF and DKIM records Resend issues, which is separate from being
-   able to receive mail.
-2. Set on `ghanageo-api`:
-   - `RESEND_API_KEY` — the Resend API key.
-   - `RESEND_FROM_EMAIL` — a sender on the verified domain.
-   `RESEND_API_URL` already defaults to `https://api.resend.com/emails`, which is
-   the only endpoint the validator accepts.
-3. Redeploy. The remaining production identity checks
-   (`API_PASSKEY_RPID`, `API_PASSKEY_ORIGINS`) are already satisfied.
+At launch that reported `indexed 16201 documents (regions, districts and places)`,
+matching the dataset recorded in the ledger. **Search returns
+`INTERNAL: Search failed.` until this has been run** against a fresh Typesense
+instance — an empty index is not a startup error, so nothing else surfaces it.
 
-## Blocker 2 — worker entrypoint
+## What had to be fixed to get here
 
-The image's `ENTRYPOINT` is `/ghanageo-api`, and `render.yaml` overrides it for
-the worker with `dockerCommand: /ghanageo-worker`. The Render CLI cannot set
-`dockerCommand` for a Docker-runtime service — `--start-command` is rejected as
-"only supported for native runtimes" — so the worker created by CLI currently
-runs the API binary and fails on an API-only check:
+Four defects, in the order they surfaced. Each one hid the next.
 
-    {"level":"ERROR","msg":"fatal","err":"API_PASSKEY_RPID must be a production registrable domain"}
+1. **The image could not build.** `go.work` declares `./cli`, which
+   `.dockerignore` deliberately excludes, so `go mod download` failed with
+   "cannot load module /src/cli". No credential would have produced a running
+   service. The workspace now drops `./cli` inside the image rather than
+   widening the build context.
+2. **Transactional mail was unconfigured.** `production_security.go` fails
+   closed without `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resolved by
+   supplying them; the guard was not weakened.
+3. **`MONGO_URI` was stored with its surrounding quotes**, so the driver saw a
+   scheme of `"mongodb+srv` and refused it. The value in `.env.production` is
+   quoted; whatever reads it must strip one layer before setting it on Render.
+4. **`API_TRUSTED_PROXY_CIDRS` was unset** while `API_TRUST_PROXY_HEADERS` was
+   true, which is a hard error. Set to `10.0.0.0/8`: Render terminates TLS at
+   its edge and connects to the container over its private network, so that is
+   the immediate peer range. It is deliberately not a wildcard — `.env.example`
+   forbids `0.0.0.0/0`.
 
-Fix it either way:
-
-- **Dashboard:** set the worker's Docker Command to `/ghanageo-worker`, or
-- **Blueprint:** deploy `render.yaml` as a Blueprint instance, which sets
-  `dockerCommand` and wires `REDIS_URL` from the Key Value automatically.
+A fifth affected only the worker: the image `ENTRYPOINT` is `/ghanageo-api`, and
+the Render CLI cannot set `dockerCommand` for a Docker-runtime service, so a
+CLI-created worker ran the API binary and died on an API-only check. It is set
+via the REST API (`PATCH /v1/services/{id}`) or the dashboard. Confirm the fix
+in the logs: the worker must report `"service":"ghanageo-worker"`.
 
 ## Known deviations from `render.yaml`
 
-The CLI cannot express everything the blueprint does. These were accepted to get
-the services created, and should be reconciled before the API is called stable:
+Still true, and worth closing before this is called stable:
 
-- **No persistent disk.** `render.yaml` mounts a 10GB disk at `/var/lib/ghanageo`
-  for dataset exports; the CLI has no disk flag, so `API_EXPORT_DIR` is
-  `/tmp/ghanageo/exports` and exports do not survive a restart.
-- **Typesense stores its index in `/tmp`.** The image creates neither
-  `/data` nor a nested path, and an image-runtime service cannot run `mkdir`, so
-  `/tmp` is the only directory guaranteed to exist. The index is therefore
-  rebuilt on restart rather than persisted. Give it a disk before relying on it.
-- **Typesense is not in `render.yaml`.** It was added as a self-hosted private
-  service instead of a managed Typesense Cloud cluster. Add it to the blueprint
-  so the topology stays reproducible.
-- **Auto-deploy is off** on both services, so a push does not redeploy them yet.
+- **No persistent disk.** `render.yaml` mounts 10GB at `/var/lib/ghanageo` for
+  dataset exports; `API_EXPORT_DIR` is `/tmp/ghanageo/exports`, so exports do
+  not survive a restart.
+- **Typesense stores its index in `/tmp`.** The image ships no `/data`
+  directory and an image-runtime service cannot run `mkdir`, so `/tmp` is the
+  only guaranteed-writable path. The index is lost on restart and must be
+  rebuilt with the reindex job above. Give it a disk before relying on it.
+- **Typesense is not in `render.yaml`.** It is a self-hosted private service
+  rather than a managed cluster. Add it to the blueprint so the topology stays
+  reproducible.
+- **Auto-deploy is off** on the API and worker, so a push does not redeploy
+  them. `render.yaml` uses `autoDeployTrigger: checksPass`, and the repository's
+  SDK conformance checks are currently red.
 - Observability and alerting (`OTEL_EXPORTER_OTLP_*`, `SENTRY_DSN`,
-  `SECURITY_ALERT_WEBHOOK_*`) and `API_TRUSTED_PROXY_CIDRS` are unset.
+  `SECURITY_ALERT_WEBHOOK_*`) remain unset.
 
-## DNS
+## Rollback
 
-`api-geo.digitalghana.dev` is **not** pointed at Render. Leave it that way until
-the API answers `/health` on `https://ghanageo-api.onrender.com`; pointing the
-canonical hostname at a failing service is worse than leaving it unresolved.
-When ready, add the custom domain on the Render service and set the CNAME in
-Vercel DNS, matching how `api-gov` and `api-calendar` are already wired.
-
-## Verifying when unblocked
-
-```sh
-curl -s https://ghanageo-api.onrender.com/health
-```
-
-Then run the preflight, which enumerates every remaining production value:
-
-```sh
-ruby scripts/production-preflight.rb \
-  --env ghanageo-api=.env.production \
-  --env ghanageo-worker=.env.production
-```
+Render keeps prior deploys. Roll back by redeploying the previous live deploy ID
+for the affected service; the canonical domain follows automatically. A rollback
+does not touch MongoDB, so no data migration is involved. If a rollback changes
+the dataset version, rerun the reindex job so Typesense matches Mongo.

@@ -24,10 +24,10 @@ State measured against the public hostnames on **2026-09-12**. Nothing in this t
 | Interactive sandbox | [sandbox-geo.digitalghana.dev](https://sandbox-geo.digitalghana.dev) | live |
 | Developer console | [console-geo.digitalghana.dev](https://console-geo.digitalghana.dev) | live |
 | Admin and data-steward portal | [admin-geo.digitalghana.dev](https://admin-geo.digitalghana.dev) | live |
-| Public REST/GraphQL API | `api-geo.digitalghana.dev` | **not deployed** |
+| Public REST/GraphQL API | [api-geo.digitalghana.dev](https://api-geo.digitalghana.dev/health) | live |
 | Native gRPC | `grpc-geo.digitalghana.dev` | **not deployed** |
 
-**Be clear about what that means.** The four Next.js frontends are deployed, on canonical hosts, behind a valid certificate. The API is not. It is blocked on production provider values — the Render preflight still reports 14 missing API/worker settings, and production Redis and Typesense (or Atlas Search) have not been provisioned — not on missing code. Current deployment state, the two remaining blockers and the exact steps to finish are in [`docs/runbooks/api-production-deployment.md`](docs/runbooks/api-production-deployment.md). Earlier evidence: [`docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md`](docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md).
+**The API went live on 2026-09-12.** All four Next.js frontends and the public REST/GraphQL API are deployed on canonical hosts behind valid certificates. Native gRPC on `grpc-geo.digitalghana.dev` is still not deployed. The deployed topology, the defects that had to be fixed to get there, and the remaining deviations from `render.yaml` — no persistent disk, a Typesense index in `/tmp`, auto-deploy off — are recorded in [`docs/runbooks/api-production-deployment.md`](docs/runbooks/api-production-deployment.md). Earlier evidence: [`docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md`](docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md).
 
 You can verify both statements yourself:
 
@@ -35,11 +35,11 @@ You can verify both statements yourself:
 curl -s -o /dev/null -w '%{http_code}\n' https://geo.digitalghana.dev
 # 200
 
-curl -s -o /dev/null -w '%{http_code}\n' https://api-geo.digitalghana.dev/health
-# 404 — the API host is not serving an application yet
+curl -s https://api-geo.digitalghana.dev/health
+# {"datasetVersion":"2026.08.3-ulid","status":"ok"}
 ```
 
-Until it is deployed, the working API is the local one, and it is four commands away — see [Quickstart](#quickstart). When the API does land on Render's container tier, the first request after an idle period will take 30–60 seconds to wake the instance; the second is fast.
+The API runs on Render's container tier, so the first request after an idle period takes 30–60 seconds to wake the instance; the second is fast. A full local stack is still four commands away — see [Quickstart](#quickstart).
 
 ---
 
@@ -277,7 +277,7 @@ CI runs the same commands. [`.github/workflows/quality.yml`](.github/workflows/q
 
 ## Status and roadmap
 
-**Lifecycle: externally blocked.** V1 implementation and local verification are substantially complete and the four frontends are live in production. The public API is not deployed, and that is the single blocking item — it needs production Redis, Typesense (or Atlas Search) and the remaining provider values, all of which are external state rather than engineering work.
+**Lifecycle: beta.** V1 implementation and local verification are substantially complete, the four frontends are live, and the public REST/GraphQL API went live on 2026-09-12 backed by MongoDB Atlas, Render Key Value and a self-hosted Typesense node. Stable is not claimed: the SDK release-conformance matrix in CI is red, Typesense and dataset exports have no persistent disk, and observability and alerting are unset.
 
 [`ROADMAP.md`](ROADMAP.md) sets out what has shipped, the open gates with their blocking dependencies, deferred scope and what is explicitly out of scope. It is directional, not a commitment; the machine-readable state lives in [`agent_plan.md`](agent_plan.md).
 
