@@ -1,0 +1,30 @@
+name: Proposal
+description: Suggest a change to scope, contracts, or behaviour.
+labels: ["proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check `ROADMAP.md` and the product boundary in `docs/` first. Some
+        things are deliberately out of scope, and a proposal that crosses a
+        published boundary will be declined however good the implementation is.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you unable to do today? Describe the situation, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Why this is inside the product boundary
+      description: Reference the ADR or product definition this stays within.
+    validations:
+      required: true

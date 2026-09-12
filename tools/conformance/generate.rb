@@ -29,7 +29,9 @@ end.parse!
 # The checked-in OpenAPI contract is trusted repository input and uses YAML
 # anchors to keep repeated response maps identical. Psych disables aliases by
 # default, so allow them explicitly while retaining safe_load's class limits.
-openapi = YAML.safe_load(File.read(OPENAPI_PATH), [], [], true)
+# Use keyword arguments: Psych 4 (Ruby 3.1+) removed the positional form, and
+# the keyword form has been supported since Psych 3.1, so this works on both.
+openapi = YAML.safe_load(File.read(OPENAPI_PATH), permitted_classes: [], permitted_symbols: [], aliases: true)
 rpc_names = File.read(PROTO_PATH).scan(/^\s*rpc\s+(\w+)\s*\(/).flatten
 abort "duplicate protobuf RPC names are ambiguous" unless rpc_names.uniq.length == rpc_names.length
 graphql_fields = {}

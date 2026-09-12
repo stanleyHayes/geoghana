@@ -1,0 +1,34 @@
+name: Bug report
+description: Something behaves differently from what the contract or documentation says.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, personal data, or exploit details. For a security
+        issue use the private channel in `SECURITY.md` instead of a public issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you observe, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Exact request, command, or steps. A `curl` line is ideal.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Dataset or release version
+      description: "The `version` or `datasetVersion` from `/health`, or the package version."
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Environment, timing, or whether the first request was a cold start.

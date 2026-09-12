@@ -1,0 +1,57 @@
+name: Data correction
+description: A published record is wrong, stale, or missing evidence.
+labels: ["data-correction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Corrections need evidence. A correction without an authoritative source cannot
+        be published, however obviously right it looks. Automation may draft a
+        correction, but a human reviewer approves anything that becomes canonical.
+  - type: input
+    id: identifier
+    attributes:
+      label: Stable identifier
+      description: The `id` of the affected record.
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current value
+      description: What the record says today, copied exactly.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed value
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Authoritative source
+      description: A link to the publishing authority's own page or document.
+    validations:
+      required: true
+  - type: input
+    id: source-date
+    attributes:
+      label: Source publication date
+      description: When the authority published this, not when you found it.
+    validations:
+      required: true
+  - type: dropdown
+    id: historical
+    attributes:
+      label: Does this change historical answers?
+      description: >-
+        A name or rule that changed on a date should apply from that date forward.
+        Rewriting history silently breaks anyone who relied on a past answer.
+      options:
+        - "No - corrects a record that was always wrong"
+        - "Yes - reflects a change effective from a date"
+        - "Not sure"
+    validations:
+      required: true

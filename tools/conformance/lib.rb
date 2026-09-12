@@ -115,7 +115,7 @@ module GhanaGeo
     module_function
 
     def load_yaml(path)
-      YAML.safe_load(File.read(path), [], [], false)
+      YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
     rescue Psych::Exception => error
       raise ValidationError, "#{relative(path)} is not valid YAML: #{error.message}"
     end
