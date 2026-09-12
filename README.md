@@ -27,7 +27,7 @@ State measured against the public hostnames on **2026-09-12**. Nothing in this t
 | Public REST/GraphQL API | `api-geo.digitalghana.dev` | **not deployed** |
 | Native gRPC | `grpc-geo.digitalghana.dev` | **not deployed** |
 
-**Be clear about what that means.** The four Next.js frontends are deployed, on canonical hosts, behind a valid certificate. The API is not. It is blocked on production provider values — the Render preflight still reports 14 missing API/worker settings, and production Redis and Typesense (or Atlas Search) have not been provisioned — not on missing code. Evidence: [`docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md`](docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md).
+**Be clear about what that means.** The four Next.js frontends are deployed, on canonical hosts, behind a valid certificate. The API is not. It is blocked on production provider values — the Render preflight still reports 14 missing API/worker settings, and production Redis and Typesense (or Atlas Search) have not been provisioned — not on missing code. Current deployment state, the two remaining blockers and the exact steps to finish are in [`docs/runbooks/api-production-deployment.md`](docs/runbooks/api-production-deployment.md). Earlier evidence: [`docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md`](docs/runbooks/evidence/digitalghana-launch-reconciliation-2026-09-01.md).
 
 You can verify both statements yourself:
 
