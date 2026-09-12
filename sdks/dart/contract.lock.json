@@ -1,7 +1,7 @@
 {
   "openapi": {
     "path": "contracts/openapi/v1.yaml",
-    "sha256": "0fea9c63a7e2fa64b2bb250acada7540f3b1797652ae8b28f0e6f95311ec0963"
+    "sha256": "383f6be51df0c42ecf81043c78c7807fcf7dc5ddc72f71a6531a3f5b07198b63"
   },
   "protobuf": {
     "path": "proto/ghanageo/v1/geography.proto",
